@@ -1,11 +1,11 @@
 {
-  "name": "DeepSeek Harness",
-  "short_name": "DSH",
+  "name": "Nexus Superharness",
+  "short_name": "Nexus",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#EDEFF3",
+  "theme_color": "#EDEFF3",
   "icons": [
     {
       "src": "icon-192.png",

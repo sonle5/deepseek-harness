@@ -57,7 +57,7 @@ root 作用域的 `sidebar.session.action` 是包裹新建会话行内容的 HOC
 
 ### macOS 桌面
 
-在 `html[data-platform='darwin']`（仅由桌面 preload 设置）下，展开的侧边栏列顶部有一条 52px 的顶部条：避开 hiddenInset 红绿灯并承载收起按钮；顶部条与其下的 logo 行各自打上 `data-window-drag`，于是每行自己的盒子就是窗口的拖拽区（唯一的 darwin drag 规则由 ui-web base.css 声明），因此品牌 wordmark 在 macOS 上不再是 New Session 快捷入口——专用的 New Session 按钮保留该操作；收起时整列隐藏而非保留轨道。本包向框架的 `shell.leading` 窗口 chrome 座（ui-layout）注册 `HeaderLeadingControls`——打开侧边栏与 New Session 两个控件，由框架仅在列隐藏时挂载于红绿灯旁，覆盖所有主面板。[Desktop 参考](../../../apps/desktop/README.zh.md)负责窗口集成。
+在 `html[data-platform='darwin']`（仅由桌面 preload 设置）下，展开的侧边栏列顶部使用 72px chrome 区域。红绿灯位于顶部安全带；14px 中等字重的产品名称、22px 标记和收起控件位于第二行，并与下方导航标签左对齐。行上打有 `data-window-drag`，因此其盒子是窗口的拖拽区（唯一的 darwin drag 规则由 ui-web base.css 声明），控件则减去自身的交互盒。品牌 wordmark 在 macOS 上不再是 New Session 快捷入口——专用的 New Session 按钮保留该操作；收起时整列隐藏而非保留轨道。本包向框架的 `shell.leading` 窗口 chrome 座（ui-layout）注册 `HeaderLeadingControls`——打开侧边栏与 New Session 两个控件，由框架仅在列隐藏时挂载于红绿灯旁，覆盖所有主面板。[Desktop 参考](../../../apps/desktop/README.zh.md)负责窗口集成。
 
 ### 滚动条
 
@@ -82,7 +82,7 @@ root 作用域的 `sidebar.session.action` 是包裹新建会话行内容的 HOC
 
 外壳是纯组合：`SidebarRootComponentProps` 组合布局 owner share、全局 `useSessions` 与 `useWorkspaces` 钩子、已声明的品牌、`sidebar.workspaces` 与 `sidebar.settings` 子 slot，以及注入的导航回调。侧边栏声明 `sidebar.panel.icon` Component Factory，由它拥有 `sidebar.panellist` list；面板行和更多菜单都通过该 factory 渲染面板注册的图标。面板元数据由列表注册和 locale 变化派生；选中态属于布局存储。注入的 `trackEntryClick(attributes)` 转发到 `ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes)`；`selectPanel` 只负责选中，因此由各控件自行提供入口与位置。
 
-展开态导航的左右外距为 8px，悬停与选中底色在两侧各内缩 3px，前置单元宽 16px，与标签间隔 6px。新会话内容居中，所在行保留 4px 左右外边距及 6px 底部外边距。导航额外保留滚动区外的 4px 与滚动区内、随内容滚走的 8px 间距。logo 行无底部外边距；内容从侧栏左边缘向内 16px 开始，标记与名称间隔 5px。仅 macOS 非全屏、侧栏展开时，顶部开关向右偏移 4px，并在整个淡出期间保持该偏移。折叠态尺寸独立保留。
+展开态导航的左右外距为 8px，悬停与选中底色在两侧各内缩 3px，前置单元宽 16px，与标签间隔 6px。新会话是左对齐、静止时无底板的 34px 导航行，所在行保留 4px 左右外边距及 6px 底部外边距。导航额外保留滚动区外的 4px 与滚动区内、随内容滚走的 8px 间距。macOS 上红绿灯占用独立顶部带；logo 与收起控件共享下方 20px 行，采用 8px 导航内距、22px 标记和 4px 控件间隔。wordmark 会在进入开关前以省略号截断。全屏时移除红绿灯带并恢复紧凑的 64px 行。折叠态尺寸独立保留。
 
 展开态的面板导航与 `sidebar.workspaces` 区块共用一个仅纵向滚动的视口，位于固定的品牌和新会话控件下方；底部操作与设置位于视口之外。横向溢出被裁切，工具栏边缘偏移不会产生横向滚动条。视口隐藏自身滚动条，只负责把导航滚走：区块最高为一个视口，在自己的滚动容器中滚动列表行，并由该容器绘制唯一可见的滚动条；区块放得下时，视口没有可滚动的距离。展开时视口带有 `data-sidebar-scrollport`，这是供测试和集成方定位的稳定标记。外壳负责底部渐隐。
 

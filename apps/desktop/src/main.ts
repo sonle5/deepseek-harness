@@ -71,6 +71,7 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -80,6 +81,14 @@ let shuttingDown = false
  * development restart command. The installer handoff has its own before-quit branch.
  */
 let skipQuitConfirmation = false
+app.setName(PRODUCT_IDENTITY.productName)
+if (app.isPackaged) {
+  const appData = app.getPath('appData')
+  if (typeof appData === 'string') {
+    // Keep the established Desktop settings and plugin-operation state across the product rename.
+    app.setPath('userData', join(appData, PRODUCT_IDENTITY.legacyUserDataDirectory))
+  }
+}
 let windowsLanguage: string | undefined = readDesktopLocaleCache(app.getPath('userData'))
 /**
  * Whether the backend has reached ready: false until the first ready, back to
@@ -1158,11 +1167,11 @@ async function main(): Promise<void> {
   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: PRODUCT_IDENTITY.productName,
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
-    copyright: '',
+    copyright: PRODUCT_IDENTITY.copyright,
     iconPath: applicationIconPath,
   })
   // A custom application menu replaces Electron's default menu, so macOS needs
@@ -1200,32 +1209,34 @@ async function main(): Promise<void> {
       { role: 'hideOthers', label: currentDesktopLocale().messages.hideOtherApplications },
       { role: 'unhide', label: currentDesktopLocale().messages.showAllApplications }, { type: 'separator' }]
     : []
-  const applicationItems = (): MenuItemConstructorOptions[] => [
-    // Windows has no system About panel; Electron's fallback is a plain
-    // message box, so the shell shows its own dimmed dialog instead.
-    process.platform === 'win32'
-      ? { label: currentDesktopLocale().messages.aboutMenu,
-        click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
-      : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
-    { type: 'separator' },
-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
-    ...process.platform === 'darwin' || process.platform === 'win32'
-      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
-    { type: 'separator' },
-    ...development ? [
-      { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
-      { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
-        if (quitting) return
-        app.relaunch()
-        quitWithoutConfirmation()
-      } },
-    ] : [],
-    { role: 'toggleDevTools', label: currentDesktopLocale().messages.toggleDevToolsMenu },
-    { type: 'separator' },
-    ...hideCommands,
-    { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
-      : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
-  ]
+  const applicationItems = (): MenuItemConstructorOptions[] => {
+    const productActions: MenuItemConstructorOptions[] = process.platform === 'darwin' || process.platform === 'win32'
+      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }]
+      : []
+    return [
+      // Windows has no system About panel; Electron's fallback is a plain
+      // message box, so the shell shows its own dimmed dialog instead.
+      process.platform === 'win32'
+        ? { label: currentDesktopLocale().messages.aboutMenu,
+          click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
+        : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
+      ...productActions.length === 0 ? [] : [{ type: 'separator' as const }, ...productActions],
+      { type: 'separator' },
+      ...development ? [
+        { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
+        { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
+          if (quitting) return
+          app.relaunch()
+          quitWithoutConfirmation()
+        } },
+      ] : [],
+      { role: 'toggleDevTools', label: currentDesktopLocale().messages.toggleDevToolsMenu },
+      { type: 'separator' },
+      ...hideCommands,
+      { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
+        : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
+    ]
+  }
   const devToolsF12Shortcut: MenuItemConstructorOptions = { role: 'toggleDevTools', visible: false, accelerator: 'F12' }
   const windowsDevToolsShortcuts: MenuItemConstructorOptions[] = [
     { role: 'toggleDevTools', visible: false },
@@ -1485,10 +1496,18 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') {
+    app.setAsDefaultProtocolClient(PRODUCT_IDENTITY.protocol)
+    // Existing sign-in and launch links still use dsh://open.
+    app.setAsDefaultProtocolClient('dsh')
+  }
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    const parsed = URL.parse(url)
+    if (parsed !== null
+      && (parsed.protocol === `${PRODUCT_IDENTITY.protocol}:` || parsed.protocol === 'dsh:')
+      && parsed.hostname === 'open'
+      && (parsed.pathname === '' || parsed.pathname === '/')) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {

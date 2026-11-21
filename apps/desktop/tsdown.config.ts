@@ -21,6 +21,14 @@ const mainProcessImports = { packages: new Set(['electron', ...Object.keys(manif
 const preloadImports = { packages: new Set(['electron', 'events', 'timers', 'url']), nodeBuiltins: false }
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+const productIdentityPlugin = {
+  name: 'desktop-product-identity',
+  resolveId(source: string) {
+    if (source === '../product-identity.mjs') {
+      return fileURLToPath(new URL('./product-identity.mjs', import.meta.url))
+    }
+  },
+}
 
 /** Use the client environment this build already received, otherwise the repository's own version and commit. */
 const clientEnvironment = resolveClientBuildEnvironment(process.env.DSH_CLIENT_VERSION === undefined
@@ -55,7 +63,7 @@ export default defineConfig([
   },
   {
     entry: ['lib/types/main.js'],
-    plugins: [packagedImportsPlugin(mainProcessImports)],
+    plugins: [productIdentityPlugin, packagedImportsPlugin(mainProcessImports)],
     define: clientVersionDefine,
     onSuccess: async () => {
       await build({
@@ -63,7 +71,14 @@ export default defineConfig([
         plugins: [{
           name: 'desktop-shell-assets',
           async generateBundle() {
-            for (const name of ['design-platform.css', 'brand-font.css', 'montserrat-regular.woff2', 'montserrat-light.woff2', 'montserrat-medium.woff2', 'Montserrat-OFL.txt']) {
+            for (const name of [
+              'design-platform.css', 'brand-font.css',
+              'space-grotesk-latin.woff2', 'space-grotesk-latin-ext.woff2', 'space-grotesk-vietnamese.woff2',
+              'ibm-plex-serif-latin-400.woff2', 'ibm-plex-serif-latin-600.woff2', 'ibm-plex-serif-latin-700.woff2',
+              'ibm-plex-serif-latin-ext-400.woff2', 'ibm-plex-serif-latin-ext-600.woff2', 'ibm-plex-serif-latin-ext-700.woff2',
+              'ibm-plex-serif-vietnamese-400.woff2', 'ibm-plex-serif-vietnamese-600.woff2',
+              'ibm-plex-serif-vietnamese-700.woff2', 'Space-Grotesk-OFL.txt', 'IBM-Plex-Serif-OFL.txt',
+            ]) {
               this.emitFile({
                 type: 'asset',
                 fileName: name,

@@ -33,4 +33,10 @@ describe('conversation width handle styles', () => {
     expect(rule(conversationCss, '.widthHandle')).toMatch(/z-index:\s*0;/)
     expect(conversationCss).not.toMatch(/\.widthHandle\[[^\]]*\][^{]*\{[^}]*z-index/s)
   })
+
+  it('removes only the right handle beneath a floating Session panel', () => {
+    expect(conversationCss).toMatch(
+      /\.root:has\(\[data-session-panel='overlay'\]\) \.widthHandle\[data-side='right'\]\s*\{\s*display:\s*none;\s*\}/s,
+    )
+  })
 })

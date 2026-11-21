@@ -5,7 +5,7 @@ export interface DesktopElectronBuilderConfig {
   readonly appId: string
   readonly copyright: string
   readonly artifactName: string
-  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
+  readonly protocols: readonly [{ readonly name: 'Nexus Superharness'; readonly schemes: readonly ['nexus-superharness', 'dsh'] }]
   readonly directories: {
     readonly output: string
   }
@@ -37,6 +37,13 @@ export interface DesktopElectronBuilderConfig {
     readonly format: 'ULMO'
     readonly sign: boolean
     readonly writeUpdateInfo: boolean
+    readonly background: string
+    readonly iconSize: number
+    readonly window: { readonly width: number; readonly height: number }
+    readonly contents: readonly [
+      { readonly x: number; readonly y: number; readonly type: 'file' },
+      { readonly x: number; readonly y: number; readonly type: 'link'; readonly path: string },
+    ]
   }
   readonly win: {
     readonly forceCodeSigning: boolean

@@ -290,10 +290,9 @@ export function SidebarRoot({
       onPointerMove={trackPointer}
       onPointerLeave={() => { setPointerInside(false) }}
     >
-      {/* macOS hiddenInset titlebar: the strip shares the row with the
-          traffic lights and keeps the toggle at the sidebar's top-right. */}
-      {darwinDesktop && <div className={css.topStrip} data-window-drag>{toggle}</div>}
-      <div className={css.logoRow} data-window-drag>
+      {/* macOS hiddenInset titlebar: one drag row carries both the brand and
+          the toggle, with the Darwin inset clearing the traffic lights. */}
+      <div className={clsx(css.logoRow, darwinDesktop && css.darwinLogoRow)} data-window-drag>
         {/* Expanded, the brand doubles as a New Session shortcut while the
             access snapshot allows `session/create` — except on
             macOS, where it stays part of the logo row's window-drag surface
@@ -304,10 +303,10 @@ export function SidebarRoot({
           const identity = (
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, {
+                {renderSlot('sidebar.brand.mark', { size: 22 }, {
                   fallback: buildVersion === undefined
-                    ? <FishLogo size={24} />
-                    : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={24} /></span>,
+                    ? <FishLogo size={22} />
+                    : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={22} /></span>,
                 })}
               </span>
               <span className={css.brandName}>
@@ -341,7 +340,7 @@ export function SidebarRoot({
               </button>
             )
         })()}
-        {!darwinDesktop && toggle}
+        {toggle}
       </div>
 
       {/* The label fades before the hover/focus shortcut, including on translucent backgrounds. */}

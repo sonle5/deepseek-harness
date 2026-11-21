@@ -82,11 +82,8 @@
   min-height: 0;
 }
 
-/* macOS desktop: the frame goes transparent so window vibrancy reaches the
-   sidebar column, which keeps only a translucent tint; the centre paints the
-   base background itself to stay opaque. The sidebar/centre separator moves
-   to the opaque centre: on the translucent sidebar the alpha border mixes
-   with the wallpaper and reads as a dark seam. */
+/* macOS desktop: paint the Composer slate chrome as one opaque sidebar
+   surface and keep the working pane on the raised panel tone. */
 :global([data-platform='darwin']) .frame {
   background: transparent;
 }
@@ -121,33 +118,12 @@
 }
 
 :global([data-platform='darwin']) .frame:not([data-sidebar-drawer]) .sidebarCol {
-  /* A blue wash over the top of the translucent tint, gone by a third of the
-     column, and a faint blue-grey-violet rising through the bottom third.
-     Every layer stays transparent so vibrancy shows; ui-theme sets each
-     palette's wash strength and tint. */
-  background:
-    linear-gradient(
-      to bottom,
-      var(--dsw-specific-sidebar-wash-top),
-      var(--dsw-specific-sidebar-wash-top-clear) 35%,
-      var(--dsw-specific-sidebar-wash-bottom-clear) 68%,
-      var(--dsw-specific-sidebar-wash-bottom)
-    ),
-    var(--dsw-specific-sidebar-tint);
+  background: var(--dsw-specific-sidebar-fill);
   border-right: none;
 }
 
-/* macOS Reduce Transparency: the OS flattens the window's vibrancy layer to a
-   solid grey, so the thin tint and washes read washed-out over it. Replace
-   them with a 90%-opaque fill of the same token in both themes. */
-@media (prefers-reduced-transparency: reduce) {
-  :global([data-platform='darwin']) .frame:not([data-sidebar-drawer]) .sidebarCol {
-    background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 90%, transparent);
-  }
-}
-
 :global([data-platform='darwin']) .centerCol {
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsw-alias-bg-layer-1);
   border-left: 0.5px solid var(--dsw-alias-border-l3);
 }
 
@@ -179,7 +155,8 @@
 /* Fullscreen hides the traffic lights (preload mirrors the window state onto
    html[data-fullscreen]): the seat takes their band and the clearance keeps
    only the controls (12 + 28 + 8 + 28 + 8). The 12px start matches the
-   expanded sidebar strip's inline padding (ui-sidebar .topStrip), so
+   expanded sidebar title row's fullscreen control inset (ui-sidebar
+   .darwinLogoRow), so
    collapsing never shifts the toggle. */
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-collapsed] {
   --dsh-frame-leading-clearance: 84px;

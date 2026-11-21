@@ -144,9 +144,9 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
                   aria-hidden="true"
                   data-content="965fe321"
                   fill="none"
-                  height="17.6580310880829"
+                  height="16.186528497409327"
                   viewBox="0 0 23.16 17.04"
-                  width="24"
+                  width="22"
                 />
               </span>
             </div>
@@ -165,7 +165,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"
@@ -435,9 +435,9 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
                   aria-hidden="true"
                   data-content="965fe321"
                   fill="none"
-                  height="17.6580310880829"
+                  height="16.186528497409327"
                   viewBox="0 0 23.16 17.04"
-                  width="24"
+                  width="22"
                 />
               </span>
             </div>
@@ -456,7 +456,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"
@@ -601,9 +601,9 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                   aria-hidden="true"
                   data-content="965fe321"
                   fill="none"
-                  height="17.6580310880829"
+                  height="16.186528497409327"
                   viewBox="0 0 23.16 17.04"
-                  width="24"
+                  width="22"
                 />
               </span>
             </div>
@@ -622,7 +622,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                 <span
                   class="localBuildTitle"
                 >
-                  DSH 本地构建
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"

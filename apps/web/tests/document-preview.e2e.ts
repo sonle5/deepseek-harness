@@ -1105,6 +1105,8 @@ else process.exit(1);
     await page.getByRole('menuitem', { name: 'Fit width', exact: true }).click()
     await expect.poll(() => imageZoom.innerText()).toBe('100%')
 
+    await page.getByRole('tab', { name: /Chat/ }).click()
+    await input.waitFor({ state: 'visible' })
     await tinyImage.dragTo(input)
     const draggedPreview = page.getByRole('group', { name: 'Pending attachments', exact: true }).getByRole('img')
     await draggedPreview.waitFor({ state: 'visible', timeout: 5000 })
@@ -1311,7 +1313,7 @@ else process.exit(1);
     ].join('\n'))
 
     const officeMenus: number[] = []
-    const configurationGuide = 'Read failed: Office previews are unavailable. Enable the document preview service on the computer running DeepSeek Harness.'
+    const configurationGuide = 'Read failed: Office previews are unavailable. Enable the document preview service on the computer running Nexus Superharness.'
     for (const extension of ['doc', 'docx', 'ppt', 'pptx']) {
       await openFile(`unavailable.${extension}`)
       expect(await preview.locator('[data-document-viewer-menu]').count()).toBe(0)

@@ -2,6 +2,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { resolveDesktopLocale } from '../src/locale.ts'
 import { DesktopTray } from '../src/tray.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const native = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')
@@ -43,8 +44,10 @@ it('shows the application icon with its name as the tooltip and an Open / Quit m
   const f = setup()
   expect(native.createFromPath).toHaveBeenCalledWith('C:/app/resources/tray.ico')
   expect(f.native.image).toEqual({ path: 'C:/app/resources/tray.ico' })
-  expect(f.native.setToolTip).toHaveBeenCalledWith('DeepSeek Harness')
-  expect(labels(native.menus[0]!)).toEqual(['Open DeepSeek Harness', 'separator', 'Quit DeepSeek Harness'])
+  expect(f.native.setToolTip).toHaveBeenCalledWith(PRODUCT_IDENTITY.productName)
+  expect(labels(native.menus[0]!)).toEqual([
+    `Open ${PRODUCT_IDENTITY.productName}`, 'separator', `Quit ${PRODUCT_IDENTITY.productName}`,
+  ])
   expect(f.native.setContextMenu).toHaveBeenCalledWith({ template: native.menus[0] })
 })
 
@@ -63,7 +66,9 @@ it('relabels the menu in the current locale and ignores relabel after disposal',
   const f = setup()
   f.setLocale('zh')
   f.tray.relabel()
-  expect(labels(native.menus[1]!)).toEqual(['打开 DeepSeek Harness', 'separator', '退出 DeepSeek Harness'])
+  expect(labels(native.menus[1]!)).toEqual([
+    `打开 ${PRODUCT_IDENTITY.productName}`, 'separator', `退出 ${PRODUCT_IDENTITY.productName}`,
+  ])
   f.tray.dispose()
   f.tray.dispose()
   expect(f.native.destroy).toHaveBeenCalledOnce()

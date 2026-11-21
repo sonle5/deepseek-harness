@@ -32,9 +32,8 @@
 }
 
 /* One 38px row flush under the pane's strip: the path, then the type's
-   controls at its end. With the strip's 38px above, its rule lies where the
-   conversation header's does (ui-conversation ConversationRoot `.header`,
-   76px with the same rule), so the two lines meet at the column edge.
+   controls at its end. It remains independent from the conversation's 64px
+   header because the right pane can be docked below additional tab chrome.
 
    The same row, path, and controls are drawn by the files tab
    (ui-sidebar-files FilesBody `.header`); TODO: once the artifact and slot

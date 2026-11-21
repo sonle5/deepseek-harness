@@ -38,9 +38,10 @@
   row-gap: 12px;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 32px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -61,17 +62,18 @@
 
 .previewBadge {
   align-self: flex-start;
-  margin-top: 2px;
+  margin-top: 3px;
   padding: 1px 7px 0;
-  border: 0.5px solid var(--dsw-alias-interactive-bg-hover);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-label-primary-bluish);
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
   font-family: var(--ds-font-family-code);
-  font-size: 12px;
+  font-size: 10px;
   line-height: 18px;
   font-weight: 500;
+  letter-spacing: 0.035em;
   white-space: nowrap;
 }
 

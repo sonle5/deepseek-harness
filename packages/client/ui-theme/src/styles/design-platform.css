@@ -37,6 +37,26 @@ body {
   --dsw-static-green-500-a08: rgb(34 197 94 / 8%);
   --dsw-static-green-500-a12: rgb(34 197 94 / 12%);
   --dsw-static-green-900: rgb(35, 60, 44);
+  --dsw-static-composer-ground: rgb(237 239 243);
+  --dsw-static-composer-panel: rgb(250 251 252);
+  --dsw-static-composer-sidebar: rgb(228 231 236);
+  --dsw-static-composer-sidebar-active: rgb(211 216 225);
+  --dsw-static-composer-ink: rgb(21 23 28);
+  --dsw-static-composer-secondary: rgb(90 94 103);
+  --dsw-static-composer-tertiary: rgb(98 104 114);
+  --dsw-static-composer-border: rgb(189 194 203);
+  --dsw-static-composer-dark-ground: rgb(18 20 24);
+  --dsw-static-composer-dark-panel: rgb(26 29 34);
+  --dsw-static-composer-dark-raised: rgb(34 38 44);
+  --dsw-static-composer-dark-sidebar: rgb(13 15 19);
+  --dsw-static-composer-dark-border: rgb(63 70 80);
+  --dsw-static-nexus-100: rgb(207, 250, 254);
+  --dsw-static-nexus-400: rgb(34, 211, 238);
+  --dsw-static-nexus-500: rgb(8, 145, 178);
+  --dsw-static-nexus-600: rgb(14, 116, 144);
+  --dsw-static-nexus-700: rgb(21, 94, 117);
+  --dsw-static-nexus-800: rgb(22, 78, 99);
+  --dsw-static-nexus-950: rgb(8, 51, 68);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
   --dsw-static-neutral-100: rgb(245, 245, 245);
@@ -123,6 +143,13 @@ body[data-ds-dark-theme] {
   --dsw-static-green-500-a08: rgb(34 197 94 / 8%);
   --dsw-static-green-500-a12: rgb(34 197 94 / 12%);
   --dsw-static-green-900: rgb(35, 60, 44);
+  --dsw-static-nexus-100: rgb(207, 250, 254);
+  --dsw-static-nexus-400: rgb(34, 211, 238);
+  --dsw-static-nexus-500: rgb(8, 145, 178);
+  --dsw-static-nexus-600: rgb(14, 116, 144);
+  --dsw-static-nexus-700: rgb(21, 94, 117);
+  --dsw-static-nexus-800: rgb(22, 78, 99);
+  --dsw-static-nexus-950: rgb(8, 51, 68);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
   --dsw-static-neutral-100: rgb(245, 245, 245);
@@ -174,32 +201,32 @@ body[data-ds-dark-theme] {
 }
 
 body {
-  --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-base: var(--dsw-static-composer-ground);
   --dsw-alias-bg-document-preview: var(--dsw-static-neutral-bluish-100);
   --dsw-alias-bg-document-selection: color-mix(in srgb, var(--dsw-static-blue-500) 40%, transparent);
   --dsw-alias-label-document-preview: var(--dsw-static-neutral-bluish-700);
-  --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
-  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-1: var(--dsw-static-composer-panel);
+  --dsw-alias-bg-layer-2: var(--dsw-static-composer-panel);
   --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
   --dsw-alias-bg-mask-2: rgba(0, 0, 0, 0.12);
   --dsw-alias-bg-mask-3: rgba(0, 0, 0, 0.48);
   --dsw-alias-bg-mask-photo: rgba(0, 0, 0, 0.88);
   --dsw-alias-bg-mask-drop: rgba(255, 255, 255, 0.7);
-  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
-  --dsw-alias-bg-multi-select: var(--dsw-static-neutral-bluish-60);
-  --dsw-alias-bg-overlay: var(--dsw-static-neutral-bluish-150);
+  --dsw-alias-bg-module-platform: var(--dsw-static-composer-sidebar);
+  --dsw-alias-bg-multi-select: var(--dsw-static-composer-sidebar-active);
+  --dsw-alias-bg-overlay: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-bg-skeleton: rgba(0, 0, 0, 0.04);
   --dsw-alias-border-inverted2: rgba(0, 0, 0, 0);
   --dsw-alias-border-inverted: rgba(0, 0, 0, 0);
-  --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
-  --dsw-alias-border-l2-darkmode-thin: rgba(0, 0, 0, 0.1);
-  --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
-  --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
-  --dsw-alias-border-l4: rgba(0, 0, 0, 0.16);
+  --dsw-alias-border-l1: rgba(21, 23, 28, 0.08);
+  --dsw-alias-border-l2-darkmode-thin: rgba(21, 23, 28, 0.12);
+  --dsw-alias-border-l2: rgba(21, 23, 28, 0.2);
+  --dsw-alias-border-l3: rgba(21, 23, 28, 0.28);
+  --dsw-alias-border-l4: rgba(21, 23, 28, 0.36);
   --dsw-alias-border-selected: var(--dsw-static-neutral-bluish-400);
   --dsw-alias-brand-primary-invert: var(--dsw-static-neutral-bluish-1000);
-  --dsw-alias-brand-primary-new-colorprimary-new-color: rgb(65, 118, 230);
+  --dsw-alias-brand-primary-new-colorprimary-new-color: var(--dsw-static-nexus-600);
   --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
   --dsw-alias-brand-text: var(--dsw-static-neutral-bluish-1000);
   --dsw-alias-button-contrast-fill: var(--dsw-static-neutral-bluish-700);
@@ -209,16 +236,16 @@ body {
   --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-500);
   --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-100);
   --dsw-alias-button-ghost-active-hover: var(--dsw-static-neutral-bluish-150);
-  --dsw-alias-button-info-fill: var(--dsw-static-deepseek-500);
-  --dsw-alias-button-info-hover: var(--dsw-static-deepseek-400);
+  --dsw-alias-button-info-fill: var(--dsw-static-nexus-600);
+  --dsw-alias-button-info-hover: var(--dsw-static-nexus-700);
   --dsw-alias-button-primary-dimmed: var(--dsw-static-neutral-bluish-100);
-  --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
-  --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+  --dsw-alias-button-primary-fill: var(--dsw-static-composer-ink);
+  --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-700);
   --dsw-alias-button-tool-bar-fill-invisible: rgba(31, 31, 31, 0.36);
   --dsw-alias-button-tool-bar-fill: rgba(84, 85, 87, 0.5);
   --dsw-alias-button-tool-bar-hover: rgba(84, 85, 87, 0.6);
-  --dsw-alias-card-fill: var(--dsw-static-neutral-50);
-  --dsw-alias-card-fill-hover: var(--dsw-static-neutral-100);
+  --dsw-alias-card-fill: var(--dsw-static-composer-panel);
+  --dsw-alias-card-fill-hover: var(--dsw-static-neutral-bluish-75);
   --dsw-alias-card-tile-fill: color-mix(in srgb, var(--dsw-static-neutral-00) 50%, transparent);
   --dsw-alias-chart-messages: var(--dsw-static-blue-450);
   --dsw-alias-chart-system: var(--dsw-static-neutral-bluish-400);
@@ -239,7 +266,7 @@ body {
   --dsw-alias-interactive-bg-hover-accent: rgba(38, 49, 72, 0.14);
   --dsw-alias-interactive-bg-hover-danger: rgba(236, 19, 19, 0.05);
   --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-75);
-  --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+  --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.09);
   --dsw-alias-json-tree-hover: rgb(60 64 67 / 4%);
   --dsw-alias-json-tree-icon: #5f6368;
   --dsw-alias-json-tree-keyword: #1c00cf;
@@ -247,7 +274,7 @@ body {
   --dsw-alias-json-tree-property: #881391;
   --dsw-alias-json-tree-punctuation: #202124;
   --dsw-alias-json-tree-string: #c41a16;
-  --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-label-caption: var(--dsw-static-composer-tertiary);
   --dsw-alias-label-deep-diving: color-mix(in srgb, var(--dsw-static-deepseek-500) 70%, var(--dsw-static-blue-950));
   --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--dsw-static-deepseek-500) 30%, var(--dsw-static-blue-950));
   --dsw-alias-label-dimmed: var(--dsw-static-neutral-bluish-200);
@@ -256,12 +283,12 @@ body {
   --dsw-alias-label-primary-dimmed: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-00);
-  --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
-  --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+  --dsw-alias-label-primary: var(--dsw-static-composer-ink);
+  --dsw-alias-label-secondary: var(--dsw-static-composer-secondary);
   --dsw-alias-label-shimmer: color-mix(in srgb, var(--dsw-static-neutral-1000) 30%, transparent);
-  --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+  --dsw-alias-label-tertiary: var(--dsw-static-composer-tertiary);
   --dsw-alias-menu-icon: var(--dsw-static-neutral-bluish-800);
-  --dsw-alias-link: var(--dsw-static-deepseek-500);
+  --dsw-alias-link: var(--dsw-static-nexus-600);
   --dsw-alias-markdown-citation: var(--dsw-static-neutral-bluish-100);
   --dsw-alias-markdown-code-block-banner: var(--dsw-static-neutral-bluish-50);
   --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-50);
@@ -274,8 +301,8 @@ body {
   --dsw-alias-scrollbar-bg-l2: var(--dsw-static-neutral-200);
   --dsw-alias-scrollbar-hover-l1: var(--dsw-static-neutral-300);
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-300);
-  --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
-  --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+  --dsw-alias-state-business-primary: var(--dsw-static-nexus-600);
+  --dsw-alias-state-business-tertiary: var(--dsw-static-nexus-100);
   --dsw-alias-code-diff-added: var(--dsw-static-green-500-a08);
   --dsw-alias-code-diff-deleted: var(--dsw-static-red-600-a08);
   --dsw-alias-file-diff-added-bg: rgb(230, 244, 231);
@@ -296,7 +323,7 @@ body {
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-100);
   --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-00);
-  --dsw-alias-toast-action: var(--dsw-static-deepseek-400);
+  --dsw-alias-toast-action: var(--dsw-static-nexus-400);
   --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-toast-label: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-tooltip-bg: var(--dsw-static-neutral-bluish-850);
@@ -305,8 +332,8 @@ body {
   --dsw-alias-trajectory-accent: var(--dsw-static-blue-500);
   --dsw-alias-turn-trigger-bg: var(--dsw-alias-markdown-code-block);
   --dsw-alias-turn-trigger-bg-hover: var(--dsw-alias-interactive-bg-hover);
-  --dsw-specific-bubble-highlight: var(--dsw-static-deepseek-200);
-  --dsw-specific-bubble: var(--dsw-static-deepseek-50);
+  --dsw-specific-bubble-highlight: var(--dsw-static-composer-sidebar-active);
+  --dsw-specific-bubble: var(--dsw-static-neutral-bluish-00);
   /* Black 8% in both palettes: the upload card keeps its original track value. */
   --dsw-specific-file-upload-track: rgba(0, 0, 0, 0.08);
   --dsw-specific-guide-hero: var(--dsw-static-neutral-200);
@@ -316,23 +343,23 @@ body {
   --dsw-menu-surface-fill: rgba(252, 253, 254, 0.7);
   --dsw-alias-menu-group-header-fill: rgba(248, 249, 250, 0.94);
   --dsw-specific-menu: var(--dsw-menu-surface-fill);
-  --dsw-specific-selector: var(--dsw-static-neutral-bluish-60);
-  --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-50);
-  --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-deepseek-100);
-  --dsw-specific-sidebar-nav-item-active: var(--dsw-static-neutral-bluish-100);
+  --dsw-specific-selector: var(--dsw-static-composer-sidebar-active);
+  --dsw-specific-sidebar-fill: var(--dsw-static-composer-sidebar);
+  --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-nexus-100);
+  --dsw-specific-sidebar-nav-item-active: var(--dsw-static-composer-sidebar-active);
   --dsw-specific-tip: var(--dsw-static-neutral-bluish-60);
 
   background-color: var(--dsw-alias-bg-base);
 }
 
 body[data-ds-dark-theme] {
-  --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-bg-base: var(--dsw-static-composer-dark-ground);
   --dsw-alias-bg-document-preview: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-bg-document-selection: color-mix(in srgb, var(--dsw-static-blue-500) 40%, transparent);
   --dsw-alias-label-document-preview: var(--dsw-static-neutral-bluish-300);
-  --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
-  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
-  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+  --dsw-alias-bg-layer-1: var(--dsw-static-composer-dark-panel);
+  --dsw-alias-bg-layer-2: var(--dsw-static-composer-dark-raised);
+  --dsw-alias-bg-layer-3: var(--dsw-static-composer-dark-raised);
   --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
   --dsw-alias-bg-mask-2: rgba(0, 0, 0, 0.2);
   --dsw-alias-bg-mask-3: rgba(0, 0, 0, 0.48);
@@ -346,12 +373,12 @@ body[data-ds-dark-theme] {
   --dsw-alias-border-inverted: rgba(255, 255, 255, 0.06);
   --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
   --dsw-alias-border-l2-darkmode-thin: rgba(255, 255, 255, 0.06);
-  --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
-  --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
-  --dsw-alias-border-l4: rgba(255, 255, 255, 0.2);
+  --dsw-alias-border-l2: color-mix(in srgb, var(--dsw-static-composer-dark-border) 72%, transparent);
+  --dsw-alias-border-l3: var(--dsw-static-composer-dark-border);
+  --dsw-alias-border-l4: color-mix(in srgb, var(--dsw-static-composer-dark-border) 78%, white);
   --dsw-alias-border-selected: var(--dsw-static-neutral-bluish-400);
   --dsw-alias-brand-primary-invert: var(--dsw-static-neutral-bluish-50);
-  --dsw-alias-brand-primary-new-colorprimary-new-color: var(--dsw-static-deepseek-450);
+  --dsw-alias-brand-primary-new-colorprimary-new-color: var(--dsw-static-nexus-400);
   --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
   --dsw-alias-brand-text: var(--dsw-static-neutral-bluish-50);
   --dsw-alias-button-contrast-fill: var(--dsw-static-neutral-bluish-50);
@@ -361,11 +388,11 @@ body[data-ds-dark-theme] {
   --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-600);
   --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-750);
   --dsw-alias-button-ghost-active-hover: var(--dsw-static-neutral-bluish-700);
-  --dsw-alias-button-info-fill: var(--dsw-static-deepseek-400);
-  --dsw-alias-button-info-hover: var(--dsw-static-deepseek-500);
+  --dsw-alias-button-info-fill: var(--dsw-static-nexus-600);
+  --dsw-alias-button-info-hover: var(--dsw-static-nexus-700);
   --dsw-alias-button-primary-dimmed: var(--dsw-static-neutral-bluish-750);
-  --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
-  --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-button-primary-fill: var(--dsw-static-nexus-400);
+  --dsw-alias-button-primary-hover: var(--dsw-static-nexus-500);
   --dsw-alias-button-tool-bar-fill-invisible: rgba(31, 31, 31, 0.36);
   --dsw-alias-button-tool-bar-fill: rgba(84, 85, 87, 0.5);
   --dsw-alias-button-tool-bar-hover: rgba(84, 85, 87, 0.6);
@@ -413,7 +440,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-label-shimmer: color-mix(in srgb, var(--dsw-static-neutral-00) 45%, transparent);
   --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
   --dsw-alias-menu-icon: var(--dsw-alias-label-primary-dimmed);
-  --dsw-alias-link: var(--dsw-static-deepseek-400);
+  --dsw-alias-link: var(--dsw-static-nexus-400);
   --dsw-alias-markdown-citation: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-markdown-code-block-banner: var(--dsw-static-neutral-bluish-850);
   --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-900);
@@ -426,8 +453,8 @@ body[data-ds-dark-theme] {
   --dsw-alias-scrollbar-bg-l2: var(--dsw-static-neutral-600);
   --dsw-alias-scrollbar-hover-l1: var(--dsw-static-neutral-600);
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-550);
-  --dsw-alias-state-business-primary: var(--dsw-static-deepseek-400);
-  --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-800);
+  --dsw-alias-state-business-primary: var(--dsw-static-nexus-400);
+  --dsw-alias-state-business-tertiary: var(--dsw-static-nexus-800);
   --dsw-alias-code-diff-added: var(--dsw-static-green-500-a12);
   --dsw-alias-code-diff-deleted: var(--dsw-static-red-400-a12);
   --dsw-alias-file-diff-added-bg: rgb(31, 49, 36);
@@ -448,7 +475,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-900);
   --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-400);
-  --dsw-alias-toast-action: var(--dsw-static-deepseek-400);
+  --dsw-alias-toast-action: var(--dsw-static-nexus-400);
   --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-750);
   --dsw-alias-toast-label: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-turn-trigger-bg: var(--dsw-alias-interactive-bg-hover);
@@ -458,20 +485,20 @@ body[data-ds-dark-theme] {
   --dsw-alias-tooltip-label: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-trajectory-accent: var(--dsw-static-blue-500);
   --dsw-specific-bubble-highlight: var(--dsw-static-neutral-bluish-750);
-  --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850);
+  --dsw-specific-bubble: var(--dsw-static-composer-dark-panel);
   --dsw-specific-file-upload-track: rgba(0, 0, 0, 0.08);
   --dsw-specific-guide-hero: var(--dsw-static-neutral-700);
   --dsw-specific-sidebar-right-flash: var(--dsw-static-neutral-00);
-  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+  --dsw-specific-input-major: var(--dsw-static-composer-dark-raised);
   --dsw-specific-login-input: var(--dsw-static-neutral-bluish-900);
   --dsw-menu-surface-fill: rgba(48, 49, 54, 0.64);
   --dsw-alias-menu-group-header-fill: rgba(48, 49, 54, 0.94);
   --dsw-specific-menu: var(--dsw-menu-surface-fill);
   --dsw-specific-selector: var(--dsw-static-neutral-bluish-800);
-  --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-900);
-  --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-neutral-bluish-800);
+  --dsw-specific-sidebar-fill: var(--dsw-static-composer-dark-sidebar);
+  --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-nexus-800);
   --dsw-specific-sidebar-nav-item-active: var(--dsw-static-neutral-bluish-750);
-  --dsw-specific-tip: var(--dsw-static-neutral-bluish-800);
+  --dsw-specific-tip: var(--dsw-static-composer-dark-raised);
 }
 
 /* Overlays without MenuSurface's opaque backing cannot blur page content over
@@ -491,13 +518,13 @@ html[data-platform='darwin'] body[data-ds-dark-theme] {
 html[data-platform='darwin'] body {
   --dsw-specific-sidebar-glass-collapsed-fill: transparent;
   --dsw-specific-sidebar-glass-collapsed-hover: var(--dsw-alias-interactive-bg-hover);
-  --dsw-specific-sidebar-glass-fill: rgb(255 255 255 / 0.55);
-  --dsw-specific-sidebar-glass-hover: rgb(255 255 255 / 0.3);
-  --dsw-specific-sidebar-tint: color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, rgb(122 155 240)) 40%, transparent);
-  --dsw-specific-sidebar-wash-bottom: rgb(143 137 184 / 0.09);
-  --dsw-specific-sidebar-wash-bottom-clear: rgb(143 137 184 / 0);
-  --dsw-specific-sidebar-wash-top: rgb(122 155 240 / 0.1);
-  --dsw-specific-sidebar-wash-top-clear: rgb(122 155 240 / 0);
+  --dsw-specific-sidebar-glass-fill: rgb(255 255 255 / 0.5);
+  --dsw-specific-sidebar-glass-hover: rgb(255 255 255 / 0.28);
+  --dsw-specific-sidebar-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 90%, transparent);
+  --dsw-specific-sidebar-wash-bottom: rgb(100 116 139 / 0.025);
+  --dsw-specific-sidebar-wash-bottom-clear: rgb(100 116 139 / 0);
+  --dsw-specific-sidebar-wash-top: rgb(148 163 184 / 0.035);
+  --dsw-specific-sidebar-wash-top-clear: rgb(148 163 184 / 0);
 }
 
 html[data-platform='darwin'] body[data-ds-dark-theme] {
@@ -505,7 +532,7 @@ html[data-platform='darwin'] body[data-ds-dark-theme] {
   --dsw-specific-sidebar-glass-collapsed-hover: var(--dsw-specific-sidebar-glass-hover);
   --dsw-specific-sidebar-glass-fill: rgb(255 255 255 / 0.15);
   --dsw-specific-sidebar-glass-hover: rgb(255 255 255 / 0.2);
-  --dsw-specific-sidebar-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 50%, transparent);
-  --dsw-specific-sidebar-wash-bottom: rgb(143 137 184 / 0.07);
-  --dsw-specific-sidebar-wash-top: rgb(122 155 240 / 0.08);
+  --dsw-specific-sidebar-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 94%, transparent);
+  --dsw-specific-sidebar-wash-bottom: rgb(100 116 139 / 0.02);
+  --dsw-specific-sidebar-wash-top: rgb(148 163 184 / 0.03);
 }

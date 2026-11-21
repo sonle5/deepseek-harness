@@ -176,7 +176,22 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     {expiryNotice && <Toast text={m.welcomeSessionExpired} onDone={() => { setExpiryNotice(false) }} />}
     <div className="titlebar" aria-hidden="true" />
     <main className="welcome" aria-labelledby={heading}>
-      <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />
+      <div className="brand" role="img" aria-label={m.welcomeBrand}>
+        <span className="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 82 70">
+            <g stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 50C8 40 10 25 22 18C32 12 45 15 50 24" fill="none" />
+              <path d="M64 22C72 32 70 47 58 54C48 60 35 57 30 48" fill="none" />
+              <circle cx="16" cy="50" r="5" fill="currentColor" stroke="none" />
+              <circle cx="64" cy="22" r="5" fill="currentColor" stroke="none" />
+              <circle cx="40" cy="36" r="4" fill="currentColor" stroke="none" />
+            </g>
+          </svg>
+        </span>
+        <span className="brand-name" aria-hidden="true">
+          <span>Nexus Superharness</span>
+        </span>
+      </div>
       <div id="tagline" className="tagline" hidden={page !== 'entry'}>
         <h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>
         <p id="welcome-description">{m.welcomeDescription}</p>

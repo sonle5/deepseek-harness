@@ -1,0 +1,25 @@
+.mark {
+  display: block;
+  flex: none;
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.wordmark {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.02em;
+}
+
+.wordmark > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

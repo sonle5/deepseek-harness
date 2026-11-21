@@ -228,7 +228,7 @@ export function ConversationSessionHeader({
       {showTabs && (
         // data-conversation-tabs: marks the tab strip, which the window-chrome
         // geometry and the browser coverage lane anchor on.
-        <div ref={tabRow} className={css.tabs}>
+        <div ref={tabRow} className={css.tabs} data-conversation-view-controls="">
           <div className={css.viewTabs} role="tablist" data-conversation-tabs="">
             {visibleTabs.map(viewTab => (
               <button

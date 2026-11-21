@@ -5,6 +5,7 @@ import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DesktopBackgroundNotice } from '../src/background-notice.ts'
 import { resolveDesktopLocale } from '../src/locale.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const roots: string[] = []
 afterEach(() => {
@@ -31,7 +32,7 @@ it('keeps the window visible until confirmation and remembers acknowledgement ac
   f.notice.close(f.hide)
   expect(f.hide).not.toHaveBeenCalled()
   expect(existsSync(f.markerPath)).toBe(false)
-  expect(f.show).toHaveBeenCalledExactlyOnceWith({ type: 'info', title: 'DeepSeek Harness',
+  expect(f.show).toHaveBeenCalledExactlyOnceWith({ type: 'info', title: PRODUCT_IDENTITY.productName,
     message: '正在运行的任务不会中断，可在系统托盘中重新打开窗口', buttons: ['确认'], defaultId: 0, cancelId: -1 })
   expect(f.focus).toHaveBeenCalledOnce()
   f.response.resolve({ response: 0, checkboxChecked: false })

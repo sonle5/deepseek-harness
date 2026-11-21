@@ -1,6 +1,7 @@
 .bubble {
   max-width: 100%;
   background: var(--dsw-specific-bubble);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-xl);
   padding: 10px 16px;
   font-size: var(--dsh-content-font-size, 14px);

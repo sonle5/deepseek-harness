@@ -5,6 +5,7 @@ import { Arch, Platform } from 'electron-builder'
 import { AppInfo, Packager } from 'app-builder-lib'
 import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
 import { describe, expect, it, vi } from 'vitest'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const { execute, write } = vi.hoisted(() => ({ execute: vi.fn(async () => undefined), write: vi.fn(async () => undefined) }))
 vi.mock('node:child_process', async (importOriginal) => {
@@ -51,10 +52,10 @@ describe('installer preparation preserves application dependencies', () => {
         metadata: { value: metadata },
       })
       const appInfo = new AppInfo(metadataPackager, undefined)
-      expect(appInfo.companyName).toBe('Hangzhou DeepSeek Artificial Intelligence Co., Ltd.')
-      expect(appInfo.copyright).toBe(`Copyright © ${new Date().getFullYear()} DeepSeek Harness`)
+      expect(appInfo.companyName).toBe('One Nexus')
+      expect(appInfo.copyright).toBe(PRODUCT_IDENTITY.copyright)
       if (platform === 'win32') {
-        expect(expandMacro(config.nsis.uninstallDisplayName, null, appInfo, {}, false)).toBe('DeepSeek Harness')
+        expect(expandMacro(config.nsis.uninstallDisplayName, null, appInfo, {}, false)).toBe(PRODUCT_IDENTITY.productName)
         expect(config.nsis.installerLanguages).toEqual(readInstallerLocales().map(locale => locale.id))
       }
       const aboutIcon = config.extraResources.find(resource => resource.to === 'icon.png')
@@ -99,7 +100,7 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_TARGET_ARCH: 'x64',
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'win32', 'x64')
-    expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.artifactName).toBe(`${PRODUCT_IDENTITY.artifactPrefix}-\${version}-\${os}-\${arch}-unsigned.\${ext}`)
   })
 
   it('packages every preload entry point the shell loads', async () => {

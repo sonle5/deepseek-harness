@@ -111,3 +111,23 @@ it('keeps static palette steps out of feature scripts', () => {
 it('names an existing file for every exemption', () => {
   for (const suffix of Object.keys(EXEMPT_FILES)) expect(scanned.some(file => file.endsWith(suffix)), suffix).toBe(true)
 })
+
+it('routes product accents through the Nexus cyan palette with accessible contrast', () => {
+  const css = readFileSync(new URL('../src/styles/design-platform.css', import.meta.url), 'utf8')
+  expect(css).toContain('--dsw-alias-state-business-primary: var(--dsw-static-nexus-600)')
+  expect(css).toContain('--dsw-alias-state-business-primary: var(--dsw-static-nexus-400)')
+  expect(css).toContain('--dsw-alias-button-info-fill: var(--dsw-static-nexus-600)')
+  expect(css).toContain('--dsw-alias-link: var(--dsw-static-nexus-400)')
+
+  const channel = (value: number): number => {
+    const normalized = value / 255
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = (red: number, green: number, blue: number): number =>
+    0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+  const contrast = (left: number, right: number): number =>
+    (Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05)
+
+  expect(contrast(luminance(255, 255, 255), luminance(14, 116, 144))).toBeGreaterThanOrEqual(4.5)
+  expect(contrast(luminance(34, 211, 238), luminance(21, 21, 23))).toBeGreaterThanOrEqual(4.5)
+})

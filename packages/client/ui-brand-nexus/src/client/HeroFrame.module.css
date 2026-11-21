@@ -1,0 +1,59 @@
+.frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  isolation: isolate;
+  min-height: 0;
+}
+
+.decoration {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.aura {
+  position: absolute;
+  top: -28%;
+  right: -12%;
+  width: min(68vw, 820px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  corner-shape: round;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--dsw-alias-state-idle-primary) 13%, transparent) 0%,
+    color-mix(in srgb, var(--dsw-alias-state-idle-primary) 5%, transparent) 42%,
+    transparent 72%
+  );
+}
+
+.glyph {
+  position: absolute;
+  right: clamp(24px, 8vw, 132px);
+  bottom: clamp(80px, 14vh, 170px);
+  color: var(--dsw-alias-state-business-primary);
+  opacity: 0.03;
+}
+
+.glyph svg {
+  display: block;
+  width: clamp(180px, 28vw, 420px);
+  height: auto;
+}
+
+.attribution {
+  position: absolute;
+  bottom: 18px;
+  left: 22px;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--dsw-font-family);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+}

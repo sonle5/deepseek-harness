@@ -3,6 +3,7 @@ import type { MessageBoxOptions } from 'electron'
 import { CRASH_REPORT_WAIT_MS, DesktopFatalRecovery } from '../src/fatal-recovery.ts'
 import type { CrashReportSource } from '../src/crash-report.ts'
 import { resolveDesktopLocale } from '../src/locale.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 function fixture(
   locale = 'en',
@@ -28,7 +29,7 @@ async function shown(operations: { show: ReturnType<typeof vi.fn> }): Promise<vo
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalled() })
 }
 
-const REPORT_PATH = 'C:\\Users\\someone\\AppData\\Roaming\\DeepSeek Harness\\logs\\crash-2026-09-22T10-30-00-000Z-host.log'
+const REPORT_PATH = `C:\\Users\\someone\\AppData\\Roaming\\${PRODUCT_IDENTITY.productName}\\logs\\crash-2026-09-22T10-30-00-000Z-host.log`
 
 afterEach(() => { vi.restoreAllMocks() })
 

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { resolveWindowsUpdatePublisher } from '../scripts/windows-sign.mjs'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 vi.mock('../scripts/windows-sign.mjs', async importOriginal => ({
   ...await importOriginal<typeof import('../scripts/windows-sign.mjs')>(),
@@ -90,7 +91,7 @@ describe('Windows update publisher', () => {
         DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
       }, 'win32', 'x64')
       expect(config.win.forceCodeSigning).toBe(true)
-      expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}.${ext}')
+      expect(config.artifactName).toBe(`${PRODUCT_IDENTITY.artifactPrefix}-\${version}-\${os}-\${arch}.\${ext}`)
       expect(typeof config.win.signtoolOptions.sign).toBe('function')
       const manager = new WindowsSignToolManager({ platformSpecificBuildOptions: config.win, getCscLink: () => undefined })
       expect(await manager.computedPublisherName.value).toEqual(['CN=Publisher,O=Company,C=CN'])

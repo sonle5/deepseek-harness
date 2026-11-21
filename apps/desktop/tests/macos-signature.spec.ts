@@ -13,6 +13,7 @@ import {
   assertMacOSRuntimeSignatureDetails,
   assertMacOSSignatureDetails,
 } from '../scripts/verify-macos-signature.mjs'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const staged = vi.hoisted(() => ({ composer: undefined as string | undefined }))
 vi.mock('node:fs', async (importOriginal) => {
@@ -65,7 +66,7 @@ describe('desktop macOS release signature', () => {
   it('loads release identifiers from the environment and requires code signing', async () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
-    expect(config.protocols).toEqual([{ name: 'DeepSeek Harness', schemes: ['dsh'] }])
+    expect(config.protocols).toEqual([{ name: PRODUCT_IDENTITY.productName, schemes: [PRODUCT_IDENTITY.protocol, 'dsh'] }])
     expect(portablePath(config.directories.output)).toContain('/.desktop-build/targets/mac-arm64/artifacts')
     expect(config.mac.extendInfo.NSMicrophoneUsageDescription).toContain('microphone')
     expect(config.mac.extendInfo.CFBundleLocalizations).toEqual(SHIPPED_LOCALE_IDS.map(id => id === 'zh' ? 'zh_CN' : id))
@@ -105,11 +106,7 @@ describe('desktop macOS release signature', () => {
         sign: true,
         writeUpdateInfo: false,
       },
-      publish: [{
-        provider: 'generic',
-        url: 'https://desktop-updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-arm64/',
-        channel: 'nightly',
-      }],
+      publish: null,
     })
     expect(typeof config.artifactBuildCompleted).toBe('function')
   })
@@ -194,7 +191,7 @@ describe('desktop macOS release signature', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'darwin', arch)
     expect(portablePath(config.directories.output)).toContain(`/targets/mac-${arch}/unsigned-artifacts`)
-    expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.artifactName).toBe(`${PRODUCT_IDENTITY.artifactPrefix}-\${version}-\${os}-\${arch}-unsigned.\${ext}`)
     expect(config.mac).toMatchObject({ identity: '-', forceCodeSigning: false, notarize: false, target: ['dmg'] })
     expect(config.dmg).toMatchObject({ sign: false, writeUpdateInfo: false })
     expect(config.publish).toBeNull()

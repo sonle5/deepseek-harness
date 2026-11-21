@@ -28,11 +28,11 @@ export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
 const MAX_HEIGHT = 400
 
 /**
- * Viewport top margin: the conversation header's 76px block (title row plus
- * view tabs, ui-conversation) plus 8px of air, so a tall list stops below the
- * header instead of sliding under it.
+ * Viewport top margin: the conversation header's 64px chrome row
+ * (ui-conversation) plus 8px of air, so a tall list stops below the header
+ * instead of sliding under it.
  */
-const TOP_MARGIN = 84
+const TOP_MARGIN = 72
 
 /** DOM id of one option row (the aria-activedescendant target). */
 function optionId(source: string, index: number): string {

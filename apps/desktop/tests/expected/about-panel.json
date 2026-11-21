@@ -1,53 +1,53 @@
 {
   "darwin:en-US": {
     "menu": [
-      { "label": "About DeepSeek Harness", "role": "about" },
+      { "label": "About Nexus Superharness", "role": "about" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "DeepSeek Harness",
+      "applicationName": "Nexus Superharness",
       "applicationVersion": "1.0.0",
       "version": "",
-      "copyright": "",
+      "copyright": "Copyright © 2026 One Nexus. Built on DeepSeek Harness.",
       "iconPath": "<app icon>"
     }
   },
   "darwin:zh-CN": {
     "menu": [
-      { "label": "关于 DeepSeek Harness", "role": "about" },
+      { "label": "关于 Nexus Superharness", "role": "about" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "DeepSeek Harness",
+      "applicationName": "Nexus Superharness",
       "applicationVersion": "1.0.0",
       "version": "",
-      "copyright": "",
+      "copyright": "Copyright © 2026 One Nexus. Built on DeepSeek Harness.",
       "iconPath": "<app icon>"
     }
   },
   "win32:zh-CN": {
     "menu": [
-      { "label": "关于 DeepSeek Harness" },
+      { "label": "关于 Nexus Superharness" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "DeepSeek Harness",
+      "applicationName": "Nexus Superharness",
       "applicationVersion": "1.0.0",
       "version": "",
-      "copyright": "",
+      "copyright": "Copyright © 2026 One Nexus. Built on DeepSeek Harness.",
       "iconPath": "<app icon>"
     }
   },
   "win32:en-US": {
     "menu": [
-      { "label": "About DeepSeek Harness" },
+      { "label": "About Nexus Superharness" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "DeepSeek Harness",
+      "applicationName": "Nexus Superharness",
       "applicationVersion": "1.0.0",
       "version": "",
-      "copyright": "",
+      "copyright": "Copyright © 2026 One Nexus. Built on DeepSeek Harness.",
       "iconPath": "<app icon>"
     }
   }

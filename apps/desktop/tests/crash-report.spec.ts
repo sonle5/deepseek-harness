@@ -7,6 +7,7 @@ import {
   writeCrashReport,
   type CrashReportInput,
 } from '../src/crash-report.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -27,7 +28,7 @@ const input = (overrides: Partial<CrashReportInput> = {}): CrashReportInput => (
     errno: -4058, code: 'ENOENT', syscall: 'open', path: 'C:\\Temp\\dsh-subprocess-x\\out.log',
   }),
   rendererConsole: [],
-  app: { name: 'DeepSeek Harness', version: '0.1.7', platform: 'win32', arch: 'x64', electron: '44.0.0', node: '24.18.1', locale: 'zh_CN' },
+  app: { name: PRODUCT_IDENTITY.productName, version: '0.1.7', platform: 'win32', arch: 'x64', electron: '44.0.0', node: '24.18.1', locale: 'zh_CN' },
   time: new Date('2026-09-22T10:30:00.123Z'),
   ...overrides,
 })
@@ -41,7 +42,7 @@ it('renders the facts header, the inspected error with its properties and cause,
     error: new Error('wrapper', { cause: input().error }),
     rendererConsole: ['dsh-app://app/assets/entry.js:12 client-modules: bundle script plugins/??a/client.js&rev=1 failed to load'],
   }))
-  expect(text).toContain('time: 2026-09-22T10:30:00.123Z\nsource: host\nphase: running\napp: DeepSeek Harness 0.1.7\nplatform: win32 x64\nelectron: 44.0.0\nnode: 24.18.1\nlocale: zh_CN\n')
+  expect(text).toContain(`time: 2026-09-22T10:30:00.123Z\nsource: host\nphase: running\napp: ${PRODUCT_IDENTITY.productName} 0.1.7\nplatform: win32 x64\nelectron: 44.0.0\nnode: 24.18.1\nlocale: zh_CN\n`)
   expect(text).toContain('--- error ---\nError: wrapper')
   expect(text).toContain("syscall: 'open'")
   expect(text).toContain("path: 'C:\\\\Temp\\\\dsh-subprocess-x\\\\out.log'")

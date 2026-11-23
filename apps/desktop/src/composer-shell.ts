@@ -4,6 +4,7 @@
  */
 
 import { mkdir } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { clipboard, dialog, shell, type BaseWindow, type FileFilter } from 'electron'
 import type { ComposerInvokeResult } from './composer-sidecar.ts'
@@ -12,6 +13,8 @@ import type { ComposerInvokeResult } from './composer-sidecar.ts'
 export const COMPOSER_SHELL_COMMANDS: readonly string[] = Object.freeze([
   'pick_directory', 'open_file_dialog', 'save_file_dialog', 'open_zip_file_dialog', 'open_external',
   'open_config_folder', 'open_app_config_folder', 'copy_text_to_clipboard', 'restart_app',
+  // Not a Tauri command: the embedded renderer's replacement for `@tauri-apps/api/path` `homeDir`.
+  'get_home_dir',
 ])
 
 /**
@@ -43,6 +46,7 @@ export interface ComposerShellOptions {
   readonly clipboard?: Pick<typeof clipboard, 'writeText'>
   readonly mkdir?: (path: string) => Promise<unknown>
   readonly defer?: (run: () => void, ms: number) => void
+  readonly homedir?: () => string
 }
 
 const invalidArguments: ComposerInvokeResult = { bridgeError: { code: 'invalid_arguments', retryable: false } }
@@ -82,6 +86,7 @@ export class ComposerShell {
         return this.openFolder(await this.options.bridge('get_app_config_path', {}), path => dirname(path))
       case 'copy_text_to_clipboard': return this.copyText(args.text)
       case 'restart_app': return this.restartApp()
+      case 'get_home_dir': return { ok: (this.options.homedir ?? homedir)() }
       default: return { bridgeError: { code: 'unknown_command', retryable: false } }
     }
   }

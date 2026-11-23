@@ -27,7 +27,7 @@ function harness(options: {
   const handler = new ComposerShell({
     window: () => options.window === 'none' ? undefined : win as never,
     bridge, restart, onError: (error) => { errors.push(error) },
-    dialog, shell, clipboard, mkdir,
+    dialog, shell, clipboard, mkdir, homedir: () => '/Users/me',
     defer: (run, ms) => { deferred.push({ run, ms }) },
   })
   return { handler, win, dialog, shell, clipboard, bridge, mkdir, restart, errors, deferred }
@@ -36,10 +36,14 @@ function harness(options: {
 describe('composer shell commands', () => {
   it('lists exactly the shell-owned commands', () => {
     expect([...COMPOSER_SHELL_COMMANDS].sort()).toEqual([
-      'copy_text_to_clipboard', 'open_app_config_folder', 'open_config_folder', 'open_external', 'open_file_dialog',
+      'copy_text_to_clipboard', 'get_home_dir', 'open_app_config_folder', 'open_config_folder', 'open_external', 'open_file_dialog',
       'open_zip_file_dialog', 'pick_directory', 'restart_app', 'save_file_dialog',
     ])
     expect(isComposerShellCommand('get_settings')).toBe(false)
+  })
+
+  it('get_home_dir: answers the user home directory', async () => {
+    expect(await harness().handler.call('get_home_dir', {})).toEqual({ ok: '/Users/me' })
   })
 
   it('pick_directory: parents the dialog, trims the default path and returns the folder', async () => {

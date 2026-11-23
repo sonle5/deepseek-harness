@@ -3,6 +3,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { ComposerSidecar, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
 import { COMPOSER_IPC } from './composer-ipc.ts'
+import type { ComposerReleaseTarget } from './composer-quit.ts'
 import {
   DesktopComposerView, composerBridgeError, composerInvokeRequest, isComposerSender, type ComposerResources,
 } from './composer-view.ts'
@@ -18,6 +19,8 @@ export type ComposerSurfaceStatus =
   | { readonly state: 'restarting'; readonly attempt: number; readonly error: Error }
   /** Restarts are exhausted; client routing was restored (or the restore failed, in `restoreError`). */
   | { readonly state: 'failed'; readonly error: Error; readonly restoreError?: Error; readonly codexRestartRequired?: boolean }
+
+type Sidecar = Pick<ComposerSidecar, 'start' | 'invoke' | 'stop' | 'restore' | 'release' | 'codexDecision'>
 
 export interface ComposerSurfaceOptions {
   readonly resources: ComposerResources
@@ -36,14 +39,13 @@ export interface ComposerSurfaceOptions {
   /** Bridge origin changed (undefined while no sidecar serves); browser guests must not reach it. */
   readonly onBridgeUrl?: (url: string | undefined) => void
   /** Tests replace the sidecar and the clock. */
-  readonly createSidecar?: (options: ComposerSidecarOptions) => Pick<ComposerSidecar, 'start' | 'invoke' | 'stop' | 'restore'>
+  readonly createSidecar?: (options: ComposerSidecarOptions) => Sidecar
   readonly delay?: (ms: number) => Promise<void>
   readonly now?: () => number
   /** Tests skip Electron IPC and the native view. */
   readonly ipc?: boolean
 }
 
-type Sidecar = Pick<ComposerSidecar, 'start' | 'invoke' | 'stop' | 'restore'>
 
 /** Composer inside Superharness: one supervised sidecar, one view. */
 export class DesktopComposerSurface {
@@ -68,6 +70,11 @@ export class DesktopComposerSurface {
   }
 
   get status(): ComposerSurfaceStatus { return this.#status }
+
+  /** The serving sidecar's release requests, for quit and update; undefined while none serves. */
+  releaseTarget(): ComposerReleaseTarget | undefined {
+    return this.#status.state === 'ready' && !this.#closed ? this.#sidecar : undefined
+  }
 
   /** Start the sidecar once; failures are reported, not thrown into application startup. */
   start(): Promise<ComposerReady> {

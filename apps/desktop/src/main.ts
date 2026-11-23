@@ -72,6 +72,7 @@ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { DesktopComposerSurface } from './composer-surface.ts'
+import { releaseComposerForQuit } from './composer-quit.ts'
 import { developmentComposerResources } from './composer-view.ts'
 
 let focusPrimaryWindow = (): void => {}
@@ -552,6 +553,15 @@ async function main(): Promise<void> {
     },
     onBridgeUrl: (url) => { composerBridgeUrl = url },
   })
+  // One release decision at a time; a second quit request joins the open one.
+  let composerRelease: Promise<boolean> | undefined
+  const releaseComposer = (): Promise<boolean> => composerRelease ??= releaseComposerForQuit({
+    target: () => composer?.releaseTarget(),
+    messages: () => locale.messages,
+    // No owner window, as the quit confirmation: hidden windows stay hidden.
+    show: options => dialog.showMessageBox(options),
+    onError: (error) => { console.error('nexus composer:', error.message) },
+  }).finally(() => { composerRelease = undefined })
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
@@ -754,6 +764,8 @@ async function main(): Promise<void> {
         const result = await updateDialog.show(parent, confirmation)
         if (result.response !== 0 || isMandatory()) return false
       }
+      // Composer routing goes first: a cancelled Codex decision leaves every task running.
+      if (!await releaseComposer()) return false
       // The update lock rejects new HTTP requests, including analytics intake.
       await track('desktop_upgrade_install_restart_click', {})
       if (backend.host !== host) throw new DesktopUpdatePreparationError('tasks-unavailable', locale.messages.updateTasksUnavailable)
@@ -766,7 +778,8 @@ async function main(): Promise<void> {
         await disposeFileDrag().catch((error: unknown) => { console.error(error) })
         requireCleanStop = true
         updateStopFailure = undefined
-        await Promise.all([backend.stop(), stopOperationReports()])
+        await Promise.all([backend.stop(), stopOperationReports(),
+          composer?.close().catch((error: unknown) => { console.error(error) })])
         updateStoppedHost = true
         // The backend's async cleanup callback can assign this after the reset above.
         const stopFailure = updateStopFailure as DesktopHostUncleanExitError | undefined
@@ -1569,13 +1582,16 @@ async function main(): Promise<void> {
     }
     if (quitting) return
     event.preventDefault()
+    // Paths that must not ask leave Composer to the sidecar's bounded, non-interactive shutdown release.
     if (skipQuitConfirmation || sessionEnding) { finishQuit(); return }
-    void quitConfirmation.confirm().then((approved) => {
-      if (quitting || shellInstallerOwnsQuit) return
-      if (approved) { finishQuit(); return }
-      // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
-      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
-    }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
+    void quitConfirmation.confirm()
+      .then(async approved => approved && await releaseComposer())
+      .then((approved) => {
+        if (quitting || shellInstallerOwnsQuit) return
+        if (approved) { finishQuit(); return }
+        // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
+        if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 
   mainWindow = createMainWindow()

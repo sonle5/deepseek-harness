@@ -71,6 +71,8 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { DesktopComposerSurface } from './composer-surface.ts'
+import { developmentComposerResources } from './composer-view.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -531,6 +533,16 @@ async function main(): Promise<void> {
   const platformView = new DesktopPlatformView(join(app.getAppPath(), 'lib', 'preload-platform-account.cjs'),
     () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin',
     owner => isMandatory() || updateOverlays.input(owner).blocked)
+  // Optional embedded Composer. Development opts in with DSH_DESKTOP_COMPOSER_DIR; a set but unusable
+  // directory fails startup loudly. Packaged builds gain it once the release pins a Composer artifact.
+  const composerResources = development ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR) : undefined
+  const composer = composerResources === undefined ? undefined : new DesktopComposerSurface({
+    resources: composerResources,
+    preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
+    home: join(app.getPath('userData'), 'composer-development-home'),
+    // Composer failures stay inside the Composer surface; Superharness keeps running.
+    onError: (error) => { console.error('nexus composer:', error.message) },
+  })
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
@@ -1528,6 +1540,7 @@ async function main(): Promise<void> {
         throw error
       }),
       platformView.dispose(),
+      composer?.close() ?? Promise.resolve(),
       disposeFileDrag(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
       .then(() => { app.quit() })

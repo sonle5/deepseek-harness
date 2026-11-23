@@ -552,6 +552,8 @@ async function main(): Promise<void> {
       void persistCrashReport(error, 'composer')
     },
     onBridgeUrl: (url) => { composerBridgeUrl = url },
+    // Composer's file dialogs are sheets of the application window that hosts its view.
+    window: currentMainWindow,
   })
   // One release decision at a time; a second quit request joins the open one.
   let composerRelease: Promise<boolean> | undefined

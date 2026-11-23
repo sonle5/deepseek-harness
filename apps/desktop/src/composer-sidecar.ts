@@ -144,6 +144,18 @@ export class ComposerSidecar {
   get diagnostics(): string { return this.#stderr }
 
   /**
+   * Event stream of the serving sidecar, for the main-process forwarder only.
+   * @returns the `ws:` URL and its authorization header, or undefined while not serving.
+   */
+  eventsEndpoint(): { readonly url: string; readonly authorization: string } | undefined {
+    const ready = this.#ready
+    if (ready === undefined || this.#failed || this.#stopping) return undefined
+    const url = new URL('/v1/events', ready.url)
+    url.protocol = 'ws:'
+    return { url: url.href, authorization: `Bearer ${this.#secret}` }
+  }
+
+  /**
    * Spawn once and complete the control handshake.
    * @returns ready facts announced by the sidecar.
    */

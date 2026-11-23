@@ -3,6 +3,7 @@ import type { ComposerSidecarOptions } from '../src/composer-sidecar.ts'
 
 vi.mock('electron', () => ({
   WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() }, ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
+  clipboard: {}, dialog: {},
 }))
 
 const { DesktopComposerSurface, COMPOSER_RESTART_DELAYS_MS } = await import('../src/composer-surface.ts')
@@ -17,6 +18,9 @@ function harness(script: Array<'ready' | 'fail'>, restore: 'ok' | 'fail' = 'ok')
   const bridge: Array<string | undefined> = []
   const errors: Error[] = []
   const delays: number[] = []
+  const sockets: Array<{ url: string; close: ReturnType<typeof vi.fn> }> = []
+  const clipboard = { writeText: vi.fn(() => Promise.resolve()) }
+  const deferred: Array<() => void> = []
   let clock = 0
   const surface = new DesktopComposerSurface({
     resources: { dist: '/dist', binary: '/bin/composer' }, preload: '/preload.js', home: '/tmp/isolated', ipc: false,
@@ -26,6 +30,11 @@ function harness(script: Array<'ready' | 'fail'>, restore: 'ok' | 'fail' = 'ok')
     onBridgeUrl: (url) => { bridge.push(url) },
     delay: (ms) => { delays.push(ms); return Promise.resolve() },
     now: () => clock,
+    shell: { clipboard, defer: (run) => { deferred.push(run) } },
+    events: {
+      createSocket: (endpoint) => { const socket = { url: endpoint.url, close: vi.fn() }; sockets.push(socket); return socket },
+      schedule: () => () => undefined,
+    },
     createSidecar: (options) => {
       const index = created.length
       const entry = {
@@ -41,10 +50,13 @@ function harness(script: Array<'ready' | 'fail'>, restore: 'ok' | 'fail' = 'ok')
         invoke: vi.fn(() => Promise.resolve({ ok: index })),
         stop: entry.stop,
         restore: entry.restore,
+        release: vi.fn(),
+        codexDecision: vi.fn(),
+        eventsEndpoint: () => ({ url: `ws://127.0.0.1:${String(4000 + index)}/v1/events`, authorization: 'Bearer s' }),
       }
     },
   })
-  return { surface, created, statuses, bridge, errors, delays, tick: (ms: number) => { clock += ms } }
+  return { surface, created, statuses, bridge, errors, delays, sockets, clipboard, deferred, tick: (ms: number) => { clock += ms } }
 }
 
 const settle = async (): Promise<void> => { for (let i = 0; i < 20; i += 1) await new Promise(resolve => setImmediate(resolve)) }
@@ -115,5 +127,41 @@ describe('composer surface supervision', () => {
     await settle()
     expect(h.created).toHaveLength(1)
     expect(h.bridge.at(-1)).toBeUndefined()
+  })
+
+  it('answers shell-owned commands without starting the sidecar', async () => {
+    const h = harness(['ready'])
+    expect(await h.surface.call('copy_text_to_clipboard', { text: 'hi' })).toEqual({ ok: true })
+    expect(h.clipboard.writeText).toHaveBeenCalledWith('hi')
+    expect(h.created).toHaveLength(0)
+  })
+
+  it('opens one event socket per ready sidecar and closes it with the sidecar', async () => {
+    const h = harness(['ready', 'ready'])
+    await h.surface.start()
+    expect(h.sockets.map(socket => socket.url)).toEqual(['ws://127.0.0.1:4000/v1/events'])
+    h.created[0]?.options.onFailure?.(new Error('crashed'))
+    await settle()
+    expect(h.sockets[0]?.close).toHaveBeenCalled()
+    expect(h.sockets.map(socket => socket.url)).toEqual(['ws://127.0.0.1:4000/v1/events', 'ws://127.0.0.1:4001/v1/events'])
+    await h.surface.close()
+    expect(h.sockets[1]?.close).toHaveBeenCalled()
+  })
+
+  it('restart_app replaces the sidecar with a fresh budget, keeping Superharness', async () => {
+    const h = harness(['ready', 'ready'])
+    await h.surface.start()
+    expect(await h.surface.call('restart_app', {})).toEqual({ ok: true })
+    expect(h.created).toHaveLength(1)
+    h.deferred[0]?.()
+    await settle()
+    expect(h.created[0]?.stop).toHaveBeenCalledOnce()
+    expect(h.created).toHaveLength(2)
+    expect(h.sockets[0]?.close).toHaveBeenCalled()
+    expect(h.sockets).toHaveLength(2)
+    expect(h.bridge).toEqual([READY.url, undefined, READY.url])
+    expect(h.surface.status).toEqual({ state: 'ready' })
+    expect(h.delays).toEqual([])
+    expect(await h.surface.call('get_settings', {})).toEqual({ ok: 1 })
   })
 })

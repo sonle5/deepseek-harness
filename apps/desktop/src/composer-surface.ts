@@ -1,8 +1,10 @@
 /** Wires the Composer sidecar, its view and the preload IPC into the application lifetime. */
 
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
-import { ComposerSidecar, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
+import { ipcMain, type BaseWindow, type IpcMainInvokeEvent } from 'electron'
+import { ComposerSidecar, type ComposerInvokeResult, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
 import { COMPOSER_IPC } from './composer-ipc.ts'
+import { ComposerEventForwarder, type ComposerEventForwarderOptions } from './composer-events.ts'
+import { ComposerShell, isComposerShellCommand, type ComposerShellOptions } from './composer-shell.ts'
 import type { ComposerReleaseTarget } from './composer-quit.ts'
 import {
   DesktopComposerView, composerBridgeError, composerInvokeRequest, isComposerSender, type ComposerResources,
@@ -20,7 +22,7 @@ export type ComposerSurfaceStatus =
   /** Restarts are exhausted; client routing was restored (or the restore failed, in `restoreError`). */
   | { readonly state: 'failed'; readonly error: Error; readonly restoreError?: Error; readonly codexRestartRequired?: boolean }
 
-type Sidecar = Pick<ComposerSidecar, 'start' | 'invoke' | 'stop' | 'restore' | 'release' | 'codexDecision'>
+type Sidecar = Pick<ComposerSidecar, 'start' | 'invoke' | 'stop' | 'restore' | 'release' | 'codexDecision' | 'eventsEndpoint'>
 
 export interface ComposerSurfaceOptions {
   readonly resources: ComposerResources
@@ -44,6 +46,12 @@ export interface ComposerSurfaceOptions {
   readonly now?: () => number
   /** Tests skip Electron IPC and the native view. */
   readonly ipc?: boolean
+  /** Parent window for the shell-owned Composer dialogs. */
+  readonly window?: () => BaseWindow | undefined
+  /** Tests replace the native dialog, opener, clipboard and timers of shell-owned commands. */
+  readonly shell?: Partial<Pick<ComposerShellOptions, 'dialog' | 'shell' | 'clipboard' | 'mkdir' | 'defer'>>
+  /** Tests replace the event socket. */
+  readonly events?: Partial<Pick<ComposerEventForwarderOptions, 'createSocket' | 'schedule'>>
 }
 
 
@@ -57,10 +65,24 @@ export class DesktopComposerSurface {
   #readyAt: number | undefined
   #closed = false
   #recovery: Promise<void> | undefined
+  readonly #shell: ComposerShell
+  readonly #events: ComposerEventForwarder
 
   constructor(private readonly options: ComposerSurfaceOptions) {
     this.view = new DesktopComposerView(options.preload, options.resources.dist, ({ title, message }) => {
       options.onError(new Error(`${title}: ${message}`))
+    })
+    this.#shell = new ComposerShell({
+      ...options.shell,
+      window: options.window ?? (() => undefined),
+      bridge: (command, args) => this.callSidecar(command, args),
+      restart: () => this.restart(),
+      onError: options.onError,
+    })
+    this.#events = new ComposerEventForwarder({
+      ...options.events,
+      target: () => this.view.contents,
+      onError: options.onError,
     })
     if (options.ipc === false) return
     ipcMain.handle(COMPOSER_IPC.invoke, (event, command: unknown, args: unknown) => this.invoke(event, command, args))
@@ -92,6 +114,37 @@ export class DesktopComposerSurface {
     return this.start()
   }
 
+  /**
+   * Composer's `restart_app`: replace the sidecar (never Superharness) with a fresh restart budget, then
+   * reload the view so the renderer initialises against the new sidecar, as a relaunched Tauri app would.
+   * A sidecar that is starting or recovering is already being replaced; the restart joins it.
+   */
+  restart(): Promise<ComposerReady> {
+    if (this.#closed) return Promise.reject(new Error('nexus composer surface is closed'))
+    if (this.#status.state === 'failed') return this.retry().then(ready => this.reloadView(ready))
+    const previous = this.#sidecar
+    if (this.#status.state !== 'ready' || this.#recovery !== undefined || previous === undefined) return this.start()
+    this.#sidecar = undefined
+    this.#readyAt = undefined
+    this.#attempt = 0
+    this.#events.disconnect()
+    this.options.onBridgeUrl?.(undefined)
+    this.setStatus({ state: 'starting' })
+    // The next sidecar needs the owner lock the previous one holds, so it spawns only after the exit.
+    const starting = (async () => {
+      await previous.stop().catch(() => { /* The process is already gone or was killed. */ })
+      return this.spawn()
+    })()
+    this.#starting = starting
+    return starting.then(ready => this.reloadView(ready))
+  }
+
+  private reloadView(ready: ComposerReady): ComposerReady {
+    const contents = this.view.contents
+    if (!this.#closed && contents !== undefined && !contents.isDestroyed()) contents.reload()
+    return ready
+  }
+
   private async spawn(): Promise<ComposerReady> {
     this.setStatus(this.#attempt === 0 ? { state: 'starting' } : this.#status)
     const sidecar = await this.createSidecar()
@@ -100,6 +153,7 @@ export class DesktopComposerSurface {
       const ready = await sidecar.start()
       if (this.#closed) throw new Error('nexus composer surface is closed')
       this.#readyAt = this.now()
+      this.#events.connect(sidecar.eventsEndpoint())
       this.options.onBridgeUrl?.(ready.url)
       this.setStatus({ state: 'ready' })
       return ready
@@ -135,6 +189,7 @@ export class DesktopComposerSurface {
   /** Restart with backoff; after the budget, restore client routing and stop trying. */
   private recover(failed: Sidecar, error: Error): void {
     if (this.#recovery !== undefined || this.#closed) return
+    this.#events.disconnect()
     this.options.onBridgeUrl?.(undefined)
     if (this.#readyAt !== undefined && this.now() - this.#readyAt >= COMPOSER_HEALTHY_MS) this.#attempt = 0
     this.#readyAt = undefined
@@ -184,7 +239,12 @@ export class DesktopComposerSurface {
    * Bridge one validated command for the Composer renderer.
    * @returns the renderer envelope.
    */
-  async call(command: string, args: Record<string, unknown>) {
+  async call(command: string, args: Record<string, unknown>): Promise<ComposerInvokeResult> {
+    if (isComposerShellCommand(command)) return this.#shell.call(command, args)
+    return this.callSidecar(command, args)
+  }
+
+  private async callSidecar(command: string, args: Record<string, unknown>): Promise<ComposerInvokeResult> {
     try {
       await this.start()
       const sidecar = this.#sidecar
@@ -211,6 +271,7 @@ export class DesktopComposerSurface {
       ipcMain.removeHandler(COMPOSER_IPC.fatal)
       this.view.close()
     }
+    this.#events.disconnect()
     this.options.onBridgeUrl?.(undefined)
     await this.#recovery
     await this.#sidecar?.stop()

@@ -11,6 +11,8 @@ export const COMPOSER_BRIDGE_PROTOCOL = 1
 const MAX_DIAGNOSTIC_CHARS = 64 * 1024
 const MAX_FRAME_CHARS = 64 * 1024
 const COMMAND_NAME = /^[a-z][a-z0-9_]*$/
+/** Release restores client profiles and may wait on SQLite; give it more than the 3 s OS budget. */
+const REQUEST_TIMEOUT_MS = 30_000
 
 /** Startup status the sidecar reports when setup stopped early, for example a database newer than supported. */
 export type ComposerInitStatus = Readonly<Record<string, unknown>> | null
@@ -29,6 +31,13 @@ export type ComposerInvokeResult =
   | { readonly err: unknown }
   | { readonly bridgeError: { readonly code: string; readonly retryable: boolean } }
 
+/** Outcome of a quit release step; `awaitingCodexDecision` asks the user whether to restart Codex Desktop first. */
+export type ComposerRelease =
+  | { readonly status: 'released' | 'awaitingCodexDecision' | 'cancelled' }
+  | { readonly status: 'failed'; readonly error: string }
+
+const requestId = z.number().int().nonnegative().optional()
+
 const frameSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('starting'), version: z.string() }),
   z.object({
@@ -42,7 +51,12 @@ const frameSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('ownership'), ownership: z.string(), reason: z.string() }),
   z.object({ type: z.literal('exiting'), reason: z.string() }),
-  z.object({ type: z.literal('error'), code: z.string() }).loose(),
+  z.object({ type: z.literal('quit-inspection'), id: requestId, routedClients: z.array(z.string()) }),
+  z.object({ type: z.literal('released'), id: requestId }),
+  z.object({ type: z.literal('awaiting-codex-decision'), id: requestId }),
+  z.object({ type: z.literal('release-cancelled'), id: requestId }),
+  z.object({ type: z.literal('release-failed'), id: requestId, error: z.string() }),
+  z.object({ type: z.literal('error'), id: requestId, code: z.string() }).loose(),
 ])
 
 export type ComposerFrame = z.infer<typeof frameSchema>
@@ -104,6 +118,8 @@ export class ComposerSidecar {
   #stderr = ''
   #stopping = false
   #failed = false
+  #nextRequest = 0
+  readonly #pending = new Map<number, { resolve: (frame: ComposerFrame) => void; reject: (error: Error) => void }>()
 
   constructor(private readonly options: ComposerSidecarOptions) {}
 
@@ -128,6 +144,8 @@ export class ComposerSidecar {
         clearTimeout(timer)
         const settledBefore = this.#ready !== undefined
         reject(error)
+        for (const pending of this.#pending.values()) pending.reject(error)
+        this.#pending.clear()
         if (!this.#failed && !this.#stopping) {
           this.#failed = true
           child.kill('SIGTERM')
@@ -173,8 +191,13 @@ export class ComposerSidecar {
           if (this.#ready === undefined) { fail(new Error('nexus composer sidecar changed ownership before ready')); return }
           this.#ready = { ...this.#ready, ownership: frame.ownership }
           this.options.onOwnership?.(frame.ownership, frame.reason)
+        } else if ('id' in frame && frame.id !== undefined) {
+          const pending = this.#pending.get(frame.id)
+          if (pending === undefined) { fail(new Error('nexus composer sidecar answered an unknown request')); return }
+          this.#pending.delete(frame.id)
+          pending.resolve(frame)
         }
-        // `exiting` precedes 'close'; `error` frames answer requests this shell does not send yet.
+        // `exiting` precedes 'close'; an `error` frame without an id answers no request of this shell.
       })
     })
   }
@@ -210,6 +233,51 @@ export class ComposerSidecar {
   }
 
   /**
+   * Clients whose live profile points at this sidecar's routing; quitting would release them.
+   * @returns client identifiers such as `codex` or `claude-desktop`.
+   */
+  async inspectQuit(): Promise<string[]> {
+    const frame = await this.#request({ type: 'inspect-quit' })
+    if (frame.type !== 'quit-inspection') throw new Error(`nexus composer sidecar answered inspect-quit with ${frame.type}`)
+    return frame.routedClients
+  }
+
+  /**
+   * Release client routing before quit, without any Composer dialog.
+   * @returns `awaitingCodexDecision` when Codex Desktop must restart; answer with {@link codexDecision}.
+   */
+  async release(): Promise<ComposerRelease> {
+    return releaseOutcome(await this.#request({ type: 'release' }))
+  }
+
+  /**
+   * Answer `awaitingCodexDecision`.
+   * @param decision - `continue` finishes the release; `resume` serves Codex again and cancels the quit.
+   */
+  async codexDecision(decision: 'continue' | 'resume'): Promise<ComposerRelease> {
+    return releaseOutcome(await this.#request({ type: 'codex-decision', decision }))
+  }
+
+  #request(frame: Record<string, unknown>): Promise<ComposerFrame> {
+    const child = this.#child
+    if (this.#ready === undefined || child === undefined || this.#failed || this.#stopping || !child.stdin.writable) {
+      return Promise.reject(new Error('nexus composer sidecar is not running'))
+    }
+    const id = this.#nextRequest++
+    return new Promise<ComposerFrame>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#pending.delete(id)
+        reject(new Error(`nexus composer sidecar did not answer ${String(frame.type)}`))
+      }, REQUEST_TIMEOUT_MS)
+      this.#pending.set(id, {
+        resolve: (answer) => { clearTimeout(timer); resolve(answer) },
+        reject: (error) => { clearTimeout(timer); reject(error) },
+      })
+      child.stdin.write(`${JSON.stringify({ ...frame, id })}\n`)
+    })
+  }
+
+  /**
    * Ask for a clean exit, then escalate.
    * @returns when the process has exited.
    */
@@ -228,6 +296,17 @@ export class ComposerSidecar {
       }
     }
     await this.#exited
+  }
+}
+
+function releaseOutcome(frame: ComposerFrame): ComposerRelease {
+  switch (frame.type) {
+    case 'released': return { status: 'released' }
+    case 'awaiting-codex-decision': return { status: 'awaitingCodexDecision' }
+    case 'release-cancelled': return { status: 'cancelled' }
+    case 'release-failed': return { status: 'failed', error: frame.error }
+    case 'error': return { status: 'failed', error: frame.code }
+    default: throw new Error(`nexus composer sidecar answered a release with ${frame.type}`)
   }
 }
 

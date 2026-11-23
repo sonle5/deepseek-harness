@@ -181,4 +181,49 @@ describe('composer sidecar supervisor', () => {
     expect(await f.sidecar.invoke('get_providers', [1])).toEqual({ bridgeError: { code: 'invalid_arguments', retryable: false } })
     expect(fetch).toHaveBeenCalledTimes(3)
   })
+
+  it('correlates quit requests with their answers and fails them when the sidecar exits', async () => {
+    const f = setup()
+    const ready = f.sidecar.start()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame(READY)
+    await ready
+
+    const inspection = f.sidecar.inspectQuit()
+    await flush()
+    expect(JSON.parse(f.written.at(-1)!)).toEqual({ type: 'inspect-quit', id: 0 })
+    f.frame({ type: 'quit-inspection', id: 0, routedClients: ['codex'] })
+    await expect(inspection).resolves.toEqual(['codex'])
+
+    const release = f.sidecar.release()
+    f.frame({ type: 'awaiting-codex-decision', id: 1 })
+    await expect(release).resolves.toEqual({ status: 'awaitingCodexDecision' })
+    const decision = f.sidecar.codexDecision('resume')
+    await flush()
+    expect(JSON.parse(f.written.at(-1)!)).toEqual({ type: 'codex-decision', decision: 'resume', id: 2 })
+    f.frame({ type: 'release-cancelled', id: 2 })
+    await expect(decision).resolves.toEqual({ status: 'cancelled' })
+
+    const failed = f.sidecar.release()
+    f.frame({ type: 'release-failed', id: 3, error: 'vscode_release_failed:x' })
+    await expect(failed).resolves.toEqual({ status: 'failed', error: 'vscode_release_failed:x' })
+
+    const orphan = f.sidecar.release()
+    f.exit(1)
+    await expect(orphan).rejects.toThrow('exited with 1')
+    await expect(f.sidecar.release()).rejects.toThrow('not running')
+  })
+
+  it('treats an answer to an unknown request as a protocol violation', async () => {
+    const f = setup()
+    const ready = f.sidecar.start()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame(READY)
+    await ready
+    f.frame({ type: 'released', id: 99 })
+    await flush()
+    expect(f.child.kill).toHaveBeenCalledWith('SIGTERM')
+  })
 })

@@ -57,6 +57,11 @@ const frameSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('release-cancelled'), id: requestId }),
   z.object({ type: z.literal('release-failed'), id: requestId, error: z.string() }),
   z.object({ type: z.literal('error'), id: requestId, code: z.string() }).loose(),
+  z.object({
+    type: z.literal('restored'), ownership: z.string(), codexRestartRequired: z.boolean(),
+    initStatus: z.record(z.string(), z.unknown()).nullable().optional(),
+  }),
+  z.object({ type: z.literal('restore-failed'), error: z.string() }),
 ])
 
 export type ComposerFrame = z.infer<typeof frameSchema>
@@ -86,6 +91,13 @@ export function isOwnedComposerUrl(value: string): boolean {
   } catch (_invalidUrl) {
     return false
   }
+}
+
+/** Result of `--restore-and-exit`: every client route this profile owned was released. */
+export interface ComposerRestored {
+  readonly ownership: string
+  /** Codex Desktop kept running against the released route and needs a restart. */
+  readonly codexRestartRequired: boolean
 }
 
 /** Process facts the supervisor needs; tests replace the spawn. */
@@ -119,6 +131,8 @@ export class ComposerSidecar {
   #stopping = false
   #failed = false
   #nextRequest = 0
+  #restoring = false
+  #restored: ((frame: ComposerRestored) => void) | undefined
   readonly #pending = new Map<number, { resolve: (frame: ComposerFrame) => void; reject: (error: Error) => void }>()
 
   constructor(private readonly options: ComposerSidecarOptions) {}
@@ -136,7 +150,7 @@ export class ComposerSidecar {
   start(): Promise<ComposerReady> {
     return this.#readyPromise ??= new Promise<ComposerReady>((resolve, reject) => {
       const env = { ...this.options.environment ?? process.env, NEXUS_COMPOSER_HOME: this.options.home }
-      const child = (this.options.spawn ?? defaultSpawn)(this.options.binary, ['--sidecar'], env)
+      const child = (this.options.spawn ?? defaultSpawn)(this.options.binary, this.#restoring ? ['--sidecar', '--restore-and-exit'] : ['--sidecar'], env)
       this.#child = child
       let authenticated = false
       const timer = setTimeout(() => { fail(new Error('nexus composer sidecar did not become ready')) }, this.options.startupTimeoutMs ?? 60_000)
@@ -191,6 +205,12 @@ export class ComposerSidecar {
           if (this.#ready === undefined) { fail(new Error('nexus composer sidecar changed ownership before ready')); return }
           this.#ready = { ...this.#ready, ownership: frame.ownership }
           this.options.onOwnership?.(frame.ownership, frame.reason)
+        } else if (frame.type === 'restored' || frame.type === 'restore-failed') {
+          if (!this.#restoring || !authenticated) { fail(new Error('nexus composer sidecar sent an unexpected restore result')); return }
+          clearTimeout(timer)
+          if (frame.type === 'restore-failed') { fail(new Error(`nexus composer could not restore client routing: ${frame.error}`)); return }
+          this.#stopping = true
+          this.#restored?.({ ownership: frame.ownership, codexRestartRequired: frame.codexRestartRequired })
         } else if ('id' in frame && frame.id !== undefined) {
           const pending = this.#pending.get(frame.id)
           if (pending === undefined) { fail(new Error('nexus composer sidecar answered an unknown request')); return }
@@ -200,6 +220,23 @@ export class ComposerSidecar {
         // `exiting` precedes 'close'; an `error` frame without an id answers no request of this shell.
       })
     })
+  }
+
+  /**
+   * Run `--restore-and-exit` instead of serving: release client routing left by a crashed sidecar, then exit.
+   * Use a fresh instance; it never serves the bridge.
+   * @returns what the sidecar released once it exited.
+   */
+  async restore(): Promise<ComposerRestored> {
+    if (this.#readyPromise !== undefined) throw new Error('nexus composer sidecar already started')
+    this.#restoring = true
+    const restored = new Promise<ComposerRestored>((resolve) => { this.#restored = resolve })
+    // A restore never reaches ready; the start promise settles only with a failure, including the exit after success.
+    const failed = this.start().then(() => { throw new Error('nexus composer sidecar served instead of restoring') })
+    failed.catch(() => { /* Observed through the race below. */ })
+    const outcome = await Promise.race([restored, failed])
+    await this.#exited
+    return outcome
   }
 
   /**

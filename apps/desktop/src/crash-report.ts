@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { inspect } from 'node:util'
 
 /** Where a fatal failure surfaced. */
-export type CrashReportSource = 'host' | 'web-boot' | 'renderer' | 'main'
+export type CrashReportSource = 'host' | 'web-boot' | 'renderer' | 'main' | 'composer'
 
 /** Whether the backend had reached ready when the failure surfaced. */
 export type CrashReportPhase = 'startup' | 'running'

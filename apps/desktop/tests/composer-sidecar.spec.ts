@@ -226,4 +226,38 @@ describe('composer sidecar supervisor', () => {
     await flush()
     expect(f.child.kill).toHaveBeenCalledWith('SIGTERM')
   })
+
+  it('restores client routing with --restore-and-exit and waits for the exit', async () => {
+    const f = setup()
+    const restored = f.sidecar.restore()
+    expect(f.spawn.mock.calls[0]?.[1]).toEqual(['--sidecar', '--restore-and-exit'])
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame({ type: 'restored', ownership: 'owner', codexRestartRequired: true })
+    await flush()
+    f.exit(0)
+    await expect(restored).resolves.toEqual({ ownership: 'owner', codexRestartRequired: true })
+    expect(f.child.kill).not.toHaveBeenCalled()
+    await expect(f.sidecar.restore()).rejects.toThrow(/already started/)
+  })
+
+  it('reports a failed restore', async () => {
+    const onFailure = vi.fn()
+    const f = setup({ onFailure })
+    const restored = f.sidecar.restore()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame({ type: 'restore-failed', error: 'codex_release_failed: busy' })
+    await expect(restored).rejects.toThrow(/codex_release_failed: busy/)
+    expect(onFailure).not.toHaveBeenCalled()
+  })
+
+  it('rejects a restore result from a serving sidecar', async () => {
+    const f = setup()
+    const ready = f.sidecar.start()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame({ type: 'restored', ownership: 'owner', codexRestartRequired: false })
+    await expect(ready).rejects.toThrow(/unexpected restore result/)
+  })
 })

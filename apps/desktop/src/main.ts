@@ -491,7 +491,8 @@ async function main(): Promise<void> {
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
-  const browserGuests = new DesktopBrowserGuests(() => hostUrl)
+  let composerBridgeUrl: string | undefined
+  const browserGuests = new DesktopBrowserGuests(() => hostUrl, () => composerBridgeUrl === undefined ? [] : [composerBridgeUrl])
   let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
@@ -540,8 +541,16 @@ async function main(): Promise<void> {
     resources: composerResources,
     preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
     home: join(app.getPath('userData'), 'composer-development-home'),
+    // The sidecar launches Codex and Claude helpers, so it needs the login-shell PATH Hosts get.
+    environment: async () => { await prepareHostEnvironment(); return hostEnvironment },
+    // Superharness has no usage-telemetry consent yet, so the embedded Composer sends none.
+    telemetryConsent: false,
     // Composer failures stay inside the Composer surface; Superharness keeps running.
-    onError: (error) => { console.error('nexus composer:', error.message) },
+    onError: (error) => {
+      console.error('nexus composer:', error.message)
+      void persistCrashReport(error, 'composer')
+    },
+    onBridgeUrl: (url) => { composerBridgeUrl = url },
   })
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)

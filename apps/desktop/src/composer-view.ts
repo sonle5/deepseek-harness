@@ -95,11 +95,17 @@ type ComposerOwner = { contentView: Pick<View, 'addChildView' | 'removeChildView
 /** Bounds in owner content coordinates. */
 export interface ComposerBounds { x: number; y: number; width: number; height: number }
 
+const RENDERER_CRASH_LIMIT = 3
+const RENDERER_CRASH_WINDOW_MS = 60_000
+
 /** Owns the Composer partition and its single native view. */
 export class DesktopComposerView {
   #view: WebContentsView | undefined
   #owner: ComposerOwner | undefined
   #session: Session | undefined
+  #bounds: ComposerBounds | undefined
+  #visible = false
+  #crashes: number[] = []
 
   /**
    * @param preload - Bundled sandboxed Composer preload.
@@ -137,13 +143,23 @@ export class DesktopComposerView {
     }
     this.#view.setBounds(bounds)
     this.#view.setVisible(true)
+    this.#bounds = bounds
+    this.#visible = true
   }
 
   /** Hide without discarding renderer state. */
-  hide(): void { this.#view?.setVisible(false) }
+  hide(): void {
+    this.#visible = false
+    this.#view?.setVisible(false)
+  }
 
   /** Detach and destroy the view. */
   close(): void {
+    this.#visible = false
+    this.detach()
+  }
+
+  private detach(): void {
     const view = this.#view
     this.#view = undefined
     if (view === undefined) return
@@ -157,6 +173,23 @@ export class DesktopComposerView {
     if (typeof error !== 'object' || error === null) return
     const { title, message } = error as Record<string, unknown>
     if (typeof title === 'string' && typeof message === 'string') this.onFatal({ title: title.slice(0, 200), message: message.slice(0, 4_000) })
+  }
+
+  /** Replace a crashed renderer in place while it is on screen; a crash loop leaves it detached until the next show. */
+  private rendererGone(): void {
+    const owner = this.#owner
+    const bounds = this.#bounds
+    const visible = this.#visible
+    this.detach()
+    const now = Date.now()
+    this.#crashes = [...this.#crashes.filter(time => now - time < RENDERER_CRASH_WINDOW_MS), now]
+    if (!visible || owner === undefined || bounds === undefined) return
+    if (this.#crashes.length > RENDERER_CRASH_LIMIT) {
+      this.#visible = false
+      this.onFatal({ title: 'Nexus Composer stopped', message: 'The Composer view crashed repeatedly. Switch away and back to reload it.' })
+      return
+    }
+    this.show(owner, bounds)
   }
 
   private create(): WebContentsView {
@@ -176,7 +209,7 @@ export class DesktopComposerView {
     view.webContents.on('will-navigate', keepOnOrigin)
     view.webContents.on('will-redirect', (event) => { event.preventDefault() })
     view.webContents.on('will-attach-webview', (event) => { event.preventDefault() })
-    view.webContents.on('render-process-gone', () => { if (this.#view === view) this.close() })
+    view.webContents.on('render-process-gone', () => { if (this.#view === view) this.rendererGone() })
     view.setVisible(false)
     void view.webContents.loadURL(`${COMPOSER_ORIGIN}/`).catch(() => {
       // A failed load leaves the view blank; the next show recreates it after a renderer crash.

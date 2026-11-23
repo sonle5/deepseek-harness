@@ -73,6 +73,8 @@ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { DesktopComposerSurface } from './composer-surface.ts'
+import { classifyComposerStandalone } from './composer-standalone.ts'
+import { DesktopComposerStandaloneNotice } from './composer-standalone-notice.ts'
 import { releaseComposerForQuit } from './composer-quit.ts'
 import { developmentComposerResources, packagedComposerResources } from './composer-view.ts'
 import { installComposerSwitcher } from './composer-switcher.ts'
@@ -543,6 +545,25 @@ async function main(): Promise<void> {
     ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR)
     : packagedComposerResources(process.resourcesPath)
   let notifyComposerSwitcher = (): void => {}
+  // A separate, older Nexus Composer keeps the embedded one read-only. Superharness never signals it;
+  // it explains once per kind (handoff / outdated) and never again after acknowledgement.
+  const composerStandaloneNotice = composerResources === undefined ? undefined : new DesktopComposerStandaloneNotice({
+    markerPaths: {
+      handoff: join(app.getPath('userData'), 'composer-standalone-handoff-notified'),
+      outdated: join(app.getPath('userData'), 'composer-standalone-outdated-notified'),
+    },
+    messages: () => locale.messages,
+    // A sheet of the main window when one exists; otherwise its own top-level dialog.
+    show: (options) => {
+      const parent = currentMainWindow()
+      return parent === undefined ? dialog.showMessageBox(options) : ordinaryMessageBox(options, parent)
+    },
+    focus: () => { updateDialog.focus() },
+  })
+  const reportComposerStandalone = (): void => {
+    const state = classifyComposerStandalone(composer?.ready)
+    if (state !== undefined) composerStandaloneNotice?.report(state)
+  }
   const composer = composerResources === undefined ? undefined : new DesktopComposerSurface({
     resources: composerResources,
     preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
@@ -558,8 +579,9 @@ async function main(): Promise<void> {
       void persistCrashReport(error, 'composer')
     },
     onBridgeUrl: (url) => { composerBridgeUrl = url },
-    // The switcher mirrors every lifecycle change into the application document.
-    onStatus: () => { notifyComposerSwitcher() },
+    // The switcher mirrors every lifecycle change into the application document. A ready or an ownership
+    // change may be the first sight of a separate standalone Composer.
+    onStatus: () => { notifyComposerSwitcher(); reportComposerStandalone() },
     // Composer's file dialogs are sheets of the application window that hosts its view.
     window: currentMainWindow,
   })
@@ -1604,6 +1626,7 @@ async function main(): Promise<void> {
     updateJournal?.action('quit-requested')
     quitConfirmation.dispose()
     backgroundNotice?.dispose()
+    composerStandaloneNotice?.dispose()
     tray?.dispose()
     composerSwitcher.dispose()
     disposeComposerOverlaySync()
@@ -1629,6 +1652,7 @@ async function main(): Promise<void> {
       shuttingDown = true
       quitConfirmation.dispose()
       backgroundNotice?.dispose()
+      composerStandaloneNotice?.dispose()
       updateJournal?.action('quit-requested')
       tray?.dispose()
       updateDialog.dispose()

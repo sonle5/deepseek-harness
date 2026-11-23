@@ -22,12 +22,25 @@ const REQUEST_TIMEOUT_MS = 30_000
 /** Startup status the sidecar reports when setup stopped early, for example a database newer than supported. */
 export type ComposerInitStatus = Readonly<Record<string, unknown>> | null
 
+/**
+ * Another Composer that owns routing (`externalOwner` in the control frames).
+ * `detectedBy` is `lock` when it holds the owner lock and `proxy` when a release that predates the
+ * lock still serves the client configs; `version` is present only when the lock holder wrote one.
+ */
+export interface ComposerExternalOwner {
+  readonly detectedBy: 'lock' | 'proxy'
+  /** Absent when the lock holder wrote only a pid (a release that predates the version line). */
+  readonly version?: string | undefined
+}
+
 export interface ComposerReady {
   readonly url: string
   readonly version: string
   readonly schemaVersion: number
   readonly initStatus: ComposerInitStatus
   readonly ownership: string
+  /** Present while `ownership` is `external`; absent once this process owns routing again. */
+  readonly externalOwner?: ComposerExternalOwner | undefined
 }
 
 /** Result envelope handed to the Composer renderer (`src/lib/transport/host.ts` in Composer). */
@@ -43,6 +56,12 @@ export type ComposerRelease =
 
 const requestId = z.number().int().nonnegative().optional()
 
+/** Additive in bridge protocol 1: only an external owner carries it. Unknown fields are ignored. */
+const externalOwnerSchema = z.object({
+  detectedBy: z.enum(['lock', 'proxy']),
+  version: z.string().optional(),
+})
+
 const frameSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('starting'), version: z.string() }),
   z.object({
@@ -53,8 +72,12 @@ const frameSchema = z.discriminatedUnion('type', [
     schemaVersion: z.number(),
     initStatus: z.record(z.string(), z.unknown()).nullable(),
     ownership: z.string(),
+    externalOwner: externalOwnerSchema.optional(),
   }),
-  z.object({ type: z.literal('ownership'), ownership: z.string(), reason: z.string() }),
+  z.object({
+    type: z.literal('ownership'), ownership: z.string(), reason: z.string(),
+    externalOwner: externalOwnerSchema.optional(),
+  }),
   z.object({ type: z.literal('exiting'), reason: z.string() }),
   z.object({ type: z.literal('quit-inspection'), id: requestId, routedClients: z.array(z.string()) }),
   z.object({ type: z.literal('released'), id: requestId }),
@@ -115,7 +138,7 @@ export interface ComposerSidecarOptions {
   /** Failure after a successful start; the shell scopes it to the Composer surface. */
   readonly onFailure?: (error: Error) => void
   /** Ownership changed after ready, for example another Composer took over routing and the bridge became read-only. */
-  readonly onOwnership?: (ownership: string, reason: string) => void
+  readonly onOwnership?: (ownership: string, reason: string, externalOwner?: ComposerExternalOwner) => void
   readonly spawn?: (binary: string, args: readonly string[], env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams
   readonly fetch?: typeof fetch
   readonly startupTimeoutMs?: number
@@ -219,12 +242,17 @@ export class ComposerSidecar {
           this.#ready = {
             url: frame.url.replace(/\/$/, ''), version: frame.version, schemaVersion: frame.schemaVersion,
             initStatus: frame.initStatus, ownership: frame.ownership,
+            ...(frame.externalOwner === undefined ? {} : { externalOwner: frame.externalOwner }),
           }
           resolve(this.#ready)
         } else if (frame.type === 'ownership') {
           if (this.#ready === undefined) { fail(new Error('nexus composer sidecar changed ownership before ready')); return }
-          this.#ready = { ...this.#ready, ownership: frame.ownership }
-          this.options.onOwnership?.(frame.ownership, frame.reason)
+          this.#ready = {
+            ...this.#ready, ownership: frame.ownership,
+            // A frame without the object replaces the previous one so a stale owner never lingers.
+            externalOwner: frame.externalOwner,
+          }
+          this.options.onOwnership?.(frame.ownership, frame.reason, frame.externalOwner)
         } else if (frame.type === 'restored' || frame.type === 'restore-failed') {
           if (!this.#restoring || !authenticated) { fail(new Error('nexus composer sidecar sent an unexpected restore result')); return }
           clearTimeout(timer)

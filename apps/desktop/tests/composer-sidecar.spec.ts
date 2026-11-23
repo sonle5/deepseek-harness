@@ -155,7 +155,7 @@ describe('composer sidecar supervisor', () => {
     await ready
     f.frame({ type: 'ownership', ownership: 'external', reason: 'drift' })
     await flush()
-    expect(onOwnership).toHaveBeenCalledWith('external', 'drift')
+    expect(onOwnership).toHaveBeenCalledWith('external', 'drift', undefined)
     expect(f.sidecar.ready?.ownership).toBe('external')
 
     const g = setup()
@@ -164,6 +164,52 @@ describe('composer sidecar supervisor', () => {
     await flush()
     g.frame({ type: 'ownership', ownership: 'external', reason: 'drift' })
     await expect(early).rejects.toThrow('before ready')
+  })
+
+  it('carries the optional externalOwner from ready and ownership frames', async () => {
+    // Absent (this process owns routing), lock with a version, lock without one, and proxy-only.
+    const cases = [
+      [READY, undefined],
+      [{ ...READY, ownership: 'external', externalOwner: { detectedBy: 'lock', version: '3.16.7' } },
+        { detectedBy: 'lock', version: '3.16.7' }],
+      [{ ...READY, ownership: 'external', externalOwner: { detectedBy: 'lock' } }, { detectedBy: 'lock' }],
+      [{ ...READY, ownership: 'external', externalOwner: { detectedBy: 'proxy' } }, { detectedBy: 'proxy' }],
+    ] as const
+    for (const [frame, expected] of cases) {
+      const f = setup()
+      const ready = f.sidecar.start()
+      f.frame({ type: 'starting', version: '1.0.0' })
+      await flush()
+      f.frame(frame)
+      await ready
+      expect(f.sidecar.ready?.externalOwner).toEqual(expected)
+      await f.sidecar.stop()
+    }
+
+    const onOwnership = vi.fn()
+    const g = setup({ onOwnership })
+    const ready = g.sidecar.start()
+    g.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    g.frame(READY)
+    await ready
+    g.frame({ type: 'ownership', ownership: 'external', reason: 'drift', externalOwner: { detectedBy: 'proxy' } })
+    await flush()
+    expect(onOwnership).toHaveBeenCalledWith('external', 'drift', { detectedBy: 'proxy' })
+    expect(g.sidecar.ready?.externalOwner).toEqual({ detectedBy: 'proxy' })
+    // A later frame without the object replaces the stale owner.
+    g.frame({ type: 'ownership', ownership: 'owner', reason: 'recovered' })
+    await flush()
+    expect(g.sidecar.ready?.externalOwner).toBeUndefined()
+  })
+
+  it('rejects an externalOwner that names an unknown detection', async () => {
+    const f = setup()
+    const ready = f.sidecar.start()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame(JSON.stringify({ ...READY, ownership: 'external', externalOwner: { detectedBy: 'hearsay' } }))
+    await expect(ready).rejects.toThrow('invalid control frame')
   })
 
   it('forwards invokes with the bearer secret and maps every envelope', async () => {

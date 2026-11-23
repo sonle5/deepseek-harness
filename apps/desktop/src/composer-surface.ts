@@ -191,9 +191,11 @@ export class DesktopComposerSurface {
         this.options.onError(error)
         this.recover(instance, error)
       },
-      onOwnership: (ownership) => {
+      onOwnership: (ownership, _reason, externalOwner) => {
         if (this.#closed || instance === undefined || this.#sidecar !== instance || this.#ready === undefined) return
-        this.#ready = { ...this.#ready, ownership }
+        // A frame without `externalOwner` replaces the previous one so a stale owner never lingers.
+        const { externalOwner: _previous, ...rest } = this.#ready
+        this.#ready = externalOwner === undefined ? { ...rest, ownership } : { ...rest, ownership, externalOwner }
         if (this.#status.state === 'ready') this.setStatus(this.#status)
       },
     }

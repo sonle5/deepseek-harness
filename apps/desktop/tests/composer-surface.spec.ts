@@ -145,6 +145,20 @@ describe('composer surface supervision', () => {
     expect(h.surface.ready).toBeUndefined()
   })
 
+  it('carries the externalOwner through ready and ownership changes', async () => {
+    const h = harness(['ready'])
+    await h.surface.start()
+    expect(h.surface.ready?.externalOwner).toBeUndefined()
+    h.created[0]?.options.onOwnership?.('external', 'drift', { detectedBy: 'lock', version: '3.16.7' })
+    expect(h.surface.ready).toMatchObject({ ownership: 'external', externalOwner: { detectedBy: 'lock', version: '3.16.7' } })
+    h.created[0]?.options.onOwnership?.('external', 'drift', { detectedBy: 'proxy' })
+    expect(h.surface.ready?.externalOwner).toEqual({ detectedBy: 'proxy' })
+    // A later frame without the object clears the stale owner.
+    h.created[0]?.options.onOwnership?.('owner', 'recovered')
+    expect(h.surface.ready?.externalOwner).toBeUndefined()
+    await h.surface.close()
+  })
+
   it('gives up at once on a bridge protocol mismatch instead of retrying', async () => {
     const h = harness(['incompatible'])
     await expect(h.surface.start()).rejects.toThrow('bridge protocol 2')

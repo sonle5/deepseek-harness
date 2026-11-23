@@ -62,6 +62,15 @@ it('discovers extensionless PE files in nested directories and excludes foreign 
   ].map(name => join(root, name)).sort())
 })
 
+it('includes the embedded Composer sidecar in the packaged app signing walk, not its renderer', async () => {
+  const root = await fixture({
+    'resources/composer/bin/nexus-composer.exe': executable(),
+    'resources/composer/dist/index.html': '<html></html>',
+    'resources/composer/manifest.json': '{}',
+  })
+  expect(await windowsRuntimeCode(root)).toEqual([join(root, 'resources/composer/bin/nexus-composer.exe')])
+})
+
 it.each([
   ['broken.exe', Buffer.from('not PE')],
   ['nested/extensionless', Buffer.from('MZ')],

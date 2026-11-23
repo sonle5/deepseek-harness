@@ -82,6 +82,17 @@ describe('composer sidecar supervisor', () => {
     await expect(ready).resolves.toMatchObject({ url: 'http://127.0.0.1:4321', schemaVersion: 7, initStatus: null })
   })
 
+  it('passes no NEXUS_COMPOSER_HOME without a home, even when one is inherited', () => {
+    const fake = fakeChild()
+    const spawn = vi.fn((_binary: string, _args: readonly string[], _env: NodeJS.ProcessEnv) => fake.child)
+    const sidecar = new ComposerSidecar({ binary: '/bin/composer', environment: { PATH: '/bin', NEXUS_COMPOSER_HOME: '/tmp/stale' }, spawn })
+    void sidecar.start().catch(() => undefined)
+    const env = spawn.mock.calls[0]![2]
+    expect(env).not.toHaveProperty('NEXUS_COMPOSER_HOME')
+    expect(env.PATH).toBe('/bin')
+    fake.exit(0)
+  })
+
   it.each([
     ['stray stdout', 'not json'],
     ['a protocol mismatch', { ...READY, bridgeProtocol: 2 }],

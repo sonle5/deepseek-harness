@@ -44,6 +44,21 @@ export function developmentComposerResources(directory: string | undefined): Com
 }
 
 /**
+ * Resolve the Composer a packaged build embeds under `resources/composer`. Releases whose target the lock leaves
+ * unavailable ship no Composer, so absence disables the surface instead of failing startup.
+ * @param resourcesPath - Packaged `process.resourcesPath`.
+ * @returns Composer resources, or undefined when the build embeds none.
+ */
+export function packagedComposerResources(resourcesPath: string): ComposerResources | undefined {
+  const root = join(resourcesPath, 'composer')
+  const dist = join(root, 'dist')
+  const binary = join(root, 'bin', process.platform === 'win32' ? 'nexus-composer.exe' : 'nexus-composer')
+  const index = join(dist, 'index.html')
+  const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile()
+  return isFile(binary) && isFile(index) ? { dist, binary } : undefined
+}
+
+/**
  * Serve the Composer document inside its own partition only.
  * @param request - `dsh-app:` request from the Composer session.
  * @param dist - Built Composer renderer.

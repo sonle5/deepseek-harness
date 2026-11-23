@@ -19,6 +19,7 @@ describe('desktop build paths', () => {
       'unsignedArtifacts',
       'unnotarizedArtifacts',
       'runtime',
+      'composer',
       'packageSet',
       'dsh',
       'dshPnpm',

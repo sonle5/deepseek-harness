@@ -104,8 +104,8 @@ export interface ComposerRestored {
 export interface ComposerSidecarOptions {
   /** Composer executable. */
   readonly binary: string
-  /** Isolated storage root passed as `NEXUS_COMPOSER_HOME`. */
-  readonly home: string
+  /** Isolated storage root passed as `NEXUS_COMPOSER_HOME`; omitted, Composer uses its shared profile. */
+  readonly home?: string
   readonly environment?: NodeJS.ProcessEnv
   /** Failure after a successful start; the shell scopes it to the Composer surface. */
   readonly onFailure?: (error: Error) => void
@@ -161,7 +161,10 @@ export class ComposerSidecar {
    */
   start(): Promise<ComposerReady> {
     return this.#readyPromise ??= new Promise<ComposerReady>((resolve, reject) => {
-      const env = { ...this.options.environment ?? process.env, NEXUS_COMPOSER_HOME: this.options.home }
+      const env = { ...this.options.environment ?? process.env }
+      // An inherited override must not redirect the shared profile a packaged build uses.
+      if (this.options.home === undefined) delete env.NEXUS_COMPOSER_HOME
+      else env.NEXUS_COMPOSER_HOME = this.options.home
       const child = (this.options.spawn ?? defaultSpawn)(this.options.binary, this.#restoring ? ['--sidecar', '--restore-and-exit'] : ['--sidecar'], env)
       this.#child = child
       let authenticated = false

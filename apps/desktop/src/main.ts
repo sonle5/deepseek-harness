@@ -73,7 +73,7 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { DesktopComposerSurface } from './composer-surface.ts'
 import { releaseComposerForQuit } from './composer-quit.ts'
-import { developmentComposerResources } from './composer-view.ts'
+import { developmentComposerResources, packagedComposerResources } from './composer-view.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -536,12 +536,15 @@ async function main(): Promise<void> {
     () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin',
     owner => isMandatory() || updateOverlays.input(owner).blocked)
   // Optional embedded Composer. Development opts in with DSH_DESKTOP_COMPOSER_DIR; a set but unusable
-  // directory fails startup loudly. Packaged builds gain it once the release pins a Composer artifact.
-  const composerResources = development ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR) : undefined
+  // directory fails startup loudly. Packaged builds embed it when the release lock pins this target.
+  const composerResources = development
+    ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR)
+    : packagedComposerResources(process.resourcesPath)
   const composer = composerResources === undefined ? undefined : new DesktopComposerSurface({
     resources: composerResources,
     preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
-    home: join(app.getPath('userData'), 'composer-development-home'),
+    // Development keeps an isolated profile; packaged builds share the standalone Composer's real home.
+    ...(development ? { home: join(app.getPath('userData'), 'composer-development-home') } : {}),
     // The sidecar launches Codex and Claude helpers, so it needs the login-shell PATH Hosts get.
     environment: async () => { await prepareHostEnvironment(); return hostEnvironment },
     // Superharness has no usage-telemetry consent yet, so the embedded Composer sends none.

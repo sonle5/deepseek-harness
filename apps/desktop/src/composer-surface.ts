@@ -28,8 +28,8 @@ export interface ComposerSurfaceOptions {
   readonly resources: ComposerResources
   /** Bundled `preload-composer.js`. */
   readonly preload: string
-  /** Isolated storage root; the sidecar refuses to run against the shared profile until it holds the owner lock. */
-  readonly home: string
+  /** Isolated storage root for development; omitted, the sidecar uses Composer's shared profile (`~/.nexus-composer`). */
+  readonly home?: string
   /** Process environment for the sidecar, for example the login-shell environment Hosts use. */
   readonly environment?: () => Promise<NodeJS.ProcessEnv>
   /** Whether the user allowed product usage telemetry; the sidecar sends none otherwise. */
@@ -174,7 +174,7 @@ export class DesktopComposerSurface {
     let instance: Sidecar | undefined = undefined
     const options: ComposerSidecarOptions = {
       binary: this.options.resources.binary,
-      home: this.options.home,
+      ...(this.options.home === undefined ? {} : { home: this.options.home }),
       environment,
       onFailure: (error) => {
         if (this.#closed || instance === undefined || this.#sidecar !== instance) return

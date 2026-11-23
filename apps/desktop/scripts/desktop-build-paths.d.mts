@@ -7,6 +7,7 @@ export interface DesktopTargetBuildPaths {
   readonly unsignedArtifacts: string
   readonly unnotarizedArtifacts: string
   readonly runtime: string
+  readonly composer: string
   readonly packageSet: string
   readonly dsh: string
   readonly dshPnpm: string

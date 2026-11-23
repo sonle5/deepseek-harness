@@ -390,6 +390,12 @@
     - id: ui-file-drag
       name: '@deepseek-ai/dsh-client-ui-file-drag'
 
+    # Superharness | Composer switcher; only the Desktop build exposes the
+    # `dshComposer` bridge, and the plugin itself registers nothing without it.
+    - id: ui-product-switcher
+      name: '@deepseek-ai/dsh-client-ui-product-switcher'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
     # Tool call tree, generic fallback, and keyed business Tool views.
     - id: ui-tool
       name: '@deepseek-ai/dsh-client-ui-tool'

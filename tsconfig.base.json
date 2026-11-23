@@ -285,6 +285,10 @@
       "@deepseek-ai/dsh-client-ui-slots": ["./packages/client/ui-slots/src"],
       "@deepseek-ai/dsh-client-ui-file-drag": ["./packages/client/ui-file-drag/src"],
       "@deepseek-ai/dsh-client-ui-file-drag/client": ["./packages/client/ui-file-drag/src/client/index.ts"],
+      // The package carries the client-ui- prefix while its directory keeps the
+      // shorter ui- name every client UI package uses, so this alias is hand-written.
+      "@deepseek-ai/dsh-client-ui-product-switcher": ["./packages/client/ui-product-switcher/src"],
+      "@deepseek-ai/dsh-client-ui-product-switcher/client": ["./packages/client/ui-product-switcher/src/client/index.ts"],
       "@deepseek-ai/dsh-client-ui-attachment": ["./packages/client/ui-attachment/src"],
       "@deepseek-ai/dsh-client-ui-primitives": ["./packages/client/ui-primitives/src"],
       "@deepseek-ai/dsh-client-ui-dockkit": ["./packages/client/ui-dockkit/src"],

@@ -344,6 +344,9 @@ export function SidebarRoot({
               </button>
             )
         })()}
+        {/* Product control seat: a sibling of the brand, so it stays exposed
+            to assistive technology and outside the New Session button. */}
+        {wide && renderSlot('sidebar.product', {})}
         {!darwinDesktop && toggle}
       </div>
 

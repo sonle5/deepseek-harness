@@ -98,6 +98,17 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * Declared by this package's 'sidebar' entry.
      */
     'sidebar.session.action': { kind: 'hoc'; scope: 'root'; owner: SidebarSessionActionOwnerProps }
+    /**
+     * Optional product control beside the brand in the expanded logo row.
+     * Declared by this package's 'sidebar' entry outside the brand identity,
+     * which is aria-hidden and may be a button; the occupant owns its width.
+     */
+    'sidebar.product': { kind: 'single'; scope: 'root'; owner: SidebarProductOwnerProps }
+    /**
+     * Optional product control after the window-chrome controls while the
+     * sidebar is hidden. Declared by this package's 'shell.leading' entry.
+     */
+    'sidebar.leading.product': { kind: 'single'; scope: 'root'; owner: SidebarProductOwnerProps }
   }
 }
 
@@ -222,6 +233,12 @@ export interface SidebarFooterActionOwnerProps {
   wide: boolean
 }
 
+/** Empty owner share for the product control seats; the occupant owns its content. */
+export interface SidebarProductOwnerProps {
+  /** Marker field: the occupant owns its own content and width. */
+  children?: never
+}
+
 /** Owner share of the New-session row's HOC layer. */
 export interface SidebarSessionActionOwnerProps {
   /** Whether the sidebar renders wide content (false = 56px rail). */
@@ -278,5 +295,6 @@ export type SidebarRootComponentProps =
     | 'sidebar.settings'
     | 'sidebar.footer.action'
     | 'sidebar.session.action'
+    | 'sidebar.product'
   >
   & PropsRenderFactories & InjectFace<SidebarRootInjected> & PropsLocale<'sidebar'>

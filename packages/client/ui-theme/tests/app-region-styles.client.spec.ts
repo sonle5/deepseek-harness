@@ -45,6 +45,7 @@ const CONVERSATION = 'client/ui-conversation/src/client/skeleton/ConversationRoo
 const DOCKKIT = 'client/ui-dockkit/src/components/dockkit.module.css'
 const PLUGIN_MANAGER = 'client/ui-plugin-manager/src/client/PluginManagerPage.module.css'
 const PLATFORM_OVERLAY = 'client/ui-settings-account/src/client/PlatformOverlay.module.css'
+const PRODUCT_SWITCHER_OVERLAY = 'client/ui-product-switcher/src/client/ComposerView.module.css'
 
 /**
  * One chrome row: the sheet that lays it out, the markup that marks it, and the
@@ -116,6 +117,12 @@ const CHROME_ROWS: readonly ChromeRow[] = [
     file: PLATFORM_OVERLAY,
     selector: '.header',
     markup: 'client/ui-settings-account/src/client/PlatformOverlay.tsx',
+    height: ['height', '48px'],
+  },
+  {
+    file: PRODUCT_SWITCHER_OVERLAY,
+    selector: '.header',
+    markup: 'client/ui-product-switcher/src/client/ComposerView.tsx',
     height: ['height', '48px'],
   },
 ]

@@ -1,0 +1,118 @@
+/* The Composer surface is a product layer, not a dialog: it covers the
+ * document, but every overlay main must keep above the native view — the
+ * Platform page (1001), modals (1000), menus, tooltips and toasts (1100) —
+ * still stacks over it, so it sits just below the modal layer. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base);
+}
+
+/* Windows Electron: the Desktop caption menu owns the window's top strip, so
+   the product bar and the native Composer view start below it. */
+:global([data-windows-titlebar]) .overlay {
+  padding-top: var(--dsh-windows-titlebar-height);
+}
+
+/* The macOS shell's drag row: on darwin this bar IS the window's top strip, and
+   ui-web base.css declares the one darwin rule over the `data-window-drag` mark.
+   Windows keeps the native caption row as its drag surface instead — this bar
+   sits below that row (see above) and declares no drag of its own. */
+.header {
+  -webkit-app-region: initial;
+  box-sizing: border-box;
+  height: 48px;
+  flex: none;
+  padding: 6px 16px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding-top: 5px;
+}
+
+.trafficLights {
+  display: none;
+  width: 60.667px;
+  height: 14px;
+  flex: none;
+}
+
+:global(html[data-platform="darwin"]) .trafficLights {
+  display: block;
+}
+
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.message {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.retry.retry {
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 58px;
+  padding: 0 12px;
+  --dsh-button-outline-color: var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.bannerTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.bannerDetail {
+  max-width: 420px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}

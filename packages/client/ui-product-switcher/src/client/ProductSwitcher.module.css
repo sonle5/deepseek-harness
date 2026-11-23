@@ -1,0 +1,59 @@
+/* Track and raised segment follow the shared SegmentedControl look (ui-primitives):
+ * the hover fill is the track, the selected segment is the one elevated pill.
+ * The group sizes to its labels so it fits beside the brand without pushing the
+ * panel toggle out of the logo row. */
+.group {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.segment {
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.segment[aria-pressed='true'] {
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-elevation-soft);
+  color: var(--dsw-alias-label-primary);
+}
+
+@media (hover: hover) {
+  .segment:hover {
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.segment:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+/* Window-chrome form: the leading seat lays out 28px controls. */
+.compact .segment {
+  height: 22px;
+  padding: 0 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    transition: none;
+  }
+}

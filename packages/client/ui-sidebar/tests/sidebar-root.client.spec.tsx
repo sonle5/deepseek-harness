@@ -48,6 +48,7 @@ function makeHeaderProps(): HeaderLeadingControlsProps {
     useEntryPins: selector => selector([]), useEntryActions: selector => selector(false),
     selectPanel: vi.fn(), setPinned: vi.fn(), toggleSidebar: vi.fn(),
     startSession: vi.fn(), trackEntryClick: vi.fn(), t,
+    renderSlot: (() => null) as HeaderLeadingControlsProps['renderSlot'],
   }
 }
 
@@ -91,6 +92,7 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.toggle.badge') return null
+        if (key === 'sidebar.product') return <div data-testid="product-seat" />
         if (key === 'sidebar.panellist') return <span aria-hidden="true">P</span>
         if (key === 'sidebar.settings') {
           settingsOwner = owner
@@ -187,6 +189,7 @@ describe('SidebarRoot shell', () => {
     cleanup()
     document.documentElement.dataset.platform = 'darwin'
     render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      renderSlot={() => null}
       usePanelInfo={neverHook} useSessions={neverHook} useSessionStatus={neverHook}
       useSessionRetainInfo={neverHook} useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
@@ -204,6 +207,10 @@ describe('SidebarRoot shell', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
     expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
+    // The product seat sits beside the brand, outside its aria-hidden identity and New Session button.
+    const product = screen.getByTestId('product-seat')
+    expect(product.closest('[aria-hidden="true"]')).toBeNull()
+    expect(product.closest('button')).toBeNull()
     // Expanded, both the wordmark and the capsule start a session and report a sidebar New Session click first.
     const starters = screen.getAllByRole('button', { name: 'New session' })
     expect(starters).toHaveLength(2)
@@ -509,6 +516,15 @@ it('wires the shell.leading controls to the shared sidebar actions', () => {
   render(<HeaderLeadingControls {...props} useRemoteAccess={action => action !== 'session/create'} />)
   expect(screen.getByRole('button', { name: en['toggle.open'] })).toBeTruthy()
   expect(screen.queryByRole('button', { name: en['session.new.label'] })).toBeNull()
+})
+
+it('renders the leading product seat after the window-chrome controls', () => {
+  document.documentElement.dataset.platform = 'darwin'
+  const renderSlot = vi.fn(((key: string) => <div data-testid={key} />) as HeaderLeadingControlsProps['renderSlot'])
+  const { container } = render(<HeaderLeadingControls {...makeHeaderProps()} renderSlot={renderSlot} />)
+  expect(renderSlot).toHaveBeenCalledWith('sidebar.leading.product', {})
+  const controls = container.firstElementChild!
+  expect(controls.lastElementChild!.getAttribute('data-testid')).toBe('sidebar.leading.product')
 })
 
 it.each([undefined, 'darwin', 'win32'] as const)('shows the collapsed-header New Session control only on Desktop (%s)', (platform) => {

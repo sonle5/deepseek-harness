@@ -106,6 +106,7 @@ export function apply(ctx: ClientContext): void {
         'sidebar.settings': { kind: 'single', scope: 'root' },
         'sidebar.footer.action': { kind: 'list', scope: 'root' },
         'sidebar.session.action': { kind: 'hoc', scope: 'root' },
+        'sidebar.product': { kind: 'single', scope: 'root' },
       },
       inject: injectProps,
     }, SidebarRoot)
@@ -117,6 +118,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('shell.leading', () => ctx.slots.register({
     name: 'shell.leading',
     locale: NS,
+    children: { 'sidebar.leading.product': { kind: 'single', scope: 'root' } },
     inject: injectProps,
   }, HeaderLeadingControls))
   syncPanels()

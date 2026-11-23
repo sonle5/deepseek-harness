@@ -40,6 +40,7 @@ const frameSchema = z.discriminatedUnion('type', [
     initStatus: z.record(z.string(), z.unknown()).nullable(),
     ownership: z.string(),
   }),
+  z.object({ type: z.literal('ownership'), ownership: z.string(), reason: z.string() }),
   z.object({ type: z.literal('exiting'), reason: z.string() }),
   z.object({ type: z.literal('error'), code: z.string() }).loose(),
 ])
@@ -82,6 +83,8 @@ export interface ComposerSidecarOptions {
   readonly environment?: NodeJS.ProcessEnv
   /** Failure after a successful start; the shell scopes it to the Composer surface. */
   readonly onFailure?: (error: Error) => void
+  /** Ownership changed after ready, for example another Composer took over routing and the bridge became read-only. */
+  readonly onOwnership?: (ownership: string, reason: string) => void
   readonly spawn?: (binary: string, args: readonly string[], env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams
   readonly fetch?: typeof fetch
   readonly startupTimeoutMs?: number
@@ -166,6 +169,10 @@ export class ComposerSidecar {
             initStatus: frame.initStatus, ownership: frame.ownership,
           }
           resolve(this.#ready)
+        } else if (frame.type === 'ownership') {
+          if (this.#ready === undefined) { fail(new Error('nexus composer sidecar changed ownership before ready')); return }
+          this.#ready = { ...this.#ready, ownership: frame.ownership }
+          this.options.onOwnership?.(frame.ownership, frame.reason)
         }
         // `exiting` precedes 'close'; `error` frames answer requests this shell does not send yet.
       })

@@ -32,7 +32,9 @@ function fakeChild() {
   }
 }
 
-function setup(options: { fetch?: typeof fetch; onFailure?: (error: Error) => void } = {}) {
+type SetupOptions = Pick<ConstructorParameters<typeof ComposerSidecar>[0], 'fetch' | 'onFailure' | 'onOwnership'>
+
+function setup(options: SetupOptions = {}) {
   const fake = fakeChild()
   const spawn = vi.fn((_binary: string, _args: readonly string[], _env: NodeJS.ProcessEnv) => fake.child)
   const sidecar = new ComposerSidecar({ binary: '/bin/composer', home: '/tmp/isolated', environment: { PATH: '/bin' }, spawn, ...options })
@@ -130,6 +132,27 @@ describe('composer sidecar supervisor', () => {
     await g.sidecar.stop()
     expect(g.written.at(-1)).toBe('{"type":"shutdown"}')
     expect(g.child.kill).not.toHaveBeenCalled()
+  })
+
+  it('tracks ownership changes after ready and rejects them before', async () => {
+    const onOwnership = vi.fn()
+    const f = setup({ onOwnership })
+    const ready = f.sidecar.start()
+    f.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    f.frame(READY)
+    await ready
+    f.frame({ type: 'ownership', ownership: 'external', reason: 'drift' })
+    await flush()
+    expect(onOwnership).toHaveBeenCalledWith('external', 'drift')
+    expect(f.sidecar.ready?.ownership).toBe('external')
+
+    const g = setup()
+    const early = g.sidecar.start()
+    g.frame({ type: 'starting', version: '1.0.0' })
+    await flush()
+    g.frame({ type: 'ownership', ownership: 'external', reason: 'drift' })
+    await expect(early).rejects.toThrow('before ready')
   })
 
   it('forwards invokes with the bearer secret and maps every envelope', async () => {

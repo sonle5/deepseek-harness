@@ -81,3 +81,26 @@ it('closes the view after owner destruction without accessing destroyed native c
   expect(f.parent.listenerCount('closed')).toBe(0)
   expect(f.parent.contentView.removeChildView).not.toHaveBeenCalled()
 })
+
+it('raises attached views above later siblings and notifies subscribers on attach and release', () => {
+  const f = fixture(); const events: string[] = []
+  const unsubscribe = f.overlays.subscribe(() => { events.push('changed') })
+  const first = f.create()
+  expect(events).toEqual(['changed'])
+  const later = { sibling: true }
+  f.overlays.raise(f.parent)
+  expect(f.parent.contentView.addChildView).toHaveBeenLastCalledWith(f.views[0])
+  expect(f.views[0]).not.toBe(later)
+  first.destroy()
+  expect(events).toEqual(['changed', 'changed'])
+  unsubscribe()
+  f.create().destroy()
+  expect(events).toEqual(['changed', 'changed'])
+  expect(f.parent.contentView.addChildView).toHaveBeenCalledTimes(3)
+})
+
+it('does not raise overlays for a destroyed owner', () => {
+  const f = fixture(); f.create(); f.parent.destroy()
+  f.overlays.raise(f.parent)
+  expect(f.parent.contentView.addChildView).toHaveBeenCalledTimes(1)
+})

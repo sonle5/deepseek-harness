@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ComposerSidecarOptions } from '../src/composer-sidecar.ts'
+import { ComposerIncompatibleError } from '../src/composer-sidecar.ts'
 
 vi.mock('electron', () => ({
   WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() }, ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
@@ -12,7 +13,7 @@ type Status = InstanceType<typeof DesktopComposerSurface>['status']
 const READY = { url: 'http://127.0.0.1:4321', version: '1', schemaVersion: 1, initStatus: null, ownership: 'isolated' }
 
 /** Fake sidecars in creation order: each starts as the test script says and can fail after ready. */
-function harness(script: Array<'ready' | 'fail'>, restore: 'ok' | 'fail' = 'ok') {
+function harness(script: Array<'ready' | 'fail' | 'incompatible'>, restore: 'ok' | 'fail' = 'ok') {
   const created: Array<{ options: ComposerSidecarOptions; stop: ReturnType<typeof vi.fn>; restore: ReturnType<typeof vi.fn> }> = []
   const statuses: Status[] = []
   const bridge: Array<string | undefined> = []
@@ -46,7 +47,10 @@ function harness(script: Array<'ready' | 'fail'>, restore: 'ok' | 'fail' = 'ok')
       }
       created.push(entry)
       return {
-        start: () => script[index] === 'ready' ? Promise.resolve(READY) : Promise.reject(new Error(`start ${String(index)} failed`)),
+        start: () => script[index] === 'ready' ? Promise.resolve(READY)
+          : Promise.reject(script[index] === 'incompatible'
+            ? new ComposerIncompatibleError('nexus composer sidecar speaks bridge protocol 2, expected 1')
+            : new Error(`start ${String(index)} failed`)),
         invoke: vi.fn(() => Promise.resolve({ ok: index })),
         stop: entry.stop,
         restore: entry.restore,
@@ -127,6 +131,28 @@ describe('composer surface supervision', () => {
     await settle()
     expect(h.created).toHaveLength(1)
     expect(h.bridge.at(-1)).toBeUndefined()
+  })
+
+  it('exposes the ready facts and follows ownership changes', async () => {
+    const h = harness(['ready'])
+    expect(h.surface.ready).toBeUndefined()
+    await h.surface.start()
+    expect(h.surface.ready).toEqual(READY)
+    h.created[0]?.options.onOwnership?.('external', 'drift')
+    expect(h.surface.ready).toMatchObject({ ownership: 'external', version: '1' })
+    expect(h.statuses.at(-1)).toEqual({ state: 'ready' })
+    await h.surface.close()
+    expect(h.surface.ready).toBeUndefined()
+  })
+
+  it('gives up at once on a bridge protocol mismatch instead of retrying', async () => {
+    const h = harness(['incompatible'])
+    await expect(h.surface.start()).rejects.toThrow('bridge protocol 2')
+    await settle()
+    expect(h.surface.status).toMatchObject({ state: 'failed' })
+    expect(h.delays).toEqual([])
+    expect(h.created).toHaveLength(2)
+    expect(h.created[1]?.restore).toHaveBeenCalledOnce()
   })
 
   it('answers shell-owned commands without starting the sidecar', async () => {

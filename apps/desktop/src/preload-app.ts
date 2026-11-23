@@ -6,6 +6,7 @@ import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult }
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
+import { COMPOSER_SWITCHER_IPC, type ComposerBounds, type ComposerProduct, type ComposerSwitcherState } from './composer-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
@@ -118,6 +119,26 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
     open: (page: 'usage' | 'top-up', bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke(PLATFORM_IPC.open, page, bounds),
     setBounds: (bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke(PLATFORM_IPC.bounds, bounds),
     close: () => ipcRenderer.invoke(PLATFORM_IPC.close),
+  })
+  // Always present on the application main frame, so the client can distinguish a build without
+  // Composer (`available: false`) from a non-desktop shell (no `dshComposer` at all).
+  if (process.isMainFrame) contextBridge.exposeInMainWorld('dshComposer', {
+    protocolVersion: 1,
+    state: () => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.state) as Promise<ComposerSwitcherState>,
+    subscribe: (listener: (state: ComposerSwitcherState) => void): (() => void) => {
+      const receive = (_event: Electron.IpcRendererEvent, state: ComposerSwitcherState): void => { listener(state) }
+      ipcRenderer.on(COMPOSER_SWITCHER_IPC.changed, receive)
+      return () => { ipcRenderer.off(COMPOSER_SWITCHER_IPC.changed, receive) }
+    },
+    show: (bounds: ComposerBounds) => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.show, bounds),
+    setBounds: (bounds: ComposerBounds) => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.bounds, bounds),
+    hide: () => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.hide),
+    retry: () => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.retry),
+    onSelect: (listener: (product: ComposerProduct | 'toggle') => void): (() => void) => {
+      const receive = (_event: Electron.IpcRendererEvent, product: ComposerProduct | 'toggle'): void => { listener(product) }
+      ipcRenderer.on(COMPOSER_SWITCHER_IPC.select, receive)
+      return () => { ipcRenderer.off(COMPOSER_SWITCHER_IPC.select, receive) }
+    },
   })
 }
 

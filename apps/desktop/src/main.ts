@@ -9,6 +9,7 @@ import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-prod
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { release as osRelease } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import {
   app,
@@ -74,6 +75,7 @@ import { DesktopBackgroundNotice } from './background-notice.ts'
 import { DesktopComposerSurface } from './composer-surface.ts'
 import { releaseComposerForQuit } from './composer-quit.ts'
 import { developmentComposerResources, packagedComposerResources } from './composer-view.ts'
+import { installComposerSwitcher } from './composer-switcher.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -540,6 +542,7 @@ async function main(): Promise<void> {
   const composerResources = development
     ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR)
     : packagedComposerResources(process.resourcesPath)
+  let notifyComposerSwitcher = (): void => {}
   const composer = composerResources === undefined ? undefined : new DesktopComposerSurface({
     resources: composerResources,
     preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
@@ -555,9 +558,33 @@ async function main(): Promise<void> {
       void persistCrashReport(error, 'composer')
     },
     onBridgeUrl: (url) => { composerBridgeUrl = url },
+    // The switcher mirrors every lifecycle change into the application document.
+    onStatus: () => { notifyComposerSwitcher() },
     // Composer's file dialogs are sheets of the application window that hosts its view.
     window: currentMainWindow,
   })
+  // Superharness | Composer: the application document asks for the native view; main owns the
+  // accelerators and keeps shell overlays above it.
+  const composerSwitcher = installComposerSwitcher({
+    configured: composer !== undefined,
+    osRelease: osRelease(),
+    window: currentMainWindow,
+    surface: () => composer,
+    blocked: owner => isMandatory() || updateOverlays.input(owner).blocked,
+    raiseOverlays: (owner) => {
+      updateOverlays.raise(owner)
+      platformView.raise()
+    },
+  })
+  notifyComposerSwitcher = () => { composerSwitcher.publish() }
+  if (composer !== undefined) {
+    composer.view.onInput = (event, input) => { composerSwitcher.forwardInput(event, input) }
+    // A crash loop detaches the view without a command; the client must learn it is no longer visible.
+    composer.view.onVisibility = () => { composerSwitcher.publish() }
+  }
+  // Overlays attach and release asynchronously (update prompt, mandatory update); the Composer view
+  // yields to them and comes back when they release.
+  const disposeComposerOverlaySync = updateOverlays.subscribe(() => { composerSwitcher.sync() })
   // One release decision at a time; a second quit request joins the open one.
   let composerRelease: Promise<boolean> | undefined
   const releaseComposer = (): Promise<boolean> => composerRelease ??= releaseComposerForQuit({
@@ -1237,9 +1264,20 @@ async function main(): Promise<void> {
     ] },
     { label: messages.speechMenu, submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }] },
   ] })
+  // Superharness | Composer switches products. The client owns the selected product; the menu and
+  // accelerators only ask it to switch.
+  const composerProductItems = (): MenuItemConstructorOptions[] => [
+    { label: currentDesktopLocale().messages.composerSwitcherSuperharness, accelerator: 'CmdOrCtrl+1',
+      click: () => { composerSwitcher.select('superharness') } },
+    { label: currentDesktopLocale().messages.composerSwitcherComposer, accelerator: 'CmdOrCtrl+2',
+      click: () => { composerSwitcher.select('composer') } },
+  ]
+  const viewMenu = (): MenuItemConstructorOptions[] => composerSwitcher.available
+    ? [{ label: currentDesktopLocale().messages.viewMenu, submenu: composerProductItems() }] : []
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), macEditMenu(currentDesktopLocale().messages), { role: 'windowMenu' }]
-    : [{ role: 'editMenu' }]
+    ? [shortcuts.fileMenu(currentDesktopLocale().messages), macEditMenu(currentDesktopLocale().messages),
+      ...viewMenu(), { role: 'windowMenu' }]
+    : [{ role: 'editMenu' }, ...viewMenu()]
   const hideCommands: MenuItemConstructorOptions[] = darwin
     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },
       { role: 'hideOthers', label: currentDesktopLocale().messages.hideOtherApplications },
@@ -1275,9 +1313,12 @@ async function main(): Promise<void> {
       : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
   ]
   const devToolsF12Shortcut: MenuItemConstructorOptions = { role: 'toggleDevTools', visible: false, accelerator: 'F12' }
+  const windowsComposerShortcuts: MenuItemConstructorOptions[] = composerSwitcher.available
+    ? composerProductItems().map(item => ({ ...item, visible: false, acceleratorWorksWhenHidden: true })) : []
   const windowsDevToolsShortcuts: MenuItemConstructorOptions[] = [
     { role: 'toggleDevTools', visible: false },
     devToolsF12Shortcut,
+    ...windowsComposerShortcuts,
   ]
   const refreshApplicationMenu = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32'
@@ -1330,17 +1371,19 @@ async function main(): Promise<void> {
           shortcuts.sendEditingKey(keyCode, modifiers)
         },
       })
-      const items: MenuItemConstructorOptions[] = name === 'application' ? applicationItems() : [
-        editItem(currentDesktopLocale().messages.undo, 'Z', ['control'], 'Ctrl+Z'),
-        editItem(currentDesktopLocale().messages.redo, 'Y', ['control'], 'Ctrl+Y'),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.cut, 'X', ['control'], 'Ctrl+X'),
-        editItem(currentDesktopLocale().messages.copy, 'C', ['control'], 'Ctrl+C'),
-        editItem(currentDesktopLocale().messages.paste, 'V', ['control'], 'Ctrl+V'),
-        editItem(currentDesktopLocale().messages.delete, 'Delete', []),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.selectAll, 'A', ['control'], 'Ctrl+A'),
-      ]
+      const items: MenuItemConstructorOptions[] = name === 'application'
+        ? [...composerSwitcher.available ? [...composerProductItems(), { type: 'separator' as const }] : [], ...applicationItems()]
+        : [
+          editItem(currentDesktopLocale().messages.undo, 'Z', ['control'], 'Ctrl+Z'),
+          editItem(currentDesktopLocale().messages.redo, 'Y', ['control'], 'Ctrl+Y'),
+          { type: 'separator' },
+          editItem(currentDesktopLocale().messages.cut, 'X', ['control'], 'Ctrl+X'),
+          editItem(currentDesktopLocale().messages.copy, 'C', ['control'], 'Ctrl+C'),
+          editItem(currentDesktopLocale().messages.paste, 'V', ['control'], 'Ctrl+V'),
+          editItem(currentDesktopLocale().messages.delete, 'Delete', []),
+          { type: 'separator' },
+          editItem(currentDesktopLocale().messages.selectAll, 'A', ['control'], 'Ctrl+A'),
+        ]
       const zoom = mainWindow.webContents.getZoomFactor()
       return new Promise<void>((resolve) => {
         Menu.buildFromTemplate(items).popup({ window, x: Math.round(x * zoom), y: Math.round(y * zoom), callback: resolve })
@@ -1394,7 +1437,12 @@ async function main(): Promise<void> {
       window.on('focus', () => { sessionEnding = false })
       window.on('show', () => { sessionEnding = false })
     }
-    window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
+    window.on('closed', () => {
+      if (mainWindow !== window) return
+      mainWindow = undefined
+      composer?.view.release(window)
+      notifyComposerSwitcher()
+    })
     window.webContents.on('console-message', (details) => {
       if (details.level !== 'error') return
       rendererConsole.push(`${details.sourceId}:${String(details.lineNumber)} ${details.message}`)
@@ -1413,6 +1461,8 @@ async function main(): Promise<void> {
         reportFatal(new Error(`Desktop renderer exited: ${details.reason}`), 'renderer')
       }
     })
+    // A recreated window replaces the owner; reattach Composer if the client had it selected.
+    composerSwitcher.sync()
     return window
   }
   const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
@@ -1555,6 +1605,8 @@ async function main(): Promise<void> {
     quitConfirmation.dispose()
     backgroundNotice?.dispose()
     tray?.dispose()
+    composerSwitcher.dispose()
+    disposeComposerOverlaySync()
     stopAccount?.()
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.hide()
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
@@ -1624,6 +1676,8 @@ async function main(): Promise<void> {
         for (const controller of ordinaryDialogs) controller.abort()
         if (!wasBlocking) updateDialog.cancel()
       }
+      // Composer yields to the blocking overlay before the overlay paints.
+      composerSwitcher.sync()
       mandatoryUI?.sync()
       if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })
       if (state.blocking !== wasBlocking) {

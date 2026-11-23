@@ -1,0 +1,266 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { ComposerSurfaceStatus } from '../src/composer-surface.ts'
+import type { ComposerBounds } from '../src/composer-view.ts'
+
+vi.mock('electron', () => ({
+  WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() }, ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
+  clipboard: {}, dialog: {},
+}))
+
+const { COMPOSER_SWITCHER_IPC, composerOsCompatible, composerSwitcherState, installComposerSwitcher } =
+  await import('../src/composer-switcher.ts')
+const { ComposerIncompatibleError } = await import('../src/composer-sidecar.ts')
+const { ipcMain } = await import('electron')
+
+type Handler = (event: unknown, ...args: unknown[]) => unknown
+const ipcMock = ipcMain as unknown as {
+  handle: { mock: { calls: Array<[string, Handler]> } }
+  removeHandler: { mock: { calls: unknown[][] } }
+}
+
+function owner(url = 'dsh-app://app/') {
+  const mainFrame = { url }
+  const webContents = { send: vi.fn(), mainFrame }
+  return { isDestroyed: () => false, webContents, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } }
+}
+
+function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform } = {}) {
+  const view: {
+    visible: boolean
+    owner: ReturnType<typeof owner> | undefined
+    bounds?: ComposerBounds
+    show: ReturnType<typeof vi.fn>
+    hide: ReturnType<typeof vi.fn>
+  } = {
+    visible: false, owner: undefined,
+    show: vi.fn((target: ReturnType<typeof owner>, bounds: ComposerBounds) => {
+      view.owner = target; view.visible = true; view.bounds = bounds
+    }),
+    hide: vi.fn(() => { view.visible = false; view.owner = undefined }),
+  }
+  const surface = {
+    status: { state: 'idle' } as ComposerSurfaceStatus,
+    ready: undefined as { version: string; ownership: string } | undefined,
+    view,
+    start: vi.fn(() => { surface.status = { state: 'starting' }; return Promise.resolve() }),
+    retry: vi.fn(() => { surface.status = { state: 'starting' }; return Promise.resolve() }),
+  }
+  let window: ReturnType<typeof owner> | undefined = owner()
+  let blocked = false
+  const raiseOverlays = vi.fn()
+  const switcher = installComposerSwitcher({
+    configured: overrides.configured ?? true,
+    osRelease: overrides.osRelease ?? '23.0.0',
+    platform: overrides.platform ?? 'darwin',
+    window: () => window,
+    surface: () => surface,
+    blocked: () => blocked,
+    raiseOverlays,
+  })
+  const handler = (channel: string): Handler => {
+    // Handler registrations accumulate across harnesses; the newest install owns the channel.
+    const registered = ipcMock.handle.mock.calls.filter(([name]) => name === channel)
+    const call = registered[registered.length - 1]
+    if (call === undefined) throw new Error(`no handler for ${channel}`)
+    return call[1]
+  }
+  const event = (target = window, url?: string) => {
+    if (target === undefined) return { sender: {}, senderFrame: null }
+    const frame = target.webContents.mainFrame
+    return { sender: target.webContents, senderFrame: url === undefined ? frame : { url } }
+  }
+  return {
+    surface, view, switcher, handler, event, raiseOverlays,
+    setWindow: (next: ReturnType<typeof owner> | undefined) => { window = next },
+    getWindow: () => window,
+    setBlocked: (next: boolean) => { blocked = next },
+    changed: (): unknown[] => {
+      const send = window?.webContents.send
+      if (send === undefined) return []
+      const calls = (send as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      return calls.filter(([channel]) => channel === COMPOSER_SWITCHER_IPC.changed).map(([, state]) => state)
+    },
+  }
+}
+
+describe('composer switcher availability', () => {
+  it('requires macOS 14 (Darwin 23) and never restricts other platforms', () => {
+    expect(composerOsCompatible('23.0.0', 'darwin')).toBe(true)
+    expect(composerOsCompatible('24.1.0', 'darwin')).toBe(true)
+    expect(composerOsCompatible('22.6.0', 'darwin')).toBe(false)
+    expect(composerOsCompatible('garbage', 'darwin')).toBe(false)
+    expect(composerOsCompatible('20.0.0', 'win32')).toBe(true)
+    expect(composerOsCompatible('20.0.0', 'linux')).toBe(true)
+  })
+})
+
+describe('composer switcher state', () => {
+  const surface = (status: ComposerSurfaceStatus, ready?: { version: string; ownership: string }, visible = false) =>
+    ({ status, ready, view: { visible, owner: undefined, show: vi.fn(), hide: vi.fn() }, start: vi.fn(), retry: vi.fn() })
+
+  it('reports unavailable without a surface', () => {
+    expect(composerSwitcherState(undefined, false, false))
+      .toEqual({ available: false, status: 'idle', visible: false })
+  })
+
+  it('carries ready facts and visibility', () => {
+    expect(composerSwitcherState(surface({ state: 'ready' }, { version: '1.2.3', ownership: 'owner' }, true), true, true))
+      .toEqual({ available: true, status: 'ready', ownership: 'owner', version: '1.2.3', visible: true })
+  })
+
+  it('drops an unknown ownership but keeps the version', () => {
+    expect(composerSwitcherState(surface({ state: 'ready' }, { version: '1.2.3', ownership: 'weird' }), true, false))
+      .toEqual({ available: true, status: 'ready', version: '1.2.3', visible: false })
+  })
+
+  it('maps restart attempts and failures', () => {
+    expect(composerSwitcherState(surface({ state: 'restarting', attempt: 2, error: new Error('crashed') }), true, true))
+      .toEqual({ available: true, status: 'restarting', attempt: 2, error: 'crashed', visible: true })
+    const incompatible = new ComposerIncompatibleError('nexus composer sidecar speaks bridge protocol 2, expected 1')
+    expect(composerSwitcherState(
+      surface({ state: 'failed', error: incompatible, codexRestartRequired: true }), true, false))
+      .toEqual({ available: true, status: 'failed', error: incompatible.message, incompatible: true,
+        codexRestartRequired: true, visible: false })
+  })
+})
+
+describe('composer switcher IPC', () => {
+  it('reports state to the application document', async () => {
+    const h = harness()
+    h.surface.ready = { version: '1', ownership: 'isolated' }
+    h.surface.status = { state: 'ready' }
+    expect(await h.handler(COMPOSER_SWITCHER_IPC.state)(h.event()))
+      .toEqual({ available: true, status: 'ready', ownership: 'isolated', version: '1', visible: false })
+  })
+
+  it('rejects another renderer or frame', () => {
+    const h = harness()
+    expect(() => h.handler(COMPOSER_SWITCHER_IPC.state)(h.event(owner(), 'dsh-app://other/'))).toThrow()
+    expect(() => h.handler(COMPOSER_SWITCHER_IPC.state)({ sender: {}, senderFrame: null })).toThrow()
+  })
+
+  it('validates bounds before attaching', async () => {
+    const h = harness()
+    const show = h.handler(COMPOSER_SWITCHER_IPC.show)
+    for (const bounds of [undefined, null, {}, { x: -1, y: 0, width: 1, height: 1 },
+      { x: 0, y: 0, width: Number.NaN, height: 1 }, { x: 0, y: 0, width: 1, height: 100_001 }]) {
+      await expect(async () => show(h.event(), bounds)).rejects.toThrow('Invalid Composer bounds')
+    }
+    expect(h.view.show).not.toHaveBeenCalled()
+  })
+
+  it('starts an idle surface, attaches, raises overlays, and publishes', async () => {
+    const h = harness()
+    const bounds = { x: 0, y: 48, width: 1200.4, height: 800.6 }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), bounds)
+    expect(h.surface.start).toHaveBeenCalledTimes(1)
+    expect(h.view.show).toHaveBeenCalledWith(h.getWindow(), { x: 0, y: 48, width: 1200, height: 801 })
+    expect(h.raiseOverlays).toHaveBeenCalledWith(h.getWindow())
+    expect(h.changed().at(-1)).toMatchObject({ visible: true })
+  })
+
+  it('does not start a failed surface from show; retry does', async () => {
+    const h = harness()
+    h.surface.status = { state: 'failed', error: new Error('boom') }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 0, width: 10, height: 10 })
+    expect(h.surface.start).not.toHaveBeenCalled()
+    // The renderer draws the failed state; the native view would only cover it with a dead document.
+    expect(h.view.show).not.toHaveBeenCalled()
+    expect(h.changed().at(-1)).toMatchObject({ status: 'failed', error: 'boom', visible: false })
+    await h.handler(COMPOSER_SWITCHER_IPC.retry)(h.event())
+    expect(h.surface.retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-attaches at the last rectangle when a retry recovers the surface', async () => {
+    const h = harness()
+    h.surface.status = { state: 'failed', error: new Error('boom') }
+    const bounds = { x: 0, y: 48, width: 100, height: 90 }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), bounds)
+    h.view.hide()
+    await h.handler(COMPOSER_SWITCHER_IPC.retry)(h.event())
+    expect(h.view.show).toHaveBeenLastCalledWith(h.getWindow(), bounds)
+  })
+
+  it('keeps a blocking overlay on top by not showing Composer', async () => {
+    const h = harness()
+    h.setBlocked(true)
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 0, width: 10, height: 10 })
+    expect(h.view.show).not.toHaveBeenCalled()
+  })
+
+  it('hides without stopping the surface and moves visible bounds', async () => {
+    const h = harness()
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 10, height: 10 })
+    await h.handler(COMPOSER_SWITCHER_IPC.bounds)(h.event(), { x: 5, y: 48, width: 20, height: 20 })
+    expect(h.view.show).toHaveBeenLastCalledWith(h.getWindow(), { x: 5, y: 48, width: 20, height: 20 })
+    await h.handler(COMPOSER_SWITCHER_IPC.hide)(h.event())
+    expect(h.view.hide).toHaveBeenCalledTimes(1)
+    expect(h.surface.status.state).not.toBe('idle')
+    expect(h.changed().at(-1)).toMatchObject({ visible: false })
+  })
+
+  it('reattaches a recreated window at the last rectangle and hides under a blocking overlay', async () => {
+    const h = harness()
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 100, height: 90 })
+    const replacement = owner()
+    h.setWindow(replacement)
+    h.switcher.sync()
+    expect(h.view.show).toHaveBeenLastCalledWith(replacement, { x: 0, y: 48, width: 100, height: 90 })
+    h.setBlocked(true)
+    h.switcher.sync()
+    expect(h.view.hide).toHaveBeenCalled()
+    // Releasing the overlay restores the client's selection at the remembered rectangle.
+    h.setBlocked(false)
+    h.switcher.sync()
+    expect(h.view.show).toHaveBeenLastCalledWith(replacement, { x: 0, y: 48, width: 100, height: 90 })
+  })
+
+  it('sends product selection only when available', () => {
+    const h = harness()
+    h.switcher.select('composer')
+    expect(h.getWindow()?.webContents.send).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, 'composer')
+    const unavailable = harness({ configured: false })
+    unavailable.switcher.select('composer')
+    expect(unavailable.getWindow()?.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('forwards the platform switcher accelerators from the Composer view', () => {
+    const h = harness()
+    const preventDefault = vi.fn()
+    const input = (code: string, extra: Record<string, boolean> = {}) =>
+      ({ type: 'keyDown', code, control: false, alt: false, shift: false, meta: false, ...extra })
+    h.switcher.forwardInput({ preventDefault }, input('Digit2', { meta: true }))
+    expect(h.getWindow()?.webContents.send).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, 'composer')
+    h.switcher.forwardInput({ preventDefault }, input('Digit1', { meta: true }))
+    expect(h.getWindow()?.webContents.send).toHaveBeenLastCalledWith(COMPOSER_SWITCHER_IPC.select, 'superharness')
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+    // Control+digit is not the macOS accelerator, and other modifiers never match.
+    h.switcher.forwardInput({ preventDefault }, input('Digit1', { control: true }))
+    h.switcher.forwardInput({ preventDefault }, input('Digit1', { meta: true, shift: true }))
+    h.switcher.forwardInput({ preventDefault }, { ...input('Digit1', { meta: true }), type: 'keyUp' })
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+    expect(h.getWindow()?.webContents.send).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses Control on Windows and Linux', () => {
+    const h = harness({ platform: 'win32', osRelease: '10.0.0' })
+    const preventDefault = vi.fn()
+    const base = { type: 'keyDown', code: 'Digit2', control: true, alt: false, shift: false, meta: false }
+    h.switcher.forwardInput({ preventDefault }, base)
+    expect(h.getWindow()?.webContents.send).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, 'composer')
+    h.switcher.forwardInput({ preventDefault }, { ...base, control: false, meta: true })
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('does nothing without a surface and removes its handlers on dispose', async () => {
+    const h = harness()
+    h.switcher.publish()
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 0, width: 1, height: 1 })
+    expect(h.getWindow()?.contentView.addChildView).not.toHaveBeenCalled()
+    h.switcher.dispose()
+    for (const channel of [COMPOSER_SWITCHER_IPC.state, COMPOSER_SWITCHER_IPC.show,
+      COMPOSER_SWITCHER_IPC.bounds, COMPOSER_SWITCHER_IPC.hide, COMPOSER_SWITCHER_IPC.retry]) {
+      expect(ipcMock.removeHandler.mock.calls.map(([name]) => name)).toContain(channel)
+    }
+  })
+})

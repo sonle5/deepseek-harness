@@ -8,6 +8,11 @@ import { z } from 'zod'
 /** Control and bridge contract version this shell speaks (`src-tauri/src/sidecar/mod.rs`). */
 export const COMPOSER_BRIDGE_PROTOCOL = 1
 
+/** The sidecar speaks another bridge protocol: retrying cannot help until Superharness or Composer updates. */
+export class ComposerIncompatibleError extends Error {
+  override readonly name = 'ComposerIncompatibleError'
+}
+
 const MAX_DIAGNOSTIC_CHARS = 64 * 1024
 const MAX_FRAME_CHARS = 64 * 1024
 const COMMAND_NAME = /^[a-z][a-z0-9_]*$/
@@ -203,7 +208,7 @@ export class ComposerSidecar {
         } else if (frame.type === 'ready') {
           if (!authenticated || this.#ready !== undefined) { fail(new Error('nexus composer sidecar sent an unexpected ready frame')); return }
           if (frame.bridgeProtocol !== COMPOSER_BRIDGE_PROTOCOL) {
-            fail(new Error(`nexus composer sidecar speaks bridge protocol ${String(frame.bridgeProtocol)}, expected ${String(COMPOSER_BRIDGE_PROTOCOL)}`))
+            fail(new ComposerIncompatibleError(`nexus composer sidecar speaks bridge protocol ${String(frame.bridgeProtocol)}, expected ${String(COMPOSER_BRIDGE_PROTOCOL)}`))
             return
           }
           if (!isOwnedComposerUrl(frame.url.endsWith('/') ? frame.url : `${frame.url}/`)) {

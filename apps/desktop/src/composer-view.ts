@@ -2,9 +2,10 @@
 
 import { existsSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { WebContentsView, session, shell, type IpcMainInvokeEvent, type Session, type View, type WebContents } from 'electron'
+import { WebContentsView, session, shell, type Input, type IpcMainInvokeEvent, type Session, type View, type WebContents } from 'electron'
 import { serveWebDocument } from './web-document.ts'
 import type { ComposerInvokeResult } from './composer-sidecar.ts'
+import type { ComposerBounds } from './composer-ipc.ts'
 
 /** Origin of the Composer document; resolved only inside the Composer partition. */
 export const COMPOSER_ORIGIN = 'dsh-app://composer'
@@ -106,9 +107,10 @@ export function composerInvokeRequest(command: unknown, args: unknown): { comman
 }
 
 type ComposerOwner = { contentView: Pick<View, 'addChildView' | 'removeChildView'> }
+/** Window that contains the Composer view. */
+export type ComposerViewOwner = ComposerOwner
 
-/** Bounds in owner content coordinates. */
-export interface ComposerBounds { x: number; y: number; width: number; height: number }
+export type { ComposerBounds } from './composer-ipc.ts'
 
 const RENDERER_CRASH_LIMIT = 3
 const RENDERER_CRASH_WINDOW_MS = 60_000
@@ -121,6 +123,10 @@ export class DesktopComposerView {
   #bounds: ComposerBounds | undefined
   #visible = false
   #crashes: number[] = []
+  /** Keyboard input reaching the Composer renderer, for shell accelerators while it has focus. */
+  onInput: ((event: Electron.Event, input: Input) => void) | undefined
+  /** Attachment or visibility changed without an IPC command (crash recovery, window close). */
+  onVisibility: (() => void) | undefined
 
   /**
    * @param preload - Bundled sandboxed Composer preload.
@@ -129,6 +135,24 @@ export class DesktopComposerView {
    */
   constructor(private readonly preload: string, private readonly dist: string,
     private readonly onFatal: (error: { title: string; message: string }) => void) {}
+
+  /** Whether the view is attached and shown. */
+  get visible(): boolean { return this.#visible && this.#view !== undefined }
+
+  /** Window the view is attached to. */
+  get owner(): ComposerOwner | undefined { return this.#owner }
+
+  /**
+   * Forget a closed owner without touching its destroyed content view; the next show attaches elsewhere.
+   * @param owner - Window that closed.
+   */
+  release(owner: ComposerOwner): void {
+    if (this.#owner !== owner) return
+    this.#owner = undefined
+    this.#visible = false
+    this.#view?.setVisible(false)
+    this.onVisibility?.()
+  }
 
   /** Live view contents, for IPC sender checks. */
   get contents(): WebContents | undefined { return this.#view?.webContents }
@@ -160,12 +184,14 @@ export class DesktopComposerView {
     this.#view.setVisible(true)
     this.#bounds = bounds
     this.#visible = true
+    this.onVisibility?.()
   }
 
   /** Hide without discarding renderer state. */
   hide(): void {
     this.#visible = false
     this.#view?.setVisible(false)
+    this.onVisibility?.()
   }
 
   /** Detach and destroy the view. */
@@ -201,6 +227,7 @@ export class DesktopComposerView {
     if (!visible || owner === undefined || bounds === undefined) return
     if (this.#crashes.length > RENDERER_CRASH_LIMIT) {
       this.#visible = false
+      this.onVisibility?.()
       this.onFatal({ title: 'Nexus Composer stopped', message: 'The Composer view crashed repeatedly. Switch away and back to reload it.' })
       return
     }
@@ -225,6 +252,7 @@ export class DesktopComposerView {
     view.webContents.on('will-redirect', (event) => { event.preventDefault() })
     view.webContents.on('will-attach-webview', (event) => { event.preventDefault() })
     view.webContents.on('render-process-gone', () => { if (this.#view === view) this.rendererGone() })
+    view.webContents.on('before-input-event', (event, input) => { this.onInput?.(event, input) })
     view.setVisible(false)
     void view.webContents.loadURL(`${COMPOSER_ORIGIN}/`).catch(() => {
       // A failed load leaves the view blank; the next show recreates it after a renderer crash.

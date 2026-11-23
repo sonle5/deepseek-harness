@@ -513,3 +513,16 @@ it('refuses a pending Platform view if update blocking starts during storage cle
   expect(f.owner.listenerCount('closed')).toBe(0)
   await f.manager.dispose()
 })
+
+it('raises its document above views attached later while it stays open', async () => {
+  const { manager, owner } = setup()
+  manager.raise()
+  expect(owner.contentView.addChildView).not.toHaveBeenCalled()
+  await manager.open(owner, 'usage', bounds)
+  expect(owner.contentView.addChildView).toHaveBeenCalledTimes(1)
+  manager.raise()
+  expect(owner.contentView.addChildView).toHaveBeenLastCalledWith(view())
+  manager.close()
+  manager.raise()
+  expect(owner.contentView.addChildView).toHaveBeenCalledTimes(2)
+})

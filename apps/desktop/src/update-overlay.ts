@@ -25,6 +25,34 @@ type UpdateOwner = Pick<BrowserWindow, 'getContentBounds' | 'isDestroyed' | 'isF
 /** Tracks isolated update views and each owner's keyboard-blocking revision. */
 export class DesktopUpdateOverlays {
   private readonly inputs = new WeakMap<object, { revision: number; active: number; readonly blocked: boolean }>()
+  private readonly views = new WeakMap<object, Set<WebContentsView>>()
+  private readonly listeners = new Set<() => void>()
+
+  /**
+   * Observe attachment and release of any overlay, for native views that must yield to them.
+   * @param listener - Called after an overlay attaches or releases.
+   * @returns unsubscribe.
+   */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
+  }
+
+  /**
+   * Move the owner's overlays above views attached after them.
+   * @param parent - Product window.
+   */
+  raise(parent: Pick<BrowserWindow, 'isDestroyed'> & { readonly contentView: Pick<View, 'addChildView'> }): void {
+    if (parent.isDestroyed()) return
+    // Re-adding a child view makes it the topmost one.
+    for (const view of this.views.get(parent) ?? []) parent.contentView.addChildView(view)
+  }
+
+  private changed(): void {
+    for (const listener of [...this.listeners]) {
+      try { listener() } catch (error) { console.error(error) }
+    }
+  }
 
   /** @param parent - Product window. @returns Blocking state and attachment/release revision. */
   input(parent: Pick<BrowserWindow, 'isDestroyed'>): { readonly revision: number; readonly blocked: boolean } {
@@ -46,6 +74,9 @@ export class DesktopUpdateOverlays {
     const input = this.inputs.get(parent) ?? { revision: 0, active: 0, get blocked() { return this.active > 0 } }
     this.inputs.set(parent, input)
     input.active++; input.revision++
+    const views = this.views.get(parent) ?? new Set()
+    this.views.set(parent, views)
+    views.add(view)
     const resize = (): void => {
       const { width, height } = parent.getContentBounds()
       const top = process.platform === 'win32' ? WINDOWS_TITLEBAR_HEIGHT : 0
@@ -62,10 +93,12 @@ export class DesktopUpdateOverlays {
       parent.off('closed', destroy)
       ownerContents.off('before-input-event', block)
       input.active--; input.revision++
+      views.delete(view)
       if (!parent.isDestroyed()) {
         parent.contentView.removeChildView(view)
         if (parent.isFocused()) ownerContents.focus()
       }
+      this.changed()
     }
     view.setBackgroundColor('#00000000')
     parent.contentView.addChildView(view)
@@ -77,6 +110,7 @@ export class DesktopUpdateOverlays {
     contents.once('destroyed', release)
     contents.on('did-finish-load', focus)
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    this.changed()
     return { webContents: contents, focus, destroy, isDestroyed: () => contents.isDestroyed(),
       loadURL: url => contents.loadURL(url) }
   }

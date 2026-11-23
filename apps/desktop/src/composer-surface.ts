@@ -1,13 +1,14 @@
 /** Wires the Composer sidecar, its view and the preload IPC into the application lifetime. */
 
 import { ipcMain, type BaseWindow, type IpcMainInvokeEvent } from 'electron'
-import { ComposerSidecar, type ComposerInvokeResult, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
+import { ComposerIncompatibleError, ComposerSidecar, type ComposerInvokeResult, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
 import { COMPOSER_IPC } from './composer-ipc.ts'
 import { ComposerEventForwarder, type ComposerEventForwarderOptions } from './composer-events.ts'
 import { ComposerShell, isComposerShellCommand, type ComposerShellOptions } from './composer-shell.ts'
 import type { ComposerReleaseTarget } from './composer-quit.ts'
 import {
   DesktopComposerView, composerBridgeError, composerInvokeRequest, isComposerSender, type ComposerResources,
+  type ComposerViewOwner,
 } from './composer-view.ts'
 
 /** Delays before each restart of a sidecar that failed after ready; one entry per attempt. */
@@ -61,6 +62,7 @@ export class DesktopComposerSurface {
   #sidecar: Sidecar | undefined
   #starting: Promise<ComposerReady> | undefined
   #status: ComposerSurfaceStatus = { state: 'idle' }
+  #ready: ComposerReady | undefined
   #attempt = 0
   #readyAt: number | undefined
   #closed = false
@@ -92,6 +94,12 @@ export class DesktopComposerSurface {
   }
 
   get status(): ComposerSurfaceStatus { return this.#status }
+
+  /** Window the Composer view is attached to, while it is shown. */
+  get owner(): ComposerViewOwner | undefined { return this.view.owner }
+
+  /** Facts the serving sidecar reported at ready (ownership follows later changes); undefined while none serves. */
+  get ready(): ComposerReady | undefined { return this.#status.state === 'ready' ? this.#ready : undefined }
 
   /** The serving sidecar's release requests, for quit and update; undefined while none serves. */
   releaseTarget(): ComposerReleaseTarget | undefined {
@@ -126,6 +134,7 @@ export class DesktopComposerSurface {
     if (this.#status.state !== 'ready' || this.#recovery !== undefined || previous === undefined) return this.start()
     this.#sidecar = undefined
     this.#readyAt = undefined
+    this.#ready = undefined
     this.#attempt = 0
     this.#events.disconnect()
     this.options.onBridgeUrl?.(undefined)
@@ -153,6 +162,7 @@ export class DesktopComposerSurface {
       const ready = await sidecar.start()
       if (this.#closed) throw new Error('nexus composer surface is closed')
       this.#readyAt = this.now()
+      this.#ready = ready
       this.#events.connect(sidecar.eventsEndpoint())
       this.options.onBridgeUrl?.(ready.url)
       this.setStatus({ state: 'ready' })
@@ -181,6 +191,11 @@ export class DesktopComposerSurface {
         this.options.onError(error)
         this.recover(instance, error)
       },
+      onOwnership: (ownership) => {
+        if (this.#closed || instance === undefined || this.#sidecar !== instance || this.#ready === undefined) return
+        this.#ready = { ...this.#ready, ownership }
+        if (this.#status.state === 'ready') this.setStatus(this.#status)
+      },
     }
     instance = (this.options.createSidecar ?? (value => new ComposerSidecar(value)))(options)
     return instance
@@ -193,9 +208,11 @@ export class DesktopComposerSurface {
     this.options.onBridgeUrl?.(undefined)
     if (this.#readyAt !== undefined && this.now() - this.#readyAt >= COMPOSER_HEALTHY_MS) this.#attempt = 0
     this.#readyAt = undefined
+    this.#ready = undefined
     this.#recovery = (async () => {
       await failed.stop().catch(() => { /* The process is already gone or will be killed. */ })
-      const delay = COMPOSER_RESTART_DELAYS_MS[this.#attempt]
+      // Another bridge protocol fails the same way on every attempt; only an update helps.
+      const delay = error instanceof ComposerIncompatibleError ? undefined : COMPOSER_RESTART_DELAYS_MS[this.#attempt]
       if (delay === undefined) { await this.giveUp(error); return }
       this.#attempt += 1
       this.setStatus({ state: 'restarting', attempt: this.#attempt, error })
@@ -271,6 +288,7 @@ export class DesktopComposerSurface {
       ipcMain.removeHandler(COMPOSER_IPC.fatal)
       this.view.close()
     }
+    this.#ready = undefined
     this.#events.disconnect()
     this.options.onBridgeUrl?.(undefined)
     await this.#recovery

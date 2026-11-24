@@ -108,6 +108,20 @@ describe('ComposerSurface', () => {
     await act(async () => {})
   })
 
+  it('attaches once even when the parent hands down new command identities', () => {
+    // Regression: depending on the command functions re-attached on every state
+    // push, and each re-attach published again — a feedback loop that grew the
+    // heap until the renderer process died.
+    stubResizeObserver()
+    const props = surfaceProps()
+    const view = render(<ComposerSurface {...props} />)
+    for (let push = 0; push < 5; push += 1) {
+      view.rerender(<ComposerSurface {...surfaceProps({ state: state() })} />)
+    }
+    expect(props.show).toHaveBeenCalledTimes(1)
+    expect(props.hide).not.toHaveBeenCalled()
+  })
+
   it('ignores a rejected show and a rejected hide', async () => {
     stubResizeObserver()
     const failing = () => Promise.reject(new Error('not yet'))

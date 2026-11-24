@@ -84,6 +84,15 @@ function LifecycleStatus({ state, retryComposer, t }: Pick<ComposerSurfaceProps,
  */
 export function ComposerSurface({ state, t, onSelect, show, setBounds, hide, retryComposer }: ComposerSurfaceProps) {
   const viewport = useRef<HTMLDivElement>(null)
+  // Latest commands, read through a ref so attaching runs once per mount.
+  //
+  // These must not be effect dependencies: main answers every command with a
+  // full state push, which re-renders this document and hands down new function
+  // identities. Depending on them re-attached on every push, and each re-attach
+  // published again — an IPC feedback loop that grew the heap until the renderer
+  // died. Mounting once breaks that cycle.
+  const commands = useRef({ show, setBounds, hide })
+  commands.current = { show, setBounds, hide }
   useEffect(() => {
     const element = viewport.current
     /* v8 ignore next -- the layer always renders its viewport before effects run. */
@@ -94,17 +103,19 @@ export function ComposerSurface({ state, t, onSelect, show, setBounds, hide, ret
     }
     // Failures surface through the state main pushes, so a rejected command
     // never needs a second error path here.
-    void show(bounds()).catch(() => { /* state carries the failure */ })
-    const track = (): void => { void setBounds(bounds()).catch(() => { /* the view may be detaching */ }) }
+    void commands.current.show(bounds()).catch(() => { /* state carries the failure */ })
+    const track = (): void => {
+      void commands.current.setBounds(bounds()).catch(() => { /* the view may be detaching */ })
+    }
     const observer = new ResizeObserver(track)
     observer.observe(element)
     window.addEventListener('resize', track)
     return () => {
       observer.disconnect()
       window.removeEventListener('resize', track)
-      void hide().catch(() => { /* window teardown may remove the IPC receiver */ })
+      void commands.current.hide().catch(() => { /* window teardown may remove the IPC receiver */ })
     }
-  }, [show, setBounds, hide])
+  }, [])
   return createPortal(
     <div className={css.overlay}>
       <header className={css.header} data-window-drag>

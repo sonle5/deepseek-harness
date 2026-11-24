@@ -62,21 +62,43 @@ function stage(lock: ComposerLock, target: ComposerTarget, artifacts: string, ou
   return prepareComposer({ target, output, lock, source: () => localComposerArtifacts(artifacts), log: () => undefined })
 }
 
+/** The checked-in lock's shape before any release exists: no version, no digest, no target. */
+const unpinnedLock = {
+  release: lockFile.release,
+  version: null,
+  commit: null,
+  bridgeProtocol: null,
+  schemaVersion: null,
+  renderer: null,
+  targets: Object.fromEntries(COMPOSER_TARGETS.map(target => [target, { available: false }])),
+}
+
 describe('composer lock', () => {
-  it('pins no release yet and leaves every target unavailable', () => {
+  it('pins a release this shell can embed', () => {
     const lock = parseComposerLock(lockFile)
+    expect(lock.version).not.toBeNull()
+    // The pinned variant carries these; the unpinned one does not.
+    if (lock.version === null) throw new Error('the checked-in lock must pin a release')
+    expect(lock.bridgeProtocol).toBe(1)
+    expect(lock.schemaVersion).toBeGreaterThanOrEqual(32)
+    expect(Object.keys(lock.targets).sort()).toEqual([...COMPOSER_TARGETS].sort())
+    expect(lock.targets['darwin-arm64'].available).toBe(true)
+  })
+
+  it('pins no release and leaves every target unavailable', () => {
+    const lock = parseComposerLock(unpinnedLock)
     expect(lock.version).toBeNull()
     expect(Object.keys(lock.targets).sort()).toEqual([...COMPOSER_TARGETS].sort())
     for (const target of COMPOSER_TARGETS) expect(lock.targets[target].available).toBe(false)
   })
 
   it.each([
-    ['an available target without a version', { targets: { ...lockFile.targets, 'darwin-arm64': { available: true, sha256: 'a'.repeat(64) } } }],
+    ['an available target without a version', { targets: { ...unpinnedLock.targets, 'darwin-arm64': { available: true, sha256: 'a'.repeat(64) } } }],
     ['an unpinned field without a version', { commit: COMMIT }],
     ['a missing target', { targets: { 'darwin-arm64': { available: false } } }],
-    ['an unknown target', { targets: { ...lockFile.targets, 'linux-arm64': { available: false } } }],
+    ['an unknown target', { targets: { ...unpinnedLock.targets, 'linux-arm64': { available: false } } }],
   ])('rejects %s', (_case, change) => {
-    expect(() => parseComposerLock({ ...lockFile, ...change })).toThrow(/composer:/u)
+    expect(() => parseComposerLock({ ...unpinnedLock, ...change })).toThrow(/composer:/u)
   })
 
   it.each(['win32-arm64', 'linux-x64'] as const)('keeps %s unavailable', async (target) => {
@@ -95,10 +117,21 @@ describe('prepare composer', () => {
     mkdirSync(join(output, 'bin'), { recursive: true })
     const source = vi.fn()
     const log = vi.fn()
-    await expect(prepareComposer({ target: 'darwin-arm64', output, lock: parseComposerLock(lockFile), source, log })).resolves.toBeUndefined()
+    await expect(prepareComposer({ target: 'darwin-arm64', output, lock: parseComposerLock(unpinnedLock), source, log })).resolves.toBeUndefined()
     expect(existsSync(output)).toBe(false)
     expect(source).not.toHaveBeenCalled()
     expect(log).toHaveBeenCalledWith(expect.stringContaining('packaging without Composer'))
+  })
+
+  it('skips a target the pinned lock does not publish', async () => {
+    const output = join(temporary(), 'composer')
+    const lock = parseComposerLock(lockFile)
+    // The pin publishes only darwin-arm64 at this commit, so every other target stages nothing.
+    const unpublished = COMPOSER_TARGETS.find(target => target !== 'darwin-arm64' && !lock.targets[target].available)
+    if (unpublished === undefined) return
+    const source = vi.fn()
+    await expect(prepareComposer({ target: unpublished, output, lock, source, log: () => undefined })).resolves.toBeUndefined()
+    expect(source).not.toHaveBeenCalled()
   })
 
   it.each(['darwin-arm64', 'win32-x64'] as const)('stages the %s sidecar, renderer and manifest the packaged shell resolves', async (target) => {

@@ -1,16 +1,16 @@
 {
-  "$comment": "Embedded Nexus Composer pin. No release publishes the embedded artifacts yet, so version and every digest are null and no target is available; packaged builds then ship without Composer.",
+  "$comment": "Embedded Nexus Composer pin. Pins the local 3.16.7 build that embeds the schema-33 Gateway lineage; digests are the sha256 of the files produced by scripts/embedded-artifacts.mjs at commit 93b2a5007dec1886de3d31fceeb392e9211860a4. Only darwin-arm64 is published at this commit, so the other targets stay unavailable and a build for them ships without Composer.",
   "release": {
     "repository": "onenexus-team/nexus-composer",
     "tag": "v{version}"
   },
-  "version": null,
-  "commit": null,
-  "bridgeProtocol": null,
-  "schemaVersion": null,
-  "renderer": null,
+  "version": "3.16.7",
+  "commit": "93b2a5007dec1886de3d31fceeb392e9211860a4",
+  "bridgeProtocol": 1,
+  "schemaVersion": 33,
+  "renderer": { "sha256": "ae379d131a84d58932356470a827422f8f74147163064361b990fc30d3598219" },
   "targets": {
-    "darwin-arm64": { "available": false },
+    "darwin-arm64": { "available": true, "sha256": "43a97e530d3e82ec0e458f88a618bcb2f45146453db578f1419412f64151420a" },
     "darwin-x64": { "available": false },
     "win32-x64": { "available": false },
     "win32-arm64": { "available": false },

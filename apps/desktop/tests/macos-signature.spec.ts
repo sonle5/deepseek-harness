@@ -17,9 +17,16 @@ import {
 const staged = vi.hoisted(() => ({ composer: undefined as string | undefined }))
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
-  // Simulates a staged Composer without writing into the real build tree.
-  const existsSync = (path: Parameters<typeof actual.existsSync>[0]): boolean =>
-    (staged.composer !== undefined && String(path) === staged.composer) || actual.existsSync(path)
+  // Simulates a staged Composer without writing into the real build tree. A
+  // developer's build tree may already hold one from `prepare:composer`, so the
+  // staged manifest answers from `staged.composer` alone rather than falling
+  // through: a test that does not stage it must not see the real file.
+  const isComposerManifest = (path: Parameters<typeof actual.existsSync>[0]): boolean =>
+    String(path).endsWith('/composer/manifest.json')
+  const existsSync = (path: Parameters<typeof actual.existsSync>[0]): boolean => {
+    if (isComposerManifest(path)) return staged.composer !== undefined && String(path) === staged.composer
+    return actual.existsSync(path)
+  }
   return { ...actual, default: { ...actual, existsSync }, existsSync }
 })
 

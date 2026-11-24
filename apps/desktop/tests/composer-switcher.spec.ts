@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ComposerSurfaceStatus } from '../src/composer-surface.ts'
 import type { ComposerBounds } from '../src/composer-view.ts'
+import type { ComposerSwitcherOwner } from '../src/composer-switcher.ts'
 
 vi.mock('electron', () => ({
   WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() }, ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
@@ -18,6 +19,15 @@ const ipcMock = ipcMain as unknown as {
   removeHandler: { mock: { calls: unknown[][] } }
 }
 
+/** An Electron `Input` with only the fields the switcher reads set meaningfully. */
+function key(code: string, modifiers: Partial<Record<'control' | 'alt' | 'shift' | 'meta', boolean>>)
+  : Electron.Input {
+  return {
+    type: 'keyDown', key: '', code, control: false, alt: false, shift: false, meta: false,
+    isAutoRepeat: false, isComposing: false, location: 0, modifiers: [], ...modifiers,
+  }
+}
+
 function owner(url = 'dsh-app://app/') {
   const mainFrame = { url }
   const webContents = { send: vi.fn(), mainFrame }
@@ -25,16 +35,14 @@ function owner(url = 'dsh-app://app/') {
 }
 
 function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform } = {}) {
-  const view: {
-    visible: boolean
-    owner: ReturnType<typeof owner> | undefined
-    bounds?: ComposerBounds
-    show: ReturnType<typeof vi.fn>
-    hide: ReturnType<typeof vi.fn>
-  } = {
-    visible: false, owner: undefined,
-    show: vi.fn((target: ReturnType<typeof owner>, bounds: ComposerBounds) => {
-      view.owner = target; view.visible = true; view.bounds = bounds
+  // Widened at the boundary: Electron's real BrowserWindow/view carry far more
+  // members than a fake needs, and the switcher only touches these few.
+  const view = {
+    visible: false as boolean,
+    owner: undefined as ReturnType<typeof owner> | undefined,
+    bounds: undefined as ComposerBounds | undefined,
+    show: vi.fn((target: ReturnType<typeof owner>, area: ComposerBounds) => {
+      view.owner = target; view.visible = true; view.bounds = area
     }),
     hide: vi.fn(() => { view.visible = false; view.owner = undefined }),
   }
@@ -52,7 +60,8 @@ function harness(overrides: { configured?: boolean; osRelease?: string; platform
     configured: overrides.configured ?? true,
     osRelease: overrides.osRelease ?? '23.0.0',
     platform: overrides.platform ?? 'darwin',
-    window: () => window,
+    // A fake window carries only the members the switcher touches.
+    window: () => window as unknown as ComposerSwitcherOwner | undefined,
     surface: () => surface,
     blocked: () => blocked,
     raiseOverlays,
@@ -69,8 +78,11 @@ function harness(overrides: { configured?: boolean; osRelease?: string; platform
     const frame = target.webContents.mainFrame
     return { sender: target.webContents, senderFrame: url === undefined ? frame : { url } }
   }
+  // A stand-in for Electron's before-input-event argument, which the switcher reads only these from.
+  const keyEvent = (): { preventDefault: ReturnType<typeof vi.fn<() => void>>; defaultPrevented: boolean } =>
+    ({ preventDefault: vi.fn<() => void>(), defaultPrevented: false })
   return {
-    surface, view, switcher, handler, event, raiseOverlays,
+    surface, view, switcher, handler, event, keyEvent, raiseOverlays,
     setWindow: (next: ReturnType<typeof owner> | undefined) => { window = next },
     getWindow: () => window,
     setBlocked: (next: boolean) => { blocked = next },
@@ -226,30 +238,27 @@ describe('composer switcher IPC', () => {
 
   it('forwards the platform switcher accelerators from the Composer view', () => {
     const h = harness()
-    const preventDefault = vi.fn()
-    const input = (code: string, extra: Record<string, boolean> = {}) =>
-      ({ type: 'keyDown', code, control: false, alt: false, shift: false, meta: false, ...extra })
-    h.switcher.forwardInput({ preventDefault }, input('Digit2', { meta: true }))
+    const event = h.keyEvent()
+    h.switcher.forwardInput(event, key('Digit2', { meta: true }))
     expect(h.getWindow()?.webContents.send).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, 'composer')
-    h.switcher.forwardInput({ preventDefault }, input('Digit1', { meta: true }))
+    h.switcher.forwardInput(event, key('Digit1', { meta: true }))
     expect(h.getWindow()?.webContents.send).toHaveBeenLastCalledWith(COMPOSER_SWITCHER_IPC.select, 'superharness')
-    expect(preventDefault).toHaveBeenCalledTimes(2)
+    expect(event.preventDefault).toHaveBeenCalledTimes(2)
     // Control+digit is not the macOS accelerator, and other modifiers never match.
-    h.switcher.forwardInput({ preventDefault }, input('Digit1', { control: true }))
-    h.switcher.forwardInput({ preventDefault }, input('Digit1', { meta: true, shift: true }))
-    h.switcher.forwardInput({ preventDefault }, { ...input('Digit1', { meta: true }), type: 'keyUp' })
-    expect(preventDefault).toHaveBeenCalledTimes(2)
+    h.switcher.forwardInput(event, key('Digit1', { control: true }))
+    h.switcher.forwardInput(event, key('Digit1', { meta: true, shift: true }))
+    h.switcher.forwardInput(event, { ...key('Digit1', { meta: true }), type: 'keyUp' })
+    expect(event.preventDefault).toHaveBeenCalledTimes(2)
     expect(h.getWindow()?.webContents.send).toHaveBeenCalledTimes(2)
   })
 
   it('uses Control on Windows and Linux', () => {
     const h = harness({ platform: 'win32', osRelease: '10.0.0' })
-    const preventDefault = vi.fn()
-    const base = { type: 'keyDown', code: 'Digit2', control: true, alt: false, shift: false, meta: false }
-    h.switcher.forwardInput({ preventDefault }, base)
+    const event = h.keyEvent()
+    h.switcher.forwardInput(event, key('Digit2', { control: true }))
     expect(h.getWindow()?.webContents.send).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, 'composer')
-    h.switcher.forwardInput({ preventDefault }, { ...base, control: false, meta: true })
-    expect(preventDefault).toHaveBeenCalledTimes(1)
+    h.switcher.forwardInput(event, key('Digit2', { meta: true }))
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
   })
 
   it('does nothing without a surface and removes its handlers on dispose', async () => {

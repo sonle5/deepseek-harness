@@ -74,7 +74,7 @@ describe('composer sidecar supervisor', () => {
     expect(f.written).toEqual([])
     f.frame({ type: 'starting', version: '1.0.0' })
     await flush()
-    const auth = JSON.parse(f.written[0]) as { type: string; secret: string }
+    const auth = JSON.parse(f.written[0]!) as { type: string; secret: string }
     expect(auth.type).toBe('auth')
     expect(auth.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(JSON.stringify(env)).not.toContain(auth.secret)
@@ -226,7 +226,7 @@ describe('composer sidecar supervisor', () => {
     await flush()
     f.frame(READY)
     await ready
-    const secret = (JSON.parse(f.written[0]) as { secret: string }).secret
+    const secret = (JSON.parse(f.written[0]!) as { secret: string }).secret
     expect(await f.sidecar.invoke('get_providers', { app: 'claude' })).toEqual({ ok: { p1: {} } })
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('http://127.0.0.1:4321/v1/invoke/get_providers')

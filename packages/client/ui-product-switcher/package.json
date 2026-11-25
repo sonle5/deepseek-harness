@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-product-switcher",
   "description": "Desktop Superharness | Composer product switcher and the Composer view placeholder",
-  "version": "0.2.2-rc.4",
+  "version": "0.2.3-alpha.2",
   "publishConfig": {
     "access": "public"
   },

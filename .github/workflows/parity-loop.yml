@@ -1,0 +1,66 @@
+name: Parity loop
+
+# Routes review and enables auto-merge for pull requests into `develop`.
+#
+# Only `pull_request_target` is used, and it loads this file from the base
+# branch, so a PR cannot edit the gate that merges it. `pull_request_review` is
+# deliberately absent: GitHub runs review-triggered workflows from
+# `refs/pull/N/merge`, so a same-repository PR could edit this file and have the
+# edited version run with `contents: write` when its own approval arrived.
+#
+# Nothing here decides that a pull request is approved. The loop enables
+# GitHub's auto-merge, and GitHub then applies the branch's protection — one
+# approving review from someone other than the author, dismissal of stale
+# approvals on push, and the required checks — to the commit it merges. That
+# ordering is why stale-approval and mid-flight-push races cannot land
+# unreviewed code. The author is excluded by GitHub, not by this file: an
+# author cannot approve their own pull request, so an agent-authored pull
+# request needs a human approver.
+#
+# The merge itself is GraphQL-only. `POST /repos/{owner}/{repo}/pulls/{n}/auto_merge`
+# does not exist; `enablePullRequestAutoMerge` does, and it takes
+# `expectedHeadOid` so the request pins the commit it was enabled for.
+#
+# Read with care which endpoints this file trusts. The protection *rule*
+# (`branchProtectionRule`, or REST `GET .../protection`) is admin-only data and
+# reads as null — not as an error — for a workflow token, so it cannot be used
+# to decide anything. The gate instead reads two facts a write token can see:
+# `branches/{b}.protected` (REST) and the pull request's `reviewDecision`
+# (GraphQL), which is null exactly when no rule asks for review.
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - review_requested
+      - synchronize
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: parity-loop-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    name: Route review and enable auto-merge
+    # A closed pull request has nothing left to route.
+    if: github.event.pull_request.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Always the base branch: this step must never run pull-request code.
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Run the loop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/parity-loop/run.mjs

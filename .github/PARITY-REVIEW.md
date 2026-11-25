@@ -28,7 +28,7 @@ visual review on this Mac ──► parity Issue (+ parity, area/*, p*)
         │                     (Fixes #N, kind/*, area/*, review @onenexus-superagent)
         │                              │
         │                              ▼
-        │              @onenexus-superagent approves the head commit
+        │              one approving review from someone other than the author
         │                              │
         │                              ▼
         │                     GitHub merges when protection is satisfied
@@ -70,6 +70,12 @@ The Issue body is the brief. A fixing PR:
   it to Done,
 - carries exactly one `kind/*` and at least one `area/*`,
 - requests review from `@onenexus-superagent`.
+
+`@onenexus-superagent` cannot approve a pull request it authored — GitHub
+excludes authors from approving their own PRs, and there is no CODEOWNERS file
+here to make the agent a required approver — so an agent-authored PR needs one
+other person to approve it. The protection asks for one non-author approval; it
+does not require that the approver be the agent.
 
 PR kinds and their meanings are the ones the policy already knows:
 

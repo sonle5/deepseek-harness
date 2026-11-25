@@ -75,14 +75,14 @@ export function latestVerdicts(reviews) {
  *
  * So the only things worth blocking on here are the ones that make auto-merge
  * meaningless: a wrong base, a closed or draft pull request, a branch GitHub
- * cannot merge, and — the important one — an unprotected branch, where
- * auto-merge would land the commit immediately.
+ * cannot merge, and — the important one — a branch whose review requirement
+ * cannot be confirmed.
  * @param {object} input Pull-request state.
  * @param {string} input.base Base branch.
  * @param {boolean} input.isDraft Whether the pull request is a draft.
  * @param {string} input.state `open` or `closed`.
  * @param {boolean|null} input.mergeable GitHub's computed mergeability (`null` while pending).
- * @param {boolean} input.protectedBranch Whether the base branch enforces review.
+ * @param {boolean|null} input.protectedBranch Whether the base branch enforces review, or `null` when the token cannot read its protection.
  * @returns {string[]} Blocking reasons; empty means auto-merge may be enabled.
  */
 export function autoMergeBlockers({ base, isDraft, state, mergeable, protectedBranch }) {
@@ -95,9 +95,24 @@ export function autoMergeBlockers({ base, isDraft, state, mergeable, protectedBr
   // "probably fine".
   if (mergeable !== true) blockers.push('GitHub has not confirmed the pull request is mergeable.')
   // Without protection there is nothing for auto-merge to wait on, and enabling
-  // it merges the head immediately — the opposite of the intent.
-  if (!protectedBranch) {
+  // it merges the head immediately — the opposite of the intent. An unreadable
+  // protection setting is reported separately: it is a token problem to fix,
+  // not evidence that the branch is unprotected.
+  if (protectedBranch === null) {
+    blockers.push(`Cannot verify that \`${TARGET_BASE}\` requires review; the token cannot read its protection.`)
+  } else if (protectedBranch !== true) {
     blockers.push(`\`${TARGET_BASE}\` is not protected; auto-merge would land unreviewed.`)
   }
   return blockers
+}
+
+/**
+ * Whether a failed auto-merge mutation only means this pull request already has
+ * auto-merge on, which every re-run after a push will hit.
+ * @param {unknown} error Failure from the mutation.
+ * @returns {boolean} True when the mutation refused because it was already enabled.
+ */
+export function autoMergeAlreadyEnabled(error) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /automerge is already enabled/i.test(message)
 }

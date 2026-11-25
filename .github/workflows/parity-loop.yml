@@ -9,10 +9,17 @@ name: Parity loop
 # edited version run with `contents: write` when its own approval arrived.
 #
 # Nothing here decides that a pull request is approved. The loop enables
-# GitHub's auto-merge, and GitHub then applies the branch's protection — the
-# required approval from @onenexus-superagent, dismissal of stale approvals on
-# push, and the required checks — to the commit it merges. That ordering is why
-# stale-approval and mid-flight-push races cannot land unreviewed code.
+# GitHub's auto-merge, and GitHub then applies the branch's protection — one
+# approving review from someone other than the author, dismissal of stale
+# approvals on push, and the required checks — to the commit it merges. That
+# ordering is why stale-approval and mid-flight-push races cannot land
+# unreviewed code. The author is excluded by GitHub, not by this file: an
+# author cannot approve their own pull request, so an agent-authored pull
+# request needs a human approver.
+#
+# The merge itself is GraphQL-only. `POST /repos/{owner}/{repo}/pulls/{n}/auto_merge`
+# does not exist; `enablePullRequestAutoMerge` does, and it takes
+# `expectedHeadOid` so the request pins the commit it was enabled for.
 on:
   pull_request_target:
     types:

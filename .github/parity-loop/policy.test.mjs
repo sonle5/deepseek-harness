@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  autoMergeAlreadyEnabled,
   autoMergeBlockers,
   baseBranchError,
   latestVerdicts,
@@ -87,4 +88,28 @@ test('an unprotected base blocks auto-merge', () => {
   // the failure this gate exists to prevent.
   assert.ok(autoMergeBlockers({ ...clean, protectedBranch: false })
     .includes('`develop` is not protected; auto-merge would land unreviewed.'))
+})
+
+test('unreadable protection blocks as its own reason, not as unprotected', () => {
+  // A token that cannot read protection has found out nothing about the branch.
+  // Reporting it as "unprotected" would send maintainers to fix a protection
+  // rule that is already correct, and offering no reason at all would enable
+  // auto-merge on a branch nobody verified.
+  const blockers = autoMergeBlockers({ ...clean, protectedBranch: null })
+  assert.deepEqual(blockers, ['Cannot verify that `develop` requires review; the token cannot read its protection.'])
+  assert.ok(!blockers.some(reason => reason.includes('is not protected')))
+})
+
+test('an already-enabled auto-merge is told apart from a real failure', () => {
+  // `synchronize` re-runs the mutation on every push, and GitHub refuses with
+  // this message once it is on; every other failure must surface.
+  assert.equal(autoMergeAlreadyEnabled(
+    new Error('GraphQL: Pull request AutoMerge is already enabled (enablePullRequestAutoMerge)'),
+  ), true)
+  assert.equal(autoMergeAlreadyEnabled(
+    new Error('GraphQL: Could not resolve to a node with the global id of \'PR_bogus\' (enablePullRequestAutoMerge)'),
+  ), false)
+  assert.equal(autoMergeAlreadyEnabled(
+    'Head branch was modified. Review and try the merge again.',
+  ), false)
 })

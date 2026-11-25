@@ -14,6 +14,18 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The macOS window drag row the Composer document does not provide. The native
+ * view starts below it, so only this strip drags and Composer's own controls
+ * keep their clicks. Other platforms drag from their own caption row. */
+.dragBand {
+  flex: none;
+  height: 0;
+}
+
+:global(html[data-platform='darwin']) .dragBand {
+  height: 20px;
+}
+
 .status {
   position: absolute;
   inset: 0;

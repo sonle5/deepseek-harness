@@ -7,6 +7,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { apply, inject } from '../src/client/index.ts'
 import { NEXUS_MONOGRAM, NexusBrandMark, NexusBrandName } from '../src/client/Brand.tsx'
+import { zh } from '../src/client/locales.ts'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
@@ -109,7 +110,7 @@ describe('Nexus browser-brand plugin', () => {
     subject.locale.setLocale('zh')
     const name = render(<NexusBrandName t={brandT(subject.locale)} />)
     expect(name.container.textContent).toBe('Nexus Superharness')
-    expect(brandT(subject.locale)('home.attribution')).toBe('基于 DeepSeek Harness 构建')
+    expect(brandT(subject.locale)('home.attribution')).toBe(zh['home.attribution'])
     name.unmount()
   })
 })

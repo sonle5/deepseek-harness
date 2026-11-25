@@ -13,6 +13,18 @@ interface ThemeSettings {
   update(namespace: 'ui-theme', value: { readonly preference: 'light' | 'dark' }): Promise<void>
 }
 
+/** A laid-out box flattened to plain numbers, so page-side geometry crosses the boundary typed. */
+interface Box {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  readonly left: number
+  readonly right: number
+  readonly top: number
+  readonly bottom: number
+}
+
 function themeSettings(scaffold: WebScaffold): ThemeSettings {
   const settings: unknown = scaffold.ctx.get('settings')
   if (typeof settings !== 'object'
@@ -86,20 +98,40 @@ describe('Nexus Superharness in the default web profile', () => {
     const previousPlatform = await page.locator('html').getAttribute('data-platform')
     try {
       await page.setViewportSize({ width: 1280, height: 820 })
-      await page.locator('html').evaluate(element => element.setAttribute('data-platform', 'darwin'))
+      await page.locator('html').evaluate((element) => { element.setAttribute('data-platform', 'darwin') })
       await page.reload()
       const brandMark = page.locator('[data-window-drag] [data-nexus-brand-mark]')
       const firstNavigation = page.locator('nav button[aria-label]').first()
       await brandMark.waitFor()
       await firstNavigation.waitFor()
-      const geometry = await page.evaluate(() => {
+      const geometry = await page.evaluate((): {
+        mark: Box
+        glyph: Box
+        identity: Box
+        toggle: Box
+        brand: Box
+        brandTextLeft: number
+        navigationTextLeft: number
+      } => {
         const mark = document.querySelector<SVGElement>('[data-window-drag] [data-nexus-brand-mark]')!
         const navigation = document.querySelector<HTMLButtonElement>('nav button[aria-label]')!
         const glyph = navigation.querySelector<HTMLElement>('span')!
         const brand = mark.closest<HTMLElement>('[data-window-drag]')!
         const identity = mark.closest<HTMLElement>('[aria-hidden="true"]')!
         const toggle = brand.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')!
-        const rect = (element: Element) => element.getBoundingClientRect()
+        const rect = (element: Element): Box => {
+          const box = element.getBoundingClientRect()
+          return {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            left: box.left,
+            right: box.right,
+            top: box.top,
+            bottom: box.bottom,
+          }
+        }
         const textLeft = (root: Element, expected: string): number => {
           const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
           for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
@@ -111,11 +143,11 @@ describe('Nexus Superharness in the default web profile', () => {
           throw new Error(`Missing text ${JSON.stringify(expected)}`)
         }
         return {
-          mark: rect(mark).toJSON(),
-          glyph: rect(glyph).toJSON(),
-          identity: rect(identity).toJSON(),
-          toggle: rect(toggle).toJSON(),
-          brand: rect(brand).toJSON(),
+          mark: rect(mark),
+          glyph: rect(glyph),
+          identity: rect(identity),
+          toggle: rect(toggle),
+          brand: rect(brand),
           brandTextLeft: textLeft(brand, 'Nexus Superharness'),
           navigationTextLeft: textLeft(navigation, navigation.getAttribute('aria-label')!),
         }
@@ -128,8 +160,8 @@ describe('Nexus Superharness in the default web profile', () => {
       expect(geometry.identity.left - geometry.brand.left).toBeLessThanOrEqual(8)
       await page.screenshot({ path: `${captureDir}/sidebar-titlebar-darwin.png` })
     } finally {
-      if (previousPlatform === null) await page.locator('html').evaluate(element => element.removeAttribute('data-platform'))
-      else await page.locator('html').evaluate((element, value) => element.setAttribute('data-platform', value), previousPlatform)
+      if (previousPlatform === null) await page.locator('html').evaluate((element) => { element.removeAttribute('data-platform') })
+      else await page.locator('html').evaluate((element, value) => { element.setAttribute('data-platform', value) }, previousPlatform)
       if (previousViewport !== null) await page.setViewportSize(previousViewport)
       await page.reload()
     }

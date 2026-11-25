@@ -1,8 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
-import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ComposerSidecar, isOwnedComposerUrl, parseComposerFrame } from '../src/composer-sidecar.ts'
+import { ComposerSidecar, isOwnedComposerUrl, parseComposerFrame, type ComposerChildProcess } from '../src/composer-sidecar.ts'
 
 const READY = { type: 'ready', url: 'http://127.0.0.1:4321', version: '1.0.0', bridgeProtocol: 1, schemaVersion: 7, initStatus: null, ownership: 'isolated' }
 
@@ -26,7 +25,9 @@ function fakeChild() {
   }
   stdin.on('finish', () => { if (written.some(line => line.includes('"shutdown"'))) exit(0) })
   return {
-    child: child as unknown as ChildProcessWithoutNullStreams & { kill: ReturnType<typeof vi.fn> },
+    // The fake models the narrow child surface the supervisor declares, so no
+    // assertion into the full node type is needed.
+    child: child satisfies ComposerChildProcess,
     frame: (value: unknown) => { stdout.write(typeof value === 'string' ? `${value}\n` : `${JSON.stringify(value)}\n`) },
     written, exit, stderr,
   }
@@ -218,8 +219,14 @@ describe('composer sidecar supervisor', () => {
       new Response(JSON.stringify({ err: 'Provider not found: x' }), { status: 422 }),
       new Response(JSON.stringify({ schemaVersion: 1, error: { code: 'app_not_ready', retryable: true } }), { status: 503 }),
     ]
-    const fetch = vi.fn(async () => responses.shift()!)
-    const f = setup({ fetch: fetch as unknown as typeof globalThis.fetch })
+    // Declared with the fetch signature the supervisor injects, so the mock
+    // type-checks against it directly and records a typed request bag.
+    const requests: RequestInit[] = []
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      requests.push(init ?? {})
+      return responses.shift()!
+    })
+    const f = setup({ fetch })
     expect(await f.sidecar.invoke('get_providers', {})).toEqual({ bridgeError: { code: 'app_not_ready', retryable: true } })
     const ready = f.sidecar.start()
     f.frame({ type: 'starting', version: '1.0.0' })
@@ -228,10 +235,11 @@ describe('composer sidecar supervisor', () => {
     await ready
     const secret = (JSON.parse(f.written[0]!) as { secret: string }).secret
     expect(await f.sidecar.invoke('get_providers', { app: 'claude' })).toEqual({ ok: { p1: {} } })
-    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('http://127.0.0.1:4321/v1/invoke/get_providers')
-    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${secret}`)
-    expect(init.body).toBe('{"app":"claude"}')
+    // The call and the request bag come from the typed mock and recorder, so
+    // neither is read back as `any`.
+    expect(fetch.mock.calls[0]?.[0]).toBe('http://127.0.0.1:4321/v1/invoke/get_providers')
+    expect(requests[0]?.headers).toEqual({ authorization: `Bearer ${secret}`, 'content-type': 'application/json' })
+    expect(requests[0]?.body).toBe('{"app":"claude"}')
     expect(await f.sidecar.invoke('get_providers', {})).toEqual({ err: 'Provider not found: x' })
     expect(await f.sidecar.invoke('get_providers', {})).toEqual({ bridgeError: { code: 'app_not_ready', retryable: true } })
     expect(await f.sidecar.invoke('../hello', {})).toEqual({ bridgeError: { code: 'unknown_command', retryable: false } })

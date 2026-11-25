@@ -128,6 +128,15 @@ export interface ComposerRestored {
   readonly codexRestartRequired: boolean
 }
 
+/**
+ * The child-process surface the supervisor actually uses.
+ *
+ * Narrowed from `ChildProcessWithoutNullStreams` so a test can supply a fake
+ * without asserting it into the full node type: the supervisor reads these
+ * members and nothing else, and it is the exit paths a fake has to model.
+ */
+export type ComposerChildProcess = Pick<ChildProcessWithoutNullStreams, 'stdin' | 'stdout' | 'stderr' | 'kill' | 'once' | 'exitCode' | 'signalCode'>
+
 /** Process facts the supervisor needs; tests replace the spawn. */
 export interface ComposerSidecarOptions {
   /** Composer executable. */
@@ -139,19 +148,19 @@ export interface ComposerSidecarOptions {
   readonly onFailure?: (error: Error) => void
   /** Ownership changed after ready, for example another Composer took over routing and the bridge became read-only. */
   readonly onOwnership?: (ownership: string, reason: string, externalOwner?: ComposerExternalOwner) => void
-  readonly spawn?: (binary: string, args: readonly string[], env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams
+  readonly spawn?: (binary: string, args: readonly string[], env: NodeJS.ProcessEnv) => ComposerChildProcess
   readonly fetch?: typeof fetch
   readonly startupTimeoutMs?: number
 }
 
-function defaultSpawn(binary: string, args: readonly string[], env: NodeJS.ProcessEnv): ChildProcessWithoutNullStreams {
+function defaultSpawn(binary: string, args: readonly string[], env: NodeJS.ProcessEnv): ComposerChildProcess {
   return spawn(binary, args, { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
 }
 
 /** One sidecar process: handshake, bridge calls and teardown. */
 export class ComposerSidecar {
   readonly #secret = randomBytes(32).toString('base64url')
-  #child: ChildProcessWithoutNullStreams | undefined
+  #child: ComposerChildProcess | undefined
   #ready: ComposerReady | undefined
   #readyPromise: Promise<ComposerReady> | undefined
   #exited: Promise<void> | undefined

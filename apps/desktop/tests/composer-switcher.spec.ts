@@ -13,11 +13,9 @@ const { COMPOSER_SWITCHER_IPC, composerOsCompatible, composerSwitcherState, inst
 const { ComposerIncompatibleError } = await import('../src/composer-sidecar.ts')
 const { ipcMain } = await import('electron')
 
-type Handler = (event: unknown, ...args: unknown[]) => unknown
-const ipcMock = ipcMain as unknown as {
-  handle: { mock: { calls: Array<[string, Handler]> } }
-  removeHandler: { mock: { calls: unknown[][] } }
-}
+// `ipcMain` here is the mocked module, so `vi.mocked` supplies the mock-member
+// typing directly and no assertion to `unknown` is needed.
+const ipcMock = vi.mocked(ipcMain)
 
 /** An Electron `Input` with only the fields the switcher reads set meaningfully. */
 function key(code: string, modifiers: Partial<Record<'control' | 'alt' | 'shift' | 'meta', boolean>>)
@@ -31,8 +29,17 @@ function key(code: string, modifiers: Partial<Record<'control' | 'alt' | 'shift'
 function owner(url = 'dsh-app://app/') {
   const mainFrame = { url }
   const webContents = { send: vi.fn(), mainFrame }
-  return { isDestroyed: () => false, webContents, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } }
+  // Typed as the switcher's own owner share: the fake carries exactly the
+  // members it reads, so no assertion into Electron's full BrowserWindow is
+  // needed, and a new member on the share shows up here as a type error.
+  const window = {
+    isDestroyed: () => false, webContents, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() },
+  } satisfies ComposerSwitcherOwner
+  return window
 }
+
+/** A channel registration as `ipcMain.handle` stores it, called through a typed wrapper. */
+type InstalledHandler = (event: unknown, ...args: unknown[]) => Promise<unknown>
 
 function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform; noSurface?: boolean } = {}) {
   // Widened at the boundary: Electron's real BrowserWindow/view carry far more
@@ -60,13 +67,14 @@ function harness(overrides: { configured?: boolean; osRelease?: string; platform
     configured: overrides.configured ?? true,
     osRelease: overrides.osRelease ?? '23.0.0',
     platform: overrides.platform ?? 'darwin',
-    // A fake window carries only the members the switcher touches.
-    window: () => window as unknown as ComposerSwitcherOwner | undefined,
+    // `window` already satisfies the owner share, so it needs no assertion.
+    window: () => window,
     surface: () => overrides.noSurface === true ? undefined : surface,
     blocked: () => blocked,
     raiseOverlays,
   })
-  const handler = (channel: string): Handler => {
+  /** The most recent registration for `channel`, as the switcher installed it. */
+  const handler = (channel: string): InstalledHandler => {
     // Handler registrations accumulate across harnesses; the newest install owns the channel.
     const registered = ipcMock.handle.mock.calls.filter(([name]) => name === channel)
     const call = registered[registered.length - 1]
@@ -89,8 +97,11 @@ function harness(overrides: { configured?: boolean; osRelease?: string; platform
     changed: (): unknown[] => {
       const send = window?.webContents.send
       if (send === undefined) return []
-      const calls = (send as unknown as { mock: { calls: unknown[][] } }).mock.calls
-      return calls.filter(([channel]) => channel === COMPOSER_SWITCHER_IPC.changed).map(([, state]) => state)
+      // `send` is already the mock the owner declares, so its calls are typed.
+      const { calls } = vi.mocked(send).mock
+      // Electron types forwarded arguments as `any[]`; the payloads are still
+      // opaque to the test, so they are widened to `unknown` rather than passed on.
+      return calls.filter(([channel]) => channel === COMPOSER_SWITCHER_IPC.changed).map(([, state]): unknown => state)
     },
   }
 }

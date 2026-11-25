@@ -347,6 +347,27 @@ it('marks only the tab-scoped row whose tab is current', async () => {
   expect(seat.view.getByRole('button', { name: 'Claude Skills' }).getAttribute('aria-current')).toBe('page')
 })
 
+it('draws the compact switcher in the window-chrome seat, following main', async () => {
+  // The leading seat is the window-chrome copy of the switcher: no room for the
+  // brand form, so it renders compact and renames itself from the same store.
+  // Rendered through the real slot runtime so it receives the seat's actual
+  // props rather than a hand-built look-alike.
+  const fake = fakeBridge()
+  const { runtime, layout } = await bench(fake.bridge)
+  const seat = runtime.renderSlot('sidebar.leading.product', {})
+  const trigger = seat.view.getByRole('button', { name: 'Switch product' })
+  expect(trigger.className).toMatch(/compact/)
+  expect(trigger.textContent).toContain('Superharness')
+  // A press routes through the same select action as the sidebar's copy, which
+  // is what selects the panel — the seat draws no view of its own.
+  fireEvent.click(trigger)
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  expect(layout.selectPanel).toHaveBeenCalledWith('composer')
+  // And it renames itself from main's push, like every other surface.
+  fake.selectFromMain('composer')
+  expect(seat.view.getByRole('button', { name: 'Switch product' }).textContent).toContain('Composer')
+})
+
 it('leaves Composer when another main panel is selected', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()

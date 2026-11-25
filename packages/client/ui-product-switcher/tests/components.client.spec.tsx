@@ -6,8 +6,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { ComposerSurface, type ComposerSurfaceProps } from '../src/client/ComposerView.tsx'
 import type { ComposerSwitcherState } from '../src/client/composer-bridge.ts'
 import { de, en, es, fr, ja, pt, ru, zh } from '../src/client/locales.ts'
-import { ProductControl, LeadingProductSwitcher, type LeadingProductSwitcherProps } from '../src/client/ProductSwitcher.tsx'
-import type { ProductSwitcherSnapshot } from '../src/client/contract.ts'
+import { ProductControl } from '../src/client/ProductSwitcher.tsx'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
@@ -122,29 +121,6 @@ describe('ProductControl', () => {
   })
 })
 
-describe('LeadingProductSwitcher', () => {
-  it('subscribes to the live product and forwards a choice', () => {
-    let snapshot: ProductSwitcherSnapshot = { product: 'superharness', state: state() }
-    const select = vi.fn()
-    const props = {
-      useSwitcher: (selector: (value: ProductSwitcherSnapshot) => unknown) => selector(snapshot),
-      select,
-      t: makeTranslate(en),
-    } as unknown as LeadingProductSwitcherProps
-    const view = render(<LeadingProductSwitcher {...props} />)
-    const trigger = screen.getByRole('button', { name: en['trigger.label'] })
-    expect(trigger.className).toMatch(/compact/)
-    expect(trigger.textContent).toContain(en['product.superharness'])
-    fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('menuitem', { name: en['product.composer'] }))
-    expect(select).toHaveBeenCalledWith('composer')
-    // A pushed product renames the closed trigger.
-    snapshot = { product: 'composer', state: state() }
-    view.rerender(<LeadingProductSwitcher {...props} />)
-    expect(screen.getByRole('button', { name: en['trigger.label'] }).textContent).toContain(en['product.composer'])
-  })
-})
-
 describe('ComposerSurface', () => {
   it('draws no chrome of its own and reports the region bounds, tracking resizes', async () => {
     const observer = stubResizeObserver()
@@ -168,10 +144,10 @@ describe('ComposerSurface', () => {
     // The collapsed desktop sidebar mounts the frame's shell.leading seat over
     // the top-left corner — where the traffic lights and the reopen control
     // are. Native views paint over the document, so the reported rectangle
-    // starts below that band instead of hiding it.
-    vi.spyOn(window, 'getComputedStyle').mockReturnValue(
-      { getPropertyValue: (property: string) => (property === '--dsh-frame-top-clearance' ? '48px' : '') } as unknown as CSSStyleDeclaration,
-    )
+    // starts below that band instead of hiding it. jsdom resolves real custom
+    // properties, so the band is declared on the document exactly as the
+    // stylesheet declares it, with no computed-style double.
+    document.documentElement.style.setProperty('--dsh-frame-top-clearance', '48px')
     const seat = document.createElement('div')
     seat.setAttribute('data-shell-leading', '')
     document.body.append(seat)
@@ -182,16 +158,14 @@ describe('ComposerSurface', () => {
     act(() => { window.dispatchEvent(new Event('resize')) })
     expect(props.setBounds).toHaveBeenCalledWith({ x: 0, y: 48, width: 800, height: 552 })
     seat.remove()
+    document.documentElement.style.removeProperty('--dsh-frame-top-clearance')
   })
 
-  it('reserves no band when the frame declares an unusable clearance', async () => {
+  it('reserves no band when the frame declares no clearance', async () => {
     stubResizeObserver()
-    // The seat is mounted but the custom property is absent (or not a number,
-    // as during a stylesheet swap). An unparseable value must reserve nothing
-    // rather than produce NaN bounds, which the main process would reject.
-    vi.spyOn(window, 'getComputedStyle').mockReturnValue(
-      { getPropertyValue: () => '' } as unknown as CSSStyleDeclaration,
-    )
+    // The seat is mounted but the custom property is absent, as it is during a
+    // stylesheet swap. An unparseable value must reserve nothing rather than
+    // produce NaN bounds, which the main process would reject.
     const seat = document.createElement('div')
     seat.setAttribute('data-shell-leading', '')
     document.body.append(seat)

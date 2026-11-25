@@ -35,6 +35,11 @@ function harness(options: {
   return { handler, win, dialog, shell, clipboard, bridge, mkdir, restart, errors, deferred, navigation }
 }
 
+/** The `err` text a command envelope carries, or '' when it reported success. */
+function errorText(result: ComposerInvokeResult): string {
+  return 'err' in result && typeof result.err === 'string' ? result.err : ''
+}
+
 describe('composer shell commands', () => {
   it('lists exactly the shell-owned commands', () => {
     expect([...COMPOSER_SHELL_COMMANDS].sort()).toEqual([
@@ -87,7 +92,7 @@ describe('composer shell commands', () => {
     expect(await h.handler.call('open_external', { url: 'github.com/a/b' })).toEqual({ ok: true })
     expect(h.shell.openExternal.mock.calls.map(call => call[0])).toEqual(['https://onenexus.cloud/', 'https://github.com/a/b'])
     for (const url of ['http://example.com/', 'https://user:pw@example.com/', 'https://']) {
-      expect(await h.handler.call('open_external', { url })).toMatchObject({ err: expect.stringMatching(/^Failed to open link/) as unknown })
+      expect(errorText(await h.handler.call('open_external', { url }))).toMatch(/^Failed to open link/)
     }
     expect(h.shell.openExternal).toHaveBeenCalledTimes(2)
   })

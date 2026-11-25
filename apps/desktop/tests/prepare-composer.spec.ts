@@ -201,10 +201,14 @@ describe('composer release downloads', () => {
   it('downloads by tag with a bearer token and caches verified files by digest', async () => {
     const { lock, binary, binarySha256 } = await release('darwin-arm64')
     const cache = join(temporary(), 'cache')
-    const fetcher = vi.fn(async (url: string, _init: RequestInit) => url.includes('/releases/tags/')
+    // Declared with the fetcher signature the source injects, so the mock is
+    // assignable without an assertion and its call arguments are typed.
+    // The injected fetcher takes `RequestInfo | URL`, so the branch reads the
+    // URL as a string only after narrowing to the form this test asserts on.
+    const fetcher = vi.fn<typeof fetch>(async (url, _init) => typeof url === 'string' && url.includes('/releases/tags/')
       ? Response.json({ assets: [{ name: `nexus-composer-sidecar-${VERSION}-darwin-arm64`, url: 'https://api.github.com/assets/1' }] })
       : new Response(binary))
-    const source = releaseComposerArtifacts(lock, VERSION, cache, { GITHUB_TOKEN: 'fixture-token' }, fetcher as unknown as typeof fetch)
+    const source = releaseComposerArtifacts(lock, VERSION, cache, { GITHUB_TOKEN: 'fixture-token' }, fetcher)
     await expect(source(`nexus-composer-sidecar-${VERSION}-darwin-arm64`, binarySha256)).resolves.toEqual(binary)
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       `https://api.github.com/repos/onenexus-team/nexus-composer/releases/tags/v${VERSION}`, 'https://api.github.com/assets/1',
@@ -218,8 +222,8 @@ describe('composer release downloads', () => {
 
   it('uses the public download URL without a token', async () => {
     const { lock } = await release('darwin-arm64')
-    const fetcher = vi.fn(async (_url: string, _init: RequestInit) => new Response('{}'))
-    const source = releaseComposerArtifacts(lock, VERSION, join(temporary(), 'cache'), {}, fetcher as unknown as typeof fetch)
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('{}'))
+    const source = releaseComposerArtifacts(lock, VERSION, join(temporary(), 'cache'), {}, fetcher)
     await source(`nexus-composer-embedded-manifest-${VERSION}.json`)
     expect(fetcher.mock.calls[0]![0]).toBe(`https://github.com/onenexus-team/nexus-composer/releases/download/v${VERSION}/nexus-composer-embedded-manifest-${VERSION}.json`)
     expect(fetcher.mock.calls[0]![1].headers).not.toHaveProperty('authorization')

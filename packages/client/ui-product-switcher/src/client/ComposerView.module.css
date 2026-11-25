@@ -1,57 +1,16 @@
-/* The Composer surface is a product layer, not a dialog: it covers the
- * document, but every overlay main must keep above the native view — the
- * Platform page (1001), modals (1000), menus, tooltips and toasts (1100) —
- * still stacks over it, so it sits just below the modal layer. */
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
+/* Composer is a main panel: it occupies the frame's center column and draws no
+ * chrome of its own. The rectangle reported to main is exactly this box, so the
+ * native view sits where the Conversation would — beside the sidebar and under
+ * the frame's shared drag rows, not over them. A covering layer here would
+ * repaint the whole window and hide the sidebar the product switcher lives in. */
+.surface {
+  position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--dsw-alias-bg-base);
-}
-
-/* Windows Electron: the Desktop caption menu owns the window's top strip, so
-   the product bar and the native Composer view start below it. */
-:global([data-windows-titlebar]) .overlay {
-  padding-top: var(--dsh-windows-titlebar-height);
-}
-
-/* The macOS shell's drag row: on darwin this bar IS the window's top strip, and
-   ui-web base.css declares the one darwin rule over the `data-window-drag` mark.
-   Windows keeps the native caption row as its drag surface instead — this bar
-   sits below that row (see above) and declares no drag of its own. */
-.header {
-  -webkit-app-region: initial;
-  box-sizing: border-box;
-  height: 48px;
-  flex: none;
-  padding: 6px 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding-top: 5px;
-}
-
-.trafficLights {
-  display: none;
-  width: 60.667px;
-  height: 14px;
-  flex: none;
-}
-
-:global(html[data-platform="darwin"]) .trafficLights {
-  display: block;
-}
-
-.viewport {
-  position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-secondary);
 }
 

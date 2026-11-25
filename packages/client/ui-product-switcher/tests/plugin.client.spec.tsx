@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /** Plugin activation, gating, selection, bounds, and failure handling over a fake bridge. */
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
@@ -52,16 +52,30 @@ function stubResizeObserver(): { fire(): void } {
   return { fire: () => { act(() => { callback?.() }) } }
 }
 
-/** Declare the three seats the plugin fills, so its `slots.inject` registrations run. */
+/** Declare the seats the plugin fills, so its `slots.inject` registrations run. */
 async function declareSeats(runtime: SlotTestRuntime): Promise<void> {
   await runtime.declare({
     'sidebar.product': { kind: 'single', scope: 'root' },
     'sidebar.leading.product': { kind: 'single', scope: 'root' },
-    'shell.overlay': { kind: 'list', scope: 'root' },
+    'main': { kind: 'keyed', scope: 'root' },
   })
 }
 
-/** Mount the runtime with locale and declared seats; returns the runtime and the owner. */
+/** A layout double recording panel selections, so the tests need no real frame. */
+function stubLayout(runtime: SlotTestRuntime) {
+  const selectPanel = vi.fn((id: string | null) => { runtime.panelInfo.set({ activePanelId: id as never }) })
+  runtime.ctx.provide('layout', {
+    panelInfo: runtime.panelInfo,
+    selectPanel,
+    beginNavigation: () => new AbortController().signal,
+    toggleSidebar: vi.fn(),
+    openRightbar: vi.fn(),
+    closeRightbar: vi.fn(),
+  })
+  return { selectPanel }
+}
+
+/** Mount the runtime with locale, layout and declared seats; returns the runtime and the owner. */
 async function bench(bridge: DshComposerBridge) {
   vi.stubGlobal('dshComposer', bridge)
   const runtime = await SlotTestRuntime.create()
@@ -70,8 +84,9 @@ async function bench(bridge: DshComposerBridge) {
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await declareSeats(runtime)
+  const layout = stubLayout(runtime)
   const owner = await runtime.mount(PLUGIN)
-  return { runtime, owner }
+  return { runtime, owner, layout }
 }
 
 it('keeps the Host entry empty', () => { applyHost() })
@@ -90,10 +105,11 @@ it('registers nothing without a bridge', async () => {
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await declareSeats(runtime)
+  stubLayout(runtime)
   const owner = await runtime.mount(PLUGIN)
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(0)
   expect(runtime.slots.entries('sidebar.leading.product')).toHaveLength(0)
-  expect(runtime.slots.entries('shell.overlay')).toHaveLength(0)
+  expect(runtime.slots.entries('main')).toHaveLength(0)
   await owner.dispose()
 })
 
@@ -101,7 +117,7 @@ it('registers nothing when the build embeds no usable Composer', async () => {
   const fake = fakeBridge(ready({ available: false }))
   const { runtime } = await bench(fake.bridge)
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(0)
-  expect(runtime.slots.entries('shell.overlay')).toHaveLength(0)
+  expect(runtime.slots.entries('main')).toHaveLength(0)
   expect(fake.bridge.subscribe).not.toHaveBeenCalled()
 })
 
@@ -127,6 +143,7 @@ async function mountUnawaited(bridge: DshComposerBridge) {
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await declareSeats(runtime)
+  stubLayout(runtime)
   const fiber = runtime.ctx.plugin(PLUGIN)
   return { runtime, fiber }
 }
@@ -162,43 +179,71 @@ it('registers three surfaces and removes them on dispose', async () => {
   const { runtime, owner } = await bench(fake.bridge)
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(1)
   expect(runtime.slots.entries('sidebar.leading.product')).toHaveLength(1)
-  expect(runtime.slots.entries('shell.overlay')).toHaveLength(1)
+  expect(runtime.slots.entries('main')).toHaveLength(1)
+  expect(runtime.slots.entries('main')[0]!.options.key).toBe('composer')
   expect(fake.bridge.subscribe).toHaveBeenCalledTimes(1)
   expect(fake.bridge.onSelect).toHaveBeenCalledTimes(1)
   await owner.dispose()
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(0)
   expect(runtime.slots.entries('sidebar.leading.product')).toHaveLength(0)
-  expect(runtime.slots.entries('shell.overlay')).toHaveLength(0)
+  expect(runtime.slots.entries('main')).toHaveLength(0)
 })
 
-it('selects Composer from a sidebar control, attaches the view, and hides on return', async () => {
+it('selects the Composer panel from a sidebar control, attaching the view to the column', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()
-  const { runtime } = await bench(fake.bridge)
+  const { runtime, layout } = await bench(fake.bridge)
   const sidebar = runtime.renderSlot('sidebar.product', {})
-  runtime.renderSlot('shell.overlay', {})
+  // The panel is mounted by the frame's keyed slot; selecting it is what shows
+  // the surface, exactly as for any other global panel.
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
+  expect(panel.view.queryByRole('region', { name: 'Composer view' })).toBeNull()
   const trigger = sidebar.view.getByRole('button', { name: 'Switch product' })
   expect(trigger.textContent).toContain('Superharness')
   fireEvent.click(trigger)
   // The menu portals out of the sidebar's clipped logo row, so it is found on
   // the document rather than inside the seat's container.
   fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
-  // Choosing closed the menu.
+  // Choosing closed the menu and selected the panel.
   expect(screen.queryByRole('menu')).toBeNull()
-  // The overlay mounts only then: the bar plus the region main covers.
-  const region = screen.getByRole('region', { name: 'Composer view' })
-  vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 48, width: 900, height: 700, top: 48, left: 0, right: 900, bottom: 748, toJSON: () => ({}) })
+  expect(layout.selectPanel).toHaveBeenCalledWith('composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+  // The surface occupies the center column: no window bar, no second switcher.
+  const region = panel.view.getByRole('region', { name: 'Composer view' })
+  expect(document.querySelector('[data-window-drag]')).toBeNull()
+  vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 280, y: 0, width: 900, height: 700, top: 0, left: 280, right: 1180, bottom: 700, toJSON: () => ({}) })
   expect(fake.bridge.show).toHaveBeenCalledTimes(1)
   resize.fire()
   act(() => { window.dispatchEvent(new Event('resize')) })
-  expect(fake.bridge.setBounds).toHaveBeenCalledWith({ x: 0, y: 48, width: 900, height: 700 })
-  // Switching back from the Composer bar unmounts the overlay and hides the view.
-  const overlay = screen.getByRole('region', { name: 'Composer view' }).parentElement!
-  fireEvent.click(within(overlay).getByRole('button', { name: 'Switch product' }))
+  // The rectangle is the center column's, not the window's: x starts after the
+  // sidebar, and the shared chrome stays outside it.
+  expect(fake.bridge.setBounds).toHaveBeenCalledWith({ x: 280, y: 0, width: 900, height: 700 })
+  // Switching back from the sidebar's control (still mounted beside the panel)
+  // returns to the Conversation and detaches the view.
+  fireEvent.click(trigger)
   fireEvent.click(screen.getByRole('menuitem', { name: 'Superharness' }))
   await act(async () => {})
+  expect(layout.selectPanel).toHaveBeenCalledWith(null)
   expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
-  expect(screen.queryByRole('region', { name: 'Composer view' })).toBeNull()
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+})
+
+it('leaves Composer when another main panel is selected', async () => {
+  const resize = stubResizeObserver()
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  const sidebar = runtime.renderSlot('sidebar.product', {})
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
+  fake.selectFromMain('composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+  expect(panel.view.getByRole('region', { name: 'Composer view' })).toBeTruthy()
+  // A sidebar entry selects its own panel; Composer yields instead of naming a
+  // product the frame is no longer showing.
+  act(() => { runtime.panelInfo.set({ activePanelId: 'plugins' as never }) })
+  expect(sidebar.view.getByRole('button', { name: 'Switch product' }).textContent).toContain('Superharness')
+  await act(async () => {})
+  expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
+  expect(resize).toBeTruthy()
 })
 
 it('follows main selections and ignores a repeat of the current product', async () => {
@@ -226,12 +271,12 @@ it('retries a failed Composer from the surface', async () => {
   stubResizeObserver()
   const fake = fakeBridge(ready({ status: 'starting' }))
   const { runtime } = await bench(fake.bridge)
-  runtime.renderSlot('shell.overlay', {})
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
   fake.selectFromMain('composer')
-  expect(screen.getByRole('status').textContent).toBe('Starting Composer…')
+  expect(panel.view.getByRole('status').textContent).toBe('Starting Composer…')
   fake.push(ready({ status: 'failed', error: 'boom' }))
-  expect(screen.getByRole('status').textContent).toBe('Composer could not start.')
-  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  expect(panel.view.getByRole('status').textContent).toBe('Composer could not start.')
+  fireEvent.click(panel.view.getByRole('button', { name: 'Retry' }))
   await act(async () => {})
   expect(fake.bridge.retry).toHaveBeenCalledTimes(1)
 })
@@ -240,10 +285,10 @@ it('shows the running-separately banner pushed by main', async () => {
   stubResizeObserver()
   const fake = fakeBridge()
   const { runtime } = await bench(fake.bridge)
-  runtime.renderSlot('shell.overlay', {})
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
   fake.selectFromMain('composer')
   fake.push(ready({ ownership: 'external' }))
-  expect(screen.getByRole('status').textContent).toContain('Running separately')
+  expect(panel.view.getByRole('status').textContent).toContain('Running separately')
 })
 
 it('unsubscribes from main on dispose', async () => {

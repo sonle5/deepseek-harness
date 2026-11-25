@@ -1,5 +1,5 @@
 ---
-description: "Desktop Superharness | Composer product switcher and the Composer view placeholder."
+description: "Desktop Superharness | Composer product switcher and the Composer main panel."
 kind: package-reference
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Desktop builds that embed Composer show one compact Superharness | Composer control beside the sidebar brand, and again after the window-chrome controls while the sidebar is hidden. Selecting Composer replaces the application content with a native Composer view main owns; this package draws the 48px bar above it and the starting, restarting, failed, incompatible, and external placeholders that occupy the same rectangle while the view is not attached.
+Desktop builds that embed Composer show one Superharness | Composer control in the sidebar logo row, and again after the window-chrome controls while the sidebar is hidden. Selecting Composer swaps the frame's center column for the native Composer view main owns; this package draws the starting, restarting, failed, incompatible, and external placeholders that occupy the same rectangle while the view is not attached.
 
 ## Table of Contents
 
@@ -24,9 +24,13 @@ Desktop builds that embed Composer show one compact Superharness | Composer cont
 
 The plugin activates only in the Desktop application document, and only when the preload-installed `window.dshComposer` bridge speaks protocol version 1. A plain `dsh web` document has no bridge; a Desktop build without an embedded, OS-compatible Composer reports `available: false`. In both cases the plugin registers nothing and the shell is unchanged. The build rows keep it on the `desktop` profile, so no other profile loads it.
 
-The client owns which product is selected and the rectangle the native view covers; main owns the view, the sidecar, and the menu accelerators. Selecting Composer mounts a non-modal full-window layer in a portal: a 48px bar carrying the control, and below it the region whose bounding box is sent as the view's bounds. The plugin calls `show(bounds)` on mount and `setBounds(bounds)` as the region resizes with the window, and calls `hide()` when the layer unmounts or the product switches back. Failures never need a second error path: every command rejection is ignored because main pushes the failure through `subscribe`, and the layer renders it. The control is a two-button pressed group rather than a tab list, because the Composer "panel" is a native view outside the document and no DOM tab panel exists to associate.
+Composer is a **main panel**, not a window layer. The two products share one shell: the sidebar, the drag rows, the window chrome and the frame's columns stay mounted while Composer is showing, exactly as they do for the plugin manager or the schedules page. The panel reports its own bounding box to main, which is the center column — so the native view sits beside the sidebar, under the frame's shared chrome, and the sidebar keeps working. A window-covering layer would repaint the whole app and hide the switcher that lives in the sidebar.
 
-Menu items, accelerators, the tray, and the caption menu reach the document through `onSelect`; `superharness` and `composer` select a product and `toggle` flips the current one. A repeat selection is a no-op. Escape does not dismiss the layer, and focus, z-order, and input blocking around the native view remain main's responsibility; the layer sits below the modal, menu, tooltip, and toast primitives so those still stack above the Composer view.
+The selected product and the selected main panel are the same fact, kept in step both ways: choosing Composer selects its panel, and selecting any other panel (a sidebar entry, or the conversation itself) returns the switcher to Superharness. The plugin calls `show(bounds)` when the panel attaches, `setBounds(bounds)` as the column resizes with the window, and `hide()` when it detaches. Failures never need a second error path: every command rejection is ignored because main pushes the failure through `subscribe`, and the panel renders it. The control is one trigger button opening a radio menu of the two products, because the Composer surface is a native view outside the document and no DOM tab panel exists to associate.
+
+While the frame mounts its `shell.leading` seat (the collapsed desktop sidebar's traffic lights and reopen control band), the reported rectangle starts below that band: native views paint above the document, and covering the seat would put the traffic lights beyond reach. While a narrow window shows the sidebar as a drawer, the view detaches for as long as the drawer is open, for the same reason.
+
+Menu items, accelerators, the tray, and the caption menu reach the document through `onSelect`; `superharness` and `composer` select a product and `toggle` flips the current one. A repeat selection is a no-op. Focus, z-order, and input blocking around the native view remain main's responsibility.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -34,7 +38,7 @@ Menu items, accelerators, the tray, and the caption menu reach the document thro
 <details>
 <summary>Implementation internals</summary>
 
-The Cordis plugin reads the bridge once, takes the initial state, and keeps a small snapshot store of `{ product, state }` that feeds two selector hooks. It registers `sidebar.product` and `sidebar.leading.product` occupants from [ui-sidebar](../ui-sidebar/README.md), plus a `shell.overlay` entry from [ui-layout](../ui-layout/README.md). The overlay is a body portal modeled on the Platform page in [ui-settings-account](../ui-settings-account/README.md): the same 48px drag-capable bar and the same traffic-light inset on macOS. The `dshComposer` contract lives with [Desktop](../../../apps/desktop/README.md) in `apps/desktop/src/composer-ipc.ts` and `apps/desktop/src/composer-switcher.ts`; this package restates only the surface it consumes.
+The Cordis plugin reads the bridge once, takes the initial state, and keeps a small snapshot store of `{ product, state }` that feeds two selector hooks. It registers `sidebar.product` and `sidebar.leading.product` occupants from [ui-sidebar](../ui-sidebar/README.md), plus a `main` panel from [ui-layout](../ui-layout/README.md) under the `composer` key, selecting it through `ctx.layout.selectPanel`. The `dshComposer` contract lives with [Desktop](../../../apps/desktop/README.md) in `apps/desktop/src/composer-ipc.ts` and `apps/desktop/src/composer-switcher.ts`; this package restates only the surface it consumes.
 
 </details>
 
@@ -51,7 +55,7 @@ None; this plugin neither constructs nor sends model requests.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- The rendered geometry is not asserted by this package's tests; the placeholder's position under the bar, the bar's drag row, and the control's fit beside the brand were verified by reading the stylesheets, not in a running window.
+- The panel's rendered rectangle is not asserted by this package's tests (jsdom reports zero-size boxes); the column geometry is [ui-layout](../ui-layout/README.md)'s, and the reported box is whatever the panel measures at runtime.
 - The hidden-sidebar seat inherits the frame's fixed leading clearance. A wider switcher in the collapsed macOS seat could overlap the conversation title; the frame's own clearance is unchanged here.
 
 <a id="dev-note"></a>

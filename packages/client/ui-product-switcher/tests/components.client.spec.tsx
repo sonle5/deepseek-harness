@@ -21,7 +21,6 @@ function surfaceProps(overrides: Partial<ComposerSurfaceProps> = {}): ComposerSu
   return {
     state: state(),
     t: makeTranslate(en),
-    onSelect: vi.fn(),
     show: vi.fn(async () => {}),
     setBounds: vi.fn(async () => {}),
     hide: vi.fn(async () => {}),
@@ -126,17 +125,63 @@ describe('LeadingProductSwitcher', () => {
 })
 
 describe('ComposerSurface', () => {
-  it('shows the bar, reports the region bounds, and tracks resizes', async () => {
+  it('draws no chrome of its own and reports the region bounds, tracking resizes', async () => {
     const observer = stubResizeObserver()
     const props = surfaceProps()
     render(<ComposerSurface {...props} />)
     const region = screen.getByRole('region', { name: en['region.label'] })
-    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 4, y: 48, width: 800, height: 600, top: 48, left: 4, right: 804, bottom: 648, toJSON: () => ({}) })
+    // Composer occupies the frame's center column; the switcher and the drag
+    // rows belong to the shared shell, so the surface draws neither.
+    expect(document.querySelector('[data-window-drag]')).toBeNull()
+    expect(screen.queryByRole('button', { name: en['trigger.label'] })).toBeNull()
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 4, y: 0, width: 800, height: 600, top: 0, left: 4, right: 804, bottom: 600, toJSON: () => ({}) })
     // show runs on mount; re-run its effect body by remounting is unnecessary —
     // the resize path is what carries the measured rectangle.
     observer.fire()
     act(() => { window.dispatchEvent(new Event('resize')) })
-    expect(props.setBounds).toHaveBeenCalledWith({ x: 4, y: 48, width: 800, height: 600 })
+    expect(props.setBounds).toHaveBeenCalledWith({ x: 4, y: 0, width: 800, height: 600 })
+  })
+
+  it('reserves the frame chrome band while the leading seat is mounted', async () => {
+    stubResizeObserver()
+    // The collapsed desktop sidebar mounts the frame's shell.leading seat over
+    // the top-left corner — where the traffic lights and the reopen control
+    // are. Native views paint over the document, so the reported rectangle
+    // starts below that band instead of hiding it.
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+      { getPropertyValue: (property: string) => (property === '--dsh-frame-top-clearance' ? '48px' : '') } as unknown as CSSStyleDeclaration,
+    )
+    const seat = document.createElement('div')
+    seat.setAttribute('data-shell-leading', '')
+    document.body.append(seat)
+    const props = surfaceProps()
+    render(<ComposerSurface {...props} />)
+    const region = screen.getByRole('region', { name: en['region.label'] })
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600, toJSON: () => ({}) })
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(props.setBounds).toHaveBeenCalledWith({ x: 0, y: 48, width: 800, height: 552 })
+    seat.remove()
+  })
+
+  it('yields to a narrow-window sidebar drawer and reattaches when it closes', async () => {
+    stubResizeObserver()
+    // The drawer is document content sliding over the center column. A native
+    // view paints above the document, so it would bury the sidebar the user
+    // just opened; the view detaches while the drawer is open.
+    const frame = document.createElement('div')
+    frame.setAttribute('data-sidebar-drawer', '')
+    frame.setAttribute('data-sidebar-collapsed', '')
+    document.body.append(frame)
+    const props = surfaceProps()
+    render(<ComposerSurface {...props} />)
+    expect(props.show).toHaveBeenCalledTimes(1)
+    act(() => { frame.removeAttribute('data-sidebar-collapsed') })
+    await act(async () => {})
+    expect(props.hide).toHaveBeenCalledTimes(1)
+    act(() => { frame.setAttribute('data-sidebar-collapsed', '') })
+    await act(async () => {})
+    expect(props.show).toHaveBeenCalledTimes(2)
+    frame.remove()
   })
 
   it('hides the view on unmount and disconnects its observer', async () => {
@@ -176,13 +221,12 @@ describe('ComposerSurface', () => {
     expect(props.show).toHaveBeenCalled()
   })
 
-  it('switches back to Superharness from the bar', () => {
+  it('switches back to Superharness from a sidebar control, not from the surface', () => {
     stubResizeObserver()
-    const props = surfaceProps()
-    render(<ComposerSurface {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: en['trigger.label'] }))
-    fireEvent.click(screen.getByRole('menuitem', { name: en['product.superharness'] }))
-    expect(props.onSelect).toHaveBeenCalledWith('superharness')
+    render(<ComposerSurface {...surfaceProps()} />)
+    // The surface carries no switcher: the sidebar's and the frame's seats are
+    // the one place the product is chosen, and they stay mounted.
+    expect(screen.queryByRole('button', { name: en['trigger.label'] })).toBeNull()
   })
 
   it('renders nothing over the region once the view is attached', () => {

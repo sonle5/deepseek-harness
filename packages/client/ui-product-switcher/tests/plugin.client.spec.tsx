@@ -485,6 +485,15 @@ it('keeps the selection when storage is unavailable', async () => {
   expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
 })
 
+it('keeps the selection in a document without storage', async () => {
+  vi.stubGlobal('localStorage', undefined)
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  fake.selectFromMain('composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+})
+
 it('retries a failed Composer from the surface', async () => {
   stubResizeObserver()
   const fake = fakeBridge(ready({ status: 'starting' }))

@@ -1,59 +1,82 @@
-/* Track and raised segment follow the shared SegmentedControl look (ui-primitives):
- * the hover fill is the track, the selected segment is the one elevated pill.
- * The group sizes to its labels so it fits beside the brand without pushing the
- * panel toggle out of the logo row. */
-.group {
+/* The product switcher trigger. In the sidebar it carries the brand mark and
+ * the product name, so it must survive the 280px logo row: the name ellipsizes
+ * rather than pushing the panel toggle out of the row. The menu itself is the
+ * shared Menu primitive — no material is declared here. */
+.trigger {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.segment {
-  box-sizing: border-box;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
   height: 24px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--dsw-radius-md);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease;
-}
-
-.segment[aria-pressed='true'] {
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: var(--dsw-elevation-soft);
-  color: var(--dsw-alias-label-primary);
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 @media (hover: hover) {
-  .segment:hover {
+  .trigger:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
     color: var(--dsw-alias-label-primary);
   }
 }
 
-.segment:focus-visible {
+.trigger:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
 }
 
+/* The sidebar brand form: the logo row's label seat. It fills that seat the
+   way the brand name did, so the name ellipsizes instead of pushing the panel
+   toggle out of the row. The mark before it belongs to `sidebar.brand.mark`
+   and is drawn by the sidebar, not here — one identity source. */
+.brand {
+  flex: 1 1 auto;
+  height: 20px;
+  gap: 4px;
+  padding: 0;
+  color: var(--dsw-alias-label-primary);
+  justify-content: flex-start;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.02em;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* Window-chrome form: the leading seat lays out 28px controls. */
-.compact .segment {
+.compact {
   height: 22px;
-  padding: 0 6px;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.compact .name {
+  font-size: 12px;
+  line-height: 18px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .segment {
+  .trigger {
     transition: none;
   }
 }

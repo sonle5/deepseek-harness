@@ -120,37 +120,38 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="16.186528497409327"
-                  viewBox="0 0 23.16 17.04"
-                  width="22"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="New session"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -175,12 +176,8 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               </span>
             </div>
           </span>
-        </span>
-      </button>
-      <div
-        data-slot="sidebar.product"
-        style="display: contents;"
-      />
+        </button>
+      </div>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -415,37 +412,38 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="16.186528497409327"
-                  viewBox="0 0 23.16 17.04"
-                  width="22"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="New session"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -470,12 +468,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               </span>
             </div>
           </span>
-        </span>
-      </button>
-      <div
-        data-slot="sidebar.product"
-        style="display: contents;"
-      />
+        </button>
+      </div>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -585,37 +579,38 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="新建会话"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="16.186528497409327"
-                  viewBox="0 0 23.16 17.04"
-                  width="22"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="新建会话"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -640,12 +635,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               </span>
             </div>
           </span>
-        </span>
-      </button>
-      <div
-        data-slot="sidebar.product"
-        style="display: contents;"
-      />
+        </button>
+      </div>
       <button
         aria-label="收起侧边栏"
         class="iconButton toggle"

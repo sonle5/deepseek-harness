@@ -43,27 +43,67 @@ function stubResizeObserver(): { fire(): void; disconnected(): boolean } {
 }
 
 describe('ProductControl', () => {
-  it('renders a labelled pressed group and reports the pressed segment', () => {
+  it('names the current product on a closed trigger and marks the current row in the menu', () => {
     const onChange = vi.fn()
-    render(<ProductControl value="composer" label="Product" superharness="Superharness" composer="Composer" onChange={onChange} />)
-    const group = screen.getByRole('group', { name: 'Product' })
-    expect(group).toBeTruthy()
-    const [superharness, composer] = screen.getAllByRole('button')
-    expect(superharness!.getAttribute('aria-pressed')).toBe('false')
-    expect(composer!.getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(superharness!)
-    fireEvent.click(composer!)
-    expect(onChange.mock.calls).toEqual([['superharness'], ['composer']])
+    render(<ProductControl value="composer" label="Switch product" superharness="Superharness" composer="Composer" onChange={onChange} />)
+    const trigger = screen.getByRole('button', { name: 'Switch product' })
+    expect(trigger.textContent).toContain('Composer')
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    // Closed: no rows are in the document at all.
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    const rows = screen.getAllByRole('menuitem')
+    expect(rows.map(row => row.textContent)).toEqual(['Superharness', 'Composer'])
+    // The current product carries the selection marker, the other does not.
+    // The marker is the shared MenuRow check icon, which is also what a
+    // screen-reader user hears as the row's checked state.
+    expect(rows[1]!.querySelector('svg[data-icon="dsw-icon-check-outline-regular"]')).toBeTruthy()
+    expect(rows[0]!.querySelector('svg[data-icon="dsw-icon-check-outline-regular"]')).toBeNull()
+    fireEvent.click(rows[0]!)
+    expect(onChange.mock.calls).toEqual([['superharness']])
+    // Choosing closes the menu again.
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('reports the product the user chose, including a repeat of the current one', () => {
+    // Main turns a repeat into a no-op; the control still reports the press so
+    // the two surfaces agree about what was asked for.
+    const onChange = vi.fn()
+    render(<ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Switch product' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Superharness' }))
+    expect(onChange).toHaveBeenCalledWith('superharness')
+  })
+
+  it('closes the menu on Escape without reporting a choice', () => {
+    const onChange = vi.fn()
+    render(<ProductControl value="composer" label="Switch product" superharness="Superharness" composer="Composer" onChange={onChange} />)
+    const trigger = screen.getByRole('button', { name: 'Switch product' })
+    fireEvent.click(trigger)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('renders the compact form for the window-chrome seat', () => {
-    render(<ProductControl value="superharness" label="Product" superharness="Superharness" composer="Composer" onChange={vi.fn()} compact />)
-    expect(screen.getByRole('group').className).toMatch(/compact/)
+    render(<ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={vi.fn()} compact />)
+    expect(screen.getByRole('button', { name: 'Switch product' }).className).toMatch(/compact/)
+  })
+
+  it('renders the brand form for the sidebar logo row without drawing its own mark', () => {
+    render(<ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={vi.fn()} brand />)
+    expect(screen.getByRole('button', { name: 'Switch product' }).className).toMatch(/brand/)
+    // The mark belongs to the sidebar's `sidebar.brand.mark` seat, which sits
+    // immediately before this trigger; drawing one here would be a second
+    // source for the identity.
+    expect(document.querySelector('svg[viewBox="0 0 82 70"]')).toBeNull()
   })
 })
 
 describe('LeadingProductSwitcher', () => {
-  it('subscribes to the live product and forwards a press', () => {
+  it('subscribes to the live product and forwards a choice', () => {
     let snapshot: ProductSwitcherSnapshot = { product: 'superharness', state: state() }
     const select = vi.fn()
     const props = {
@@ -72,14 +112,16 @@ describe('LeadingProductSwitcher', () => {
       t: makeTranslate(en),
     } as unknown as LeadingProductSwitcherProps
     const view = render(<LeadingProductSwitcher {...props} />)
-    const group = screen.getByRole('group', { name: en['group.label'] })
-    expect(group.className).toMatch(/compact/)
-    fireEvent.click(screen.getByRole('button', { name: en['product.composer'] }))
+    const trigger = screen.getByRole('button', { name: en['trigger.label'] })
+    expect(trigger.className).toMatch(/compact/)
+    expect(trigger.textContent).toContain(en['product.superharness'])
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('menuitem', { name: en['product.composer'] }))
     expect(select).toHaveBeenCalledWith('composer')
-    // A pushed product flips the pressed segment.
+    // A pushed product renames the closed trigger.
     snapshot = { product: 'composer', state: state() }
     view.rerender(<LeadingProductSwitcher {...props} />)
-    expect(screen.getByRole('button', { name: en['product.composer'] }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: en['trigger.label'] }).textContent).toContain(en['product.composer'])
   })
 })
 
@@ -138,7 +180,8 @@ describe('ComposerSurface', () => {
     stubResizeObserver()
     const props = surfaceProps()
     render(<ComposerSurface {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: en['product.superharness'] }))
+    fireEvent.click(screen.getByRole('button', { name: en['trigger.label'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en['product.superharness'] }))
     expect(props.onSelect).toHaveBeenCalledWith('superharness')
   })
 

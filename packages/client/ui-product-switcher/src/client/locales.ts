@@ -1,6 +1,6 @@
 /** Product switcher copy owned by this plugin. */
 export const zh = {
-  'group.label': '产品',
+  'trigger.label': '切换产品',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': '正在启动 Composer…',
@@ -16,7 +16,7 @@ export const zh = {
 
 /** English product switcher copy. */
 export const en = {
-  'group.label': 'Product',
+  'trigger.label': 'Switch product',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Starting Composer…',
@@ -32,7 +32,7 @@ export const en = {
 
 /** Japanese dictionary, checked against the English keys. */
 export const ja = {
-  'group.label': 'プロダクト',
+  'trigger.label': 'プロダクトを切り替え',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Composer を起動しています…',
@@ -48,7 +48,7 @@ export const ja = {
 
 /** Spanish dictionary, checked against the English keys. */
 export const es = {
-  'group.label': 'Producto',
+  'trigger.label': 'Cambiar de producto',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Iniciando Composer…',
@@ -64,7 +64,7 @@ export const es = {
 
 /** French dictionary, checked against the English keys. */
 export const fr = {
-  'group.label': 'Produit',
+  'trigger.label': 'Changer de produit',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Démarrage de Composer…',
@@ -80,7 +80,7 @@ export const fr = {
 
 /** German dictionary, checked against the English keys. */
 export const de = {
-  'group.label': 'Produkt',
+  'trigger.label': 'Produkt wechseln',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Composer wird gestartet…',
@@ -96,7 +96,7 @@ export const de = {
 
 /** Russian dictionary, checked against the English keys. */
 export const ru = {
-  'group.label': 'Продукт',
+  'trigger.label': 'Переключить продукт',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Запуск Composer…',
@@ -112,7 +112,7 @@ export const ru = {
 
 /** Portuguese dictionary, checked against the English keys. */
 export const pt = {
-  'group.label': 'Produto',
+  'trigger.label': 'Alternar produto',
   'product.superharness': 'Superharness',
   'product.composer': 'Composer',
   'status.starting': 'Iniciando o Composer…',

@@ -121,7 +121,7 @@ export function ComposerSurface({ state, t, onSelect, show, setBounds, hide, ret
       <header className={css.header} data-window-drag>
         <div className={css.controls}>
           <span className={css.trafficLights} aria-hidden="true" />
-          <ProductControl value="composer" label={t('group.label')}
+          <ProductControl value="composer" label={t('trigger.label')}
             superharness={t('product.superharness')} composer={t('product.composer')} onChange={onSelect} />
         </div>
       </header>

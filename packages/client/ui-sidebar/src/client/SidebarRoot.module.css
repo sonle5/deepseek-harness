@@ -65,15 +65,14 @@
   padding-left: 8px;
 }
 
-:global([data-windows-titlebar]) .brandIdentity {
-  transform: translateY(1px);
-}
-
+/* The identity group is gone — the mark and the label seat are siblings in the
+   row now — so each carries its own optical nudge on the Windows caption. */
 :global([data-windows-titlebar]) .brandMark {
   transform: translateX(1px);
 }
 
 :global([data-windows-titlebar]) .brandName {
+  transform: translateY(1px);
   font-weight: 400;
 }
 
@@ -229,10 +228,6 @@
   padding: 38px 0 14px 8px;
 }
 
-.darwinLogoRow .brandIdentity {
-  gap: 4px;
-}
-
 :global([data-fullscreen]) .darwinLogoRow {
   height: 64px;
   justify-content: flex-start;
@@ -256,7 +251,10 @@
 /* Brand group (figma I133:7632): the full wordmark rides the text ink
    (figma flows: the main-screen instance is black; blue is brand
    emphasis only). A button only in behavior (New Session shortcut): the
-   pointer cursor is the sole affordance — no hover chrome on the mark. */
+   pointer cursor is the sole affordance — no hover chrome on the mark.
+   Mark and label sit side by side in the row: the mark comes from
+   `sidebar.brand.mark`, and `.brand` (or a product switcher) fills the
+   label seat after it. */
 .brand {
   flex: 1;
   min-width: 0;
@@ -276,21 +274,14 @@
   cursor: default;
 }
 
-/* Mark and name are independent slots; the shell owns their shared baseline,
-   spacing, and height so either occupant can vary in width. */
-.brandIdentity {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 20px;
-  min-width: 0;
-}
-
+/* The mark and the label seat are siblings: the logo row's own gap (8px, 4px
+   on the macOS inset row) spaces them exactly as the old identity group did. */
 .brandMark {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 20px;
 }
 
 .brandName {

@@ -177,8 +177,14 @@ it('selects Composer from a sidebar control, attaches the view, and hides on ret
   const { runtime } = await bench(fake.bridge)
   const sidebar = runtime.renderSlot('sidebar.product', {})
   runtime.renderSlot('shell.overlay', {})
-  fireEvent.click(sidebar.view.getByRole('button', { name: 'Composer' }))
-  expect(sidebar.view.getByRole('button', { name: 'Composer' }).getAttribute('aria-pressed')).toBe('true')
+  const trigger = sidebar.view.getByRole('button', { name: 'Switch product' })
+  expect(trigger.textContent).toContain('Superharness')
+  fireEvent.click(trigger)
+  // The menu portals out of the sidebar's clipped logo row, so it is found on
+  // the document rather than inside the seat's container.
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  // Choosing closed the menu.
+  expect(screen.queryByRole('menu')).toBeNull()
   // The overlay mounts only then: the bar plus the region main covers.
   const region = screen.getByRole('region', { name: 'Composer view' })
   vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 48, width: 900, height: 700, top: 48, left: 0, right: 900, bottom: 748, toJSON: () => ({}) })
@@ -188,7 +194,8 @@ it('selects Composer from a sidebar control, attaches the view, and hides on ret
   expect(fake.bridge.setBounds).toHaveBeenCalledWith({ x: 0, y: 48, width: 900, height: 700 })
   // Switching back from the Composer bar unmounts the overlay and hides the view.
   const overlay = screen.getByRole('region', { name: 'Composer view' }).parentElement!
-  fireEvent.click(within(overlay).getByRole('button', { name: 'Superharness' }))
+  fireEvent.click(within(overlay).getByRole('button', { name: 'Switch product' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Superharness' }))
   await act(async () => {})
   expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
   expect(screen.queryByRole('region', { name: 'Composer view' })).toBeNull()
@@ -199,20 +206,20 @@ it('follows main selections and ignores a repeat of the current product', async 
   const fake = fakeBridge()
   const { runtime } = await bench(fake.bridge)
   const sidebar = runtime.renderSlot('sidebar.product', {})
-  const composer = sidebar.view.getByRole('button', { name: 'Composer' })
-  const superharness = sidebar.view.getByRole('button', { name: 'Superharness' })
-  expect(superharness.getAttribute('aria-pressed')).toBe('true')
+  const trigger = sidebar.view.getByRole('button', { name: 'Switch product' })
+  const current = () => trigger.textContent
+  expect(current()).toContain('Superharness')
   fake.selectFromMain('composer')
-  expect(composer.getAttribute('aria-pressed')).toBe('true')
+  expect(current()).toContain('Composer')
   fake.selectFromMain('superharness')
-  expect(superharness.getAttribute('aria-pressed')).toBe('true')
+  expect(current()).toContain('Superharness')
   // Re-selecting the current product is a no-op (the overlay stays unmounted).
   fake.selectFromMain('superharness')
-  expect(superharness.getAttribute('aria-pressed')).toBe('true')
+  expect(current()).toContain('Superharness')
   fake.selectFromMain('toggle')
-  expect(composer.getAttribute('aria-pressed')).toBe('true')
+  expect(current()).toContain('Composer')
   fake.selectFromMain('toggle')
-  expect(superharness.getAttribute('aria-pressed')).toBe('true')
+  expect(current()).toContain('Superharness')
 })
 
 it('retries a failed Composer from the surface', async () => {

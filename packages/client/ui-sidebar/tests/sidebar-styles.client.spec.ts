@@ -122,7 +122,6 @@ describe('SidebarRoot.module.css', () => {
     expect(darwinLogoRow?.get('padding')).toBe('38px 0 14px 8px')
     expect(darwinLogoRow?.get('gap')).toBe('4px')
     expect(darwinLogoRow?.get('margin-top')).toBe('-6px')
-    expect(declarations('.darwinLogoRow .brandIdentity')?.get('gap')).toBe('4px')
     expect(declarations(':global([data-fullscreen]) .darwinLogoRow')?.get('height')).toBe('64px')
     expect(declarations(':global([data-fullscreen]) .darwinLogoRow')?.get('padding')).toBe('18px 0 18px 4px')
     expect(declarations(':global([data-fullscreen]) .darwinLogoRow > .toggle')?.get('order')).toBe('-1')
@@ -197,8 +196,12 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('keeps full-size brand artwork with a compact mark-to-name gap', () => {
-    expect(declarations('.brandIdentity')?.get('gap')).toBe('8px')
-    expect(declarations('.brandIdentity')?.get('height')).toBe('20px')
+    // The mark and the label seat are siblings in the logo row, so the row's
+    // gap is the mark-to-name spacing (8px; 4px on the macOS inset row).
+    expect(declarations('.logoRow')?.get('gap')).toBe('8px')
+    expect(declarations('.darwinLogoRow')?.get('gap')).toBe('4px')
+    expect(declarations('.brandMark')?.get('height')).toBe('20px')
+    expect(css).not.toContain('.brandIdentity')
     expect(declarations('.brandName')?.get('height')).toBe('20px')
     expect(declarations('.brandName')?.get('line-height')).toBe('20px')
     expect(declarations('.brandName')?.get('font-size')).toBe('14px')

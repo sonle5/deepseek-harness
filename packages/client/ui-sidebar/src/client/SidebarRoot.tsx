@@ -296,38 +296,45 @@ export function SidebarRoot({
       {/* macOS hiddenInset titlebar: one drag row carries both the brand and
           the toggle, with the Darwin inset clearing the traffic lights. */}
       <div className={clsx(css.logoRow, darwinDesktop && css.darwinLogoRow)} data-window-drag>
-        {/* Expanded, the brand doubles as a New Session shortcut while the
-            access snapshot allows `session/create` — except on
-            macOS, where it stays part of the logo row's window-drag surface
-            (the drag-row controls rule would subtract a button);
-            the collapsed rail's logo is the expand toggle below instead.
-            Mouse clicks on the local-build fallbacks copy the version instead. */}
+        {/* The row's leading seat is the mark plus one label. A build that
+            embeds a second product fills the label with that product's
+            switcher — the name with a chevron opening a menu — which is the
+            shape Codex Desktop uses for Codex ⇄ ChatGPT. The mark itself stays
+            the brand mark slot's, so there is one source for the identity.
+
+            Plain documents fall back to the brand name below. Expanded, that
+            fallback doubles as a New Session shortcut while the access
+            snapshot allows `session/create` — except on macOS, where it stays
+            part of the logo row's window-drag surface (the drag-row controls
+            rule would subtract a button); the collapsed rail's logo is the
+            expand toggle below instead. Mouse clicks on the local-build
+            fallbacks copy the version instead. */}
         {wide && (() => {
-          const identity = (
-            <span className={css.brandIdentity} aria-hidden="true">
-              <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 22 }, {
-                  fallback: buildVersion === undefined
-                    ? <FishLogo size={22} />
-                    : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={22} /></span>,
-                })}
-              </span>
-              <span className={css.brandName}>
-                {renderSlot('sidebar.brand.name', {}, {
-                  fallback: buildVersion === undefined
-                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
-                    : (
-                      <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                        <span className={css.buildVersion}>{buildVersion}</span>
-                      </span>
-                    ),
-                })}
-              </span>
+          const mark = (
+            <span className={css.brandMark} aria-hidden="true">
+              {renderSlot('sidebar.brand.mark', { size: 22 }, {
+                fallback: buildVersion === undefined
+                  ? <FishLogo size={22} />
+                  : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={22} /></span>,
+              })}
             </span>
           )
-          return darwinDesktop || !canStartSession
-            ? <span className={clsx(css.brand, css.wide)}>{identity}</span>
+          const name = (
+            <span className={css.brandName}>
+              {renderSlot('sidebar.brand.name', {}, {
+                fallback: buildVersion === undefined
+                  ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                  : (
+                    <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
+                      <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                      <span className={css.buildVersion}>{buildVersion}</span>
+                    </span>
+                  ),
+              })}
+            </span>
+          )
+          const brandLabel = darwinDesktop || !canStartSession
+            ? <span className={clsx(css.brand, css.wide)} aria-hidden="true">{name}</span>
             : (
               <button
                 type="button"
@@ -339,13 +346,18 @@ export function SidebarRoot({
                   openNewSession()
                 }}
               >
-                {identity}
+                {name}
               </button>
             )
+          return (
+            <>
+              {mark}
+              {/* One occupant owns the label: the product switcher when one is
+                  registered, else the brand name above. */}
+              {renderSlot('sidebar.product', {}, { fallback: brandLabel })}
+            </>
+          )
         })()}
-        {/* Product control seat: a sibling of the brand, so it stays exposed
-            to assistive technology and outside the New Session button. */}
-        {wide && renderSlot('sidebar.product', {})}
         {toggle}
       </div>
 

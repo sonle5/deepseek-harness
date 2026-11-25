@@ -52,13 +52,15 @@ function makeHeaderProps(): HeaderLeadingControlsProps {
   }
 }
 
-function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content }: {
+function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content, productSeat }: {
   collapsed?: boolean
   width?: number
   drawer?: boolean
   shortcuts?: readonly ShortcutCatalogEntry[]
   panels?: readonly SidebarPanelMetadata[]
   content?: ReactNode
+  /** Occupant of the logo row's label seat; absent renders the owner's brand fallback. */
+  productSeat?: ReactNode
 } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
@@ -87,12 +89,14 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       renderSlot={((
         key: string,
         owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSessionActionOwnerProps | SidebarSettingsOwnerProps,
-        opts?: { hookContext?: SidebarSectionHookContext; children?: ReactNode },
+        opts?: { hookContext?: SidebarSectionHookContext; children?: ReactNode; fallback?: ReactNode },
       ) => {
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.toggle.badge') return null
-        if (key === 'sidebar.product') return <div data-testid="product-seat" />
+        // The logo row's label seat: a case that registers a switcher passes
+        // one, otherwise the owner's brand fallback renders in its place.
+        if (key === 'sidebar.product') return productSeat ?? opts?.fallback ?? null
         if (key === 'sidebar.panellist') return <span aria-hidden="true">P</span>
         if (key === 'sidebar.settings') {
           settingsOwner = owner
@@ -207,10 +211,6 @@ describe('SidebarRoot shell', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
     expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
-    // The product seat sits beside the brand, outside its aria-hidden identity and New Session button.
-    const product = screen.getByTestId('product-seat')
-    expect(product.closest('[aria-hidden="true"]')).toBeNull()
-    expect(product.closest('button')).toBeNull()
     // Expanded, both the wordmark and the capsule start a session and report a sidebar New Session click first.
     const starters = screen.getAllByRole('button', { name: 'New session' })
     expect(starters).toHaveLength(2)
@@ -224,6 +224,21 @@ describe('SidebarRoot shell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
     expect(b.trackEntryClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('hands the logo row label seat to a registered product switcher instead of the brand name', () => {
+    // A build that embeds a second product fills `sidebar.product`; the seat
+    // then replaces the brand name, while the mark stays the brand slot's.
+    const b = mountShell({ productSeat: <button type="button">Switcher</button> })
+    expect(screen.getByRole('button', { name: 'Switcher' })).toBeTruthy()
+    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    // The wordmark's New Session shortcut goes with it; the capsule remains.
+    const starters = screen.getAllByRole('button', { name: 'New session' })
+    expect(starters).toHaveLength(1)
+    fireEvent.click(starters[0]!)
+    expect(b.startSession).toHaveBeenCalledOnce()
+    expect(b.trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'sidebar' })
   })
 
   it('keeps the macOS brand and collapse control in one titlebar row', () => {
@@ -262,10 +277,11 @@ describe('SidebarRoot shell', () => {
       useRemoteAccess={useRemoteAccess}
       startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((key: string) => {
+      renderSlot={((key: string, _owner: unknown, options?: { fallback?: ReactNode }) => {
         if (key === 'sidebar.brand.mark') return <span data-testid="brand-mark">M</span>
         if (key === 'sidebar.brand.name') return <span data-testid="brand-name">Brand</span>
-        return null
+        // The label seat is empty in this build, so the owner's brand fallback renders.
+        return options?.fallback ?? null
       }) as SidebarRootComponentProps['renderSlot']}
     />)
 
@@ -370,7 +386,7 @@ describe('SidebarRoot shell', () => {
     // The fallback mark copies too, and its click still reaches document.
     const documentClick = vi.fn()
     document.addEventListener('click', documentClick)
-    const mark = screen.getByText('Nexus Superharness').closest('[aria-hidden]')!.querySelector('svg')!
+    const mark = document.querySelector<HTMLElement>('[data-window-drag] > [aria-hidden="true"] svg')!
     await act(async () => { fireEvent.click(mark) })
     document.removeEventListener('click', documentClick)
     expect(documentClick).toHaveBeenCalledOnce()

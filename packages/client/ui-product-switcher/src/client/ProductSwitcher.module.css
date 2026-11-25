@@ -49,6 +49,24 @@
   letter-spacing: -0.02em;
 }
 
+/* The seat itself. `Menu` wraps its anchor in a shrink-to-fit span, so the
+   button's own `flex: 1 1 auto` would never reach the row: the logo row's own
+   `flex-end` would then pack the mark and the name against the panel toggle,
+   leaving the nav-icon column empty above every row beneath. Growing the
+   wrapper is what keeps the product name flush left, aligned with those
+   icons, the way Codex Desktop draws it. */
+.seat {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The trigger stays content-sized inside the grown seat: the seat absorbs the
+   row's free space, while the hover and focus rings hug the name and chevron
+   instead of painting a bar across the whole label column. */
+.seat > button {
+  flex: 0 1 auto;
+}
+
 .name {
   min-width: 0;
   overflow: hidden;

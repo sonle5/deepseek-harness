@@ -99,6 +99,27 @@ describe('ProductControl', () => {
     // source for the identity.
     expect(document.querySelector('svg[viewBox="0 0 82 70"]')).toBeNull()
   })
+
+  it('grows its Menu anchor wrapper in the brand form so the label stays left-aligned', () => {
+    // The logo row justifies to `flex-end`. `Menu` renders its anchor inside a
+    // shrink-to-fit span, so a trigger carrying `flex: 1 1 auto` alone lets the
+    // whole brand group pack against the panel toggle and leaves the nav-icon
+    // column empty above every row beneath. The wrapper has to grow instead.
+    const { container } = render(
+      <ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={vi.fn()} brand />,
+    )
+    const wrapper = screen.getByRole('button', { name: 'Switch product' }).parentElement
+    expect(wrapper).not.toBeNull()
+    expect(wrapper).toBe(container.firstElementChild)
+    expect(wrapper?.className).toMatch(/seat/)
+  })
+
+  it('leaves the compact form shrink-to-fit in the window-chrome row', () => {
+    const { container } = render(
+      <ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={vi.fn()} compact />,
+    )
+    expect(container.firstElementChild?.className).not.toMatch(/seat/)
+  })
 })
 
 describe('LeadingProductSwitcher', () => {

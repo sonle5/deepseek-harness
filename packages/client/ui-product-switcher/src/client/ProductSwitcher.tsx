@@ -68,6 +68,11 @@ export function ProductControl({ value, label, superharness, composer, onChange,
       // The sidebar logo row clips its overflow, so the list cannot live inside
       // the trigger's box; the shell's own menus portal for the same reason.
       portal
+      // The label seat has to grow. The Menu anchor wrapper is a shrink-to-fit
+      // flex child, so without this the row's `flex-end` packs the brand group
+      // against the panel toggle and leaves the nav-icon column empty above
+      // every sidebar row.
+      className={brand === true ? css.seat : undefined}
       anchor={(
         <button
           type="button"

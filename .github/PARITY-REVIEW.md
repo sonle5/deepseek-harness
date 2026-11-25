@@ -72,9 +72,9 @@ PR kinds and their meanings are the ones the policy already knows:
 | `kind/cleanup` | Refactor, rename, or removal with no behaviour change |
 | `kind/dependency` | Dependency or pinned-artifact changes |
 
-Fill the [pull request template](pull_request_template.md) as written, including
-the AI declaration. A parity-fix PR additionally states which acceptance criteria
-from the Issue it satisfies and how each was checked.
+Fill the [pull request template](pull_request_template.md) as written. A
+parity-fix PR additionally states which acceptance criteria from the Issue it
+satisfies and how each was checked.
 
 ## Merging
 

@@ -179,3 +179,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Rail geometry, mirroring the shell's `.collapsed .panelRow`: a 36x36 control
+   box centred in the 56px rail, 12px apart, with no paint inset. Without this
+   a Composer row would stay a full-width 32px bar and overhang the rail. */
+.navigationRail {
+  gap: 12px;
+  padding-top: 0;
+  margin: 0;
+  overflow: visible;
+}
+
+.navigationRail .navEntry {
+  border-inline: 0;
+  background-clip: border-box;
+}
+
+.navigationRail .navRow {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--dsw-radius-md);
+}

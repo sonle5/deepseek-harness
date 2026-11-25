@@ -76,7 +76,7 @@ export function ComposerNavigation({ useSwitcher, navigate: navigateTo, t, wide,
   // Not Composer, or nothing published yet: the shell's rows stand.
   if (product !== 'composer' || navigation === undefined) return <>{children}</>
   return (
-    <nav className={css.navigation} aria-label={t('nav.label')}>
+    <nav className={clsx(css.navigation, !wide && css.navigationRail)} aria-label={t('nav.label')}>
       {navigation.views.map((view) => {
         const current = isCurrent(view, navigation)
         const Glyph = GLYPHS[view.id] ?? IconSparkleRegular

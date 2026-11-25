@@ -279,6 +279,29 @@ it('mirrors Composer navigation in the sidebar only while Composer is the produc
   expect(seat.view.queryByRole('navigation')).toBeNull()
 })
 
+it('shapes Composer navigation as a rail when the sidebar collapses', async () => {
+  const navigation = {
+    views: [{ id: 'providers', label: 'Providers' }],
+    current: 'providers',
+    app: 'codex' as const,
+  }
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  fake.push(ready({ navigation }))
+  fake.selectFromMain('composer')
+
+  // Wide: the label is drawn beside the glyph, and each row is reachable by name.
+  const wide = runtime.renderSlot('sidebar.navigation', { wide: true }, { children: null })
+  expect(wide.view.getByRole('navigation').textContent).toContain('Providers')
+
+  // Rail: the 56px column drops labels, so the glyph must remain — a row with
+  // no glyph would be an empty, still-focusable button.
+  const rail = runtime.renderSlot('sidebar.navigation', { wide: false }, { children: null })
+  const row = rail.view.getByRole('button', { name: 'Providers' })
+  expect(row.querySelector('svg')).not.toBeNull()
+  expect(rail.view.getByRole('navigation').textContent).not.toContain('Providers')
+})
+
 it('leaves Composer when another main panel is selected', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()

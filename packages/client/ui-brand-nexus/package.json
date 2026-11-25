@@ -24,8 +24,7 @@
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json",
-    "./assets/*": "./lib/assets/*"
+    "./locale/*.json": "./locale/*.json"
   },
   "dsh": {
     "client": {
@@ -59,7 +58,6 @@
     "locale/*.json",
     "lib/index.js",
     "lib/client.js",
-    "lib/assets",
     "lib/types/**/*.d.ts",
     "lib/types/**/*.d.ts.map",
     "lib/**/*.js.map",

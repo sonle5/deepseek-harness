@@ -31,4 +31,7 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-The artwork is intentionally static and theme-aware. Alternative artwork belongs in another Cordis package that occupies the same slots.
+These limits define how brand presentation is supplied. They are current package constraints, not a brand-design comparison or a task backlog.
+
+- **One occupant set** — alternative artwork belongs in another Cordis package occupying the same slots.
+- **Fixed artwork** — the mark, the wordmark and the home treatment take no configuration and follow the active theme.

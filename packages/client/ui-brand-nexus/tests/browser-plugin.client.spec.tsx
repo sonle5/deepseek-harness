@@ -7,6 +7,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { apply, inject } from '../src/client/index.ts'
 import { NEXUS_MONOGRAM, NexusBrandMark, NexusBrandName } from '../src/client/Brand.tsx'
+import { NexusHeroFrame } from '../src/client/HeroFrame.tsx'
 import { zh } from '../src/client/locales.ts'
 import { apply as hostApply } from '../src/index.ts'
 
@@ -112,5 +113,31 @@ describe('Nexus browser-brand plugin', () => {
     expect(name.container.textContent).toBe('Nexus Superharness')
     expect(brandT(subject.locale)('home.attribution')).toBe(zh['home.attribution'])
     name.unmount()
+  })
+
+  it('frames the blank home with the aura, the oversized mark and the attribution', async () => {
+    const subject = await bench()
+    await subject.ctx.plugin({ inject: [...inject], apply }).await()
+    const t = brandT(subject.locale)
+
+    const frame = render(<NexusHeroFrame hero t={t}><p>Conversation</p></NexusHeroFrame>)
+    expect(frame.container.textContent).toContain('Built on DeepSeek Harness')
+    expect(frame.container.textContent).toContain('Conversation')
+    expect(frame.container.querySelector('[data-nexus-home]')?.getAttribute('aria-hidden')).toBe('true')
+    expect(frame.container.querySelectorAll('[data-nexus-aura]')).toHaveLength(1)
+    expect(frame.container.querySelector('[data-nexus-glyph] svg')?.getAttribute('width')).toBe('420')
+    frame.unmount()
+  })
+
+  it('renders only the wrapped Conversation content away from the blank home', async () => {
+    const subject = await bench()
+    await subject.ctx.plugin({ inject: [...inject], apply }).await()
+
+    const frame = render(
+      <NexusHeroFrame hero={false} t={brandT(subject.locale)}><p>Conversation</p></NexusHeroFrame>,
+    )
+    expect(frame.container.textContent).toBe('Conversation')
+    expect(frame.container.querySelector('[data-nexus-home]')).toBeNull()
+    frame.unmount()
   })
 })

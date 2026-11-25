@@ -155,8 +155,9 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
   canAttachNow.current = canAttach
   // The mount effect installs its attach/detach routine here so a status change
   // can re-run it; the effect itself must not depend on the state, or every
-  // pushed state would re-attach and publish again (see the note above).
-  const resync = useRef<() => void>(() => {})
+  // pushed state would re-attach and publish again (see the note above). It is
+  // unset until that effect has run, and cleared again on unmount.
+  const resync = useRef<(() => void) | undefined>(undefined)
   useEffect(() => {
     const element = viewport.current
     /* v8 ignore next -- the panel always renders its viewport before effects run. */
@@ -203,7 +204,7 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
       presentation.observe(frame, { attributes: true, attributeFilter: ['data-sidebar-drawer', 'data-sidebar-collapsed'] })
     }
     return () => {
-      resync.current = () => {}
+      resync.current = undefined
       observer.disconnect()
       presentation?.disconnect()
       window.removeEventListener('resize', track)
@@ -213,7 +214,7 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
   // Attach and detach as Composer starts, restarts, gives up or regains
   // ownership. Without this the view would outlive the document it belongs to
   // and keep painting over the placeholder main had just asked us to show.
-  useEffect(() => { resync.current() }, [canAttach])
+  useEffect(() => { resync.current?.() }, [canAttach])
   return (
     <div ref={viewport} className={css.surface} role="region" aria-label={t('region.label')}>
       {/* A standalone Composer owns routing; there is no view to attach here. */}

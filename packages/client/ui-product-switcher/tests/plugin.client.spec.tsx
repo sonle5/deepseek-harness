@@ -302,6 +302,51 @@ it('shapes Composer navigation as a rail when the sidebar collapses', async () =
   expect(rail.view.getByRole('navigation').textContent).not.toContain('Providers')
 })
 
+it('falls back to a neutral glyph and routes a view without a tab', async () => {
+  // Composer publishes its own view ids. One this shell does not know must
+  // still get a row — an unknown id is a version skew, not a reason to drop the
+  // user's navigation — and a view that belongs to no tab must navigate without
+  // one rather than invent `app: undefined` on the wire.
+  const navigation = {
+    views: [
+      { id: 'providers', label: 'Providers' },
+      { id: 'something-new', label: 'Something New' },
+    ],
+    current: 'providers',
+    app: 'codex' as const,
+  }
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  fake.push(ready({ navigation }))
+  fake.selectFromMain('composer')
+  const seat = runtime.renderSlot('sidebar.navigation', { wide: true }, { children: null })
+  // The unknown id still has a glyph, so the rail is never a blank button.
+  const unknown = seat.view.getByRole('button', { name: 'Something New' })
+  expect(unknown.querySelector('svg')).not.toBeNull()
+  fireEvent.click(unknown)
+  expect(fake.bridge.navigate).toHaveBeenCalledWith({ view: 'something-new' })
+})
+
+it('marks only the tab-scoped row whose tab is current', async () => {
+  // Skills exists under both tabs; matching on id alone would light up both
+  // rows at once. The tab is part of the row's identity.
+  const navigation = {
+    views: [
+      { id: 'skills', label: 'Codex Skills', app: 'codex' as const },
+      { id: 'skills', label: 'Claude Skills', app: 'claude' as const },
+    ],
+    current: 'skills',
+    app: 'claude' as const,
+  }
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  fake.push(ready({ navigation }))
+  fake.selectFromMain('composer')
+  const seat = runtime.renderSlot('sidebar.navigation', { wide: true }, { children: null })
+  expect(seat.view.getByRole('button', { name: 'Codex Skills' }).getAttribute('aria-current')).toBeNull()
+  expect(seat.view.getByRole('button', { name: 'Claude Skills' }).getAttribute('aria-current')).toBe('page')
+})
+
 it('leaves Composer when another main panel is selected', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()

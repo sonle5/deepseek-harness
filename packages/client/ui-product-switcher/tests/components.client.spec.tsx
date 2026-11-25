@@ -184,6 +184,26 @@ describe('ComposerSurface', () => {
     seat.remove()
   })
 
+  it('reserves no band when the frame declares an unusable clearance', async () => {
+    stubResizeObserver()
+    // The seat is mounted but the custom property is absent (or not a number,
+    // as during a stylesheet swap). An unparseable value must reserve nothing
+    // rather than produce NaN bounds, which the main process would reject.
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+      { getPropertyValue: () => '' } as unknown as CSSStyleDeclaration,
+    )
+    const seat = document.createElement('div')
+    seat.setAttribute('data-shell-leading', '')
+    document.body.append(seat)
+    const props = surfaceProps()
+    render(<ComposerSurface {...props} />)
+    const region = screen.getByRole('region', { name: en['region.label'] })
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600, toJSON: () => ({}) })
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(props.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 800, height: 600 })
+    seat.remove()
+  })
+
   it('yields to a narrow-window sidebar drawer and reattaches when it closes', async () => {
     stubResizeObserver()
     // The drawer is document content sliding over the center column. A native
@@ -216,6 +236,41 @@ describe('ComposerSurface', () => {
     await act(async () => {})
   })
 
+  it('falls back to the main element when no sidebar frame carries the drawer flags', async () => {
+    stubResizeObserver()
+    // `frameElement` looks for the workspace frame by its sidebar attributes and
+    // falls back to `<main>`/`#root` — a narrow window without a workspace, or
+    // the settings surface, still has a frame to observe for presentation
+    // changes. Without the fallback, a drawer toggled there would never detach
+    // the view.
+    const frame = document.createElement('main')
+    document.body.append(frame)
+    const props = surfaceProps()
+    const view = render(<ComposerSurface {...props} />)
+    expect(props.show).toHaveBeenCalledTimes(1)
+    // Presentation changes on the fallback frame are observed too, so a drawer
+    // opened later still detaches.
+    act(() => { frame.setAttribute('data-sidebar-drawer', ''); frame.setAttribute('data-sidebar-collapsed', '') })
+    act(() => { frame.removeAttribute('data-sidebar-collapsed') })
+    await act(async () => {})
+    expect(props.hide).toHaveBeenCalledTimes(1)
+    view.unmount()
+    frame.remove()
+  })
+
+  it('does not report bounds for a resize while the view is detached', async () => {
+    // A ResizeObserver entry can arrive while the placeholder owns the column —
+    // Composer failed, so there is no view to bound. `setBounds` then addresses
+    // a view nobody is showing, and main would log it as an unexpected command.
+    const observer = stubResizeObserver()
+    const props = surfaceProps({ state: state({ status: 'failed', visible: false }) })
+    render(<ComposerSurface {...props} />)
+    expect(props.show).not.toHaveBeenCalled()
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    observer.fire()
+    expect(props.setBounds).not.toHaveBeenCalled()
+  })
+
   it('attaches once even when the parent hands down new command identities', () => {
     // Regression: depending on the command functions re-attached on every state
     // push, and each re-attach published again — a feedback loop that grew the
@@ -240,6 +295,25 @@ describe('ComposerSurface', () => {
     view.unmount()
     await act(async () => {})
     expect(props.show).toHaveBeenCalled()
+  })
+
+  it('ignores a rejected hide when a drawer detaches the view', async () => {
+    // The same rejection, reached through the detach path rather than unmount:
+    // main may have already removed the view because the window is tearing
+    // down, and that must not surface as an unhandled rejection.
+    stubResizeObserver()
+    const frame = document.createElement('div')
+    frame.setAttribute('data-sidebar-drawer', '')
+    frame.setAttribute('data-sidebar-collapsed', '')
+    document.body.append(frame)
+    const hide = vi.fn(() => Promise.reject(new Error('window closing')))
+    const props = surfaceProps({ hide })
+    render(<ComposerSurface {...props} />)
+    expect(props.show).toHaveBeenCalledTimes(1)
+    act(() => { frame.removeAttribute('data-sidebar-collapsed') })
+    await act(async () => {})
+    expect(hide).toHaveBeenCalledTimes(1)
+    frame.remove()
   })
 
   it('switches back to Superharness from a sidebar control, not from the surface', () => {

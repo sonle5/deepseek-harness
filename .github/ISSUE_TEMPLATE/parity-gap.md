@@ -2,6 +2,7 @@
 name: Parity gap
 about: A Codex Desktop behaviour Nexus Superharness lacks or gets wrong, found by release review
 title: "[Parity] "
+type: Task
 labels: ['parity']
 ---
 

@@ -21,8 +21,9 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { ComposerBounds, ComposerChoice, ComposerGlobal, ComposerSwitcherState } from './composer-bridge.ts'
+import type { ComposerApp, ComposerBounds, ComposerChoice, ComposerGlobal, ComposerSwitcherState } from './composer-bridge.ts'
 import { readComposerBridge } from './composer-bridge.ts'
+import { ComposerNavigation } from './ComposerNavigation.tsx'
 import { ComposerView } from './ComposerView.tsx'
 import type { ProductSwitcherInjected, ProductSwitcherSnapshot } from './contract.ts'
 import { NS } from './contract.ts'
@@ -112,6 +113,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
   const setBounds = (bounds: ComposerBounds): Promise<void> => bridge.setBounds(bounds)
   const hide = (): Promise<void> => bridge.hide()
   const retryComposer = (): Promise<void> => bridge.retry()
+  const navigateComposer = (view: string, app?: ComposerApp): Promise<void> => bridge.navigate(
+    app === undefined ? { view } : { view, app },
+  )
   const injected = (): ProductSwitcherInjected => ({
     hooks: { switcher: store },
     select: (choice: ComposerChoice): void => { select(choice) },
@@ -119,6 +123,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     setBounds: (bounds: ComposerBounds): Promise<void> => setBounds(bounds),
     hide: (): Promise<void> => hide(),
     retry: (): Promise<void> => retryComposer(),
+    navigate: (view: string, app?: ComposerApp): Promise<void> => navigateComposer(view, app),
   })
 
   ctx.slots.inject('sidebar.product', () => ctx.slots.register({
@@ -127,6 +132,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.slots.inject('sidebar.leading.product', () => ctx.slots.register({
     name: 'sidebar.leading.product', locale: NS, inject: injected,
   }, LeadingProductSwitcher))
+  ctx.slots.inject('sidebar.navigation', () => ctx.slots.register({
+    name: 'sidebar.navigation', id: 'composer', locale: NS, inject: injected,
+  }, ComposerNavigation))
   ctx.slots.inject('main', function* () {
     yield ctx.slots.register({
       name: 'main', key: PANEL_ID, locale: NS, inject: injected,

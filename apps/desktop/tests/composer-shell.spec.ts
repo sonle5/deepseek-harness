@@ -37,7 +37,7 @@ describe('composer shell commands', () => {
   it('lists exactly the shell-owned commands', () => {
     expect([...COMPOSER_SHELL_COMMANDS].sort()).toEqual([
       'copy_text_to_clipboard', 'get_home_dir', 'open_app_config_folder', 'open_config_folder', 'open_external', 'open_file_dialog',
-      'open_zip_file_dialog', 'pick_directory', 'restart_app', 'save_file_dialog',
+      'open_zip_file_dialog', 'pick_directory', 'publish_navigation_state', 'restart_app', 'save_file_dialog',
     ])
     expect(isComposerShellCommand('get_settings')).toBe(false)
   })

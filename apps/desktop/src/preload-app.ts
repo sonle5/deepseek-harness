@@ -6,7 +6,10 @@ import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult }
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
-import { COMPOSER_SWITCHER_IPC, type ComposerBounds, type ComposerProduct, type ComposerSwitcherState } from './composer-ipc.ts'
+import {
+  COMPOSER_SWITCHER_IPC, type ComposerBounds, type ComposerNavigateRequest, type ComposerProduct,
+  type ComposerSwitcherState,
+} from './composer-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
@@ -139,6 +142,7 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
       ipcRenderer.on(COMPOSER_SWITCHER_IPC.select, receive)
       return () => { ipcRenderer.off(COMPOSER_SWITCHER_IPC.select, receive) }
     },
+    navigate: (request: ComposerNavigateRequest) => ipcRenderer.invoke(COMPOSER_SWITCHER_IPC.navigate, request),
   })
 }
 

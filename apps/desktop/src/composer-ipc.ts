@@ -28,7 +28,40 @@ export const COMPOSER_SWITCHER_IPC = {
   changed: 'dsh-composer-switcher:changed',
   /** main → app: menu or accelerator product selection (`'superharness' | 'composer' | 'toggle'`). */
   select: 'dsh-composer-switcher:select',
+  /** app → main: `(request)` ask Composer to show one of its views. */
+  navigate: 'dsh-composer-switcher:navigate',
 } as const
+
+/** Product tabs Composer's own views are grouped under. */
+export type ComposerApp = 'codex' | 'vscode' | 'claude'
+
+/** One row of Composer's navigation, as the embedded renderer publishes it. */
+export interface ComposerNavigationView {
+  /** `currentView` value in Composer's `App.tsx`. */
+  readonly id: string
+  /** Row label, already localized by Composer; the host holds no copy of its dictionaries. */
+  readonly label: string
+  /** Product tab the view belongs to, when it is tab-specific. */
+  readonly app?: ComposerApp
+}
+
+/** Navigation Composer publishes so the embedding host can mirror it in the sidebar. */
+export interface ComposerNavigationState {
+  /** Views the sidebar may show, in order. */
+  readonly views: readonly ComposerNavigationView[]
+  /** The view currently shown. */
+  readonly current: string
+  /** The product tab currently selected. */
+  readonly app: ComposerApp
+}
+
+/** A host request for Composer to show a view. */
+export interface ComposerNavigateRequest {
+  /** View to show. */
+  readonly view: string
+  /** Product tab to select first, when the view is tab-specific. */
+  readonly app?: ComposerApp
+}
 
 /** Area the Composer view covers, in CSS pixels of the window content. */
 export interface ComposerBounds { x: number; y: number; width: number; height: number }
@@ -50,4 +83,10 @@ export interface ComposerSwitcherState {
   readonly codexRestartRequired?: boolean
   /** The native Composer view is attached and visible. */
   readonly visible: boolean
+  /**
+   * Composer's own navigation, mirrored so the sidebar can offer its views
+   * while Composer is the selected product. Absent until the renderer publishes
+   * and after a reload, when no row would address a live view.
+   */
+  readonly navigation?: ComposerNavigationState
 }

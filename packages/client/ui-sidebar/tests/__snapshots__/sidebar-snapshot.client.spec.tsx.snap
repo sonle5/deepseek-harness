@@ -34,73 +34,78 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="6e5e38f3"
-                data-icon="dsw-icon-new-chat-outline-regular"
-                height="16"
-                width="16"
-              />
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="6e5e38f3"
+                  data-icon="dsw-icon-new-chat-outline-regular"
+                  height="16"
+                  width="16"
+                />
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -195,79 +200,84 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                New Session
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  New Session
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -326,73 +336,78 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="6e5e38f3"
-                data-icon="dsw-icon-new-chat-outline-regular"
-                height="18"
-                width="18"
-              />
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="6e5e38f3"
+                  data-icon="dsw-icon-new-chat-outline-regular"
+                  height="18"
+                  width="18"
+                />
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -487,79 +502,84 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                New Session
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  New Session
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -654,79 +674,84 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="新建会话"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                新会话
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="新建会话"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  新会话
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>

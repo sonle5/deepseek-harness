@@ -4,7 +4,9 @@
  * plugin entry that registers them.
  */
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ComposerBounds, ComposerChoice, ComposerProduct, ComposerSwitcherState } from './composer-bridge.ts'
+import type {
+  ComposerApp, ComposerBounds, ComposerChoice, ComposerProduct, ComposerSwitcherState,
+} from './composer-bridge.ts'
 
 /** Locale namespace of the switcher copy. */
 export const NS = 'productSwitcher'
@@ -40,4 +42,10 @@ export interface ProductSwitcherInjected {
   hide(this: void): Promise<void>
   /** Retry a Composer that gave up. */
   retry(this: void): Promise<void>
+  /**
+   * Show one of Composer's own views, addressed by the id it published.
+   * @param view - view id from the current navigation state.
+   * @param app - product tab the view belongs to, when it is tab-specific.
+   */
+  navigate(this: void, view: string, app?: ComposerApp): Promise<void>
 }

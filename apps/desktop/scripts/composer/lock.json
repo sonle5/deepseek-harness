@@ -8,7 +8,7 @@
   "commit": "93b2a5007dec1886de3d31fceeb392e9211860a4",
   "bridgeProtocol": 1,
   "schemaVersion": 33,
-  "renderer": { "sha256": "ae379d131a84d58932356470a827422f8f74147163064361b990fc30d3598219" },
+  "renderer": { "sha256": "4f14d058a13eddf8075188306acc0f2abac4786240d7b51999d821afab9de432" },
   "targets": {
     "darwin-arm64": { "available": true, "sha256": "43a97e530d3e82ec0e458f88a618bcb2f45146453db578f1419412f64151420a" },
     "darwin-x64": { "available": false },

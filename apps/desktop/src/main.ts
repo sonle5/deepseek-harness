@@ -591,6 +591,9 @@ async function main(): Promise<void> {
     // The switcher mirrors every lifecycle change into the application document. A ready or an ownership
     // change may be the first sight of a separate standalone Composer.
     onStatus: () => { notifyComposerSwitcher(); reportComposerStandalone() },
+    // The sidebar offers Composer's own views while Composer is the selected product, so a published
+    // navigation state has to reach the application document the same way a lifecycle change does.
+    onNavigation: () => { notifyComposerSwitcher() },
     // Composer's file dialogs are sheets of the application window that hosts its view.
     window: currentMainWindow,
   })

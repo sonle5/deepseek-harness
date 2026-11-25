@@ -27,6 +27,29 @@ export interface ComposerBounds {
 /** Surface lifecycle reported by main. */
 export type ComposerStatus = 'idle' | 'starting' | 'ready' | 'restarting' | 'failed'
 
+/** Product tab Composer's own views are grouped under. */
+export type ComposerApp = 'codex' | 'vscode' | 'claude'
+
+/** One row of Composer's navigation, as the embedded renderer publishes it. */
+export interface ComposerNavigationView {
+  /** Composer's `currentView` value. */
+  readonly id: string
+  /** Row label, already localized by Composer. */
+  readonly label: string
+  /** Product tab this view belongs to, when it is tab-specific. */
+  readonly app?: ComposerApp
+}
+
+/** Navigation Composer published so this shell can mirror it in the sidebar. */
+export interface ComposerNavigationState {
+  /** Views the sidebar may show, in order. */
+  readonly views: readonly ComposerNavigationView[]
+  /** The view currently shown. */
+  readonly current: string
+  /** The product tab currently selected. */
+  readonly app: ComposerApp
+}
+
 /**
  * Which process routes Composer traffic: this application (`owner`), a
  * development profile (`isolated`), or a standalone Composer (`external`).
@@ -53,6 +76,8 @@ export interface ComposerSwitcherState {
   readonly codexRestartRequired?: boolean
   /** The native Composer view is attached and visible. */
   readonly visible: boolean
+  /** Composer's own navigation; absent until it publishes and after a reload. */
+  readonly navigation?: ComposerNavigationState
 }
 
 /** Bridge main installs on the main application document. */
@@ -72,6 +97,8 @@ export interface DshComposerBridge {
   retry(): Promise<void>
   /** Main asks this document to switch product. @param listener - requested product. @returns unsubscribe. */
   onSelect(listener: (product: ComposerChoice) => void): () => void
+  /** Ask the embedded Composer to show one of the views it published. @param request - view to show. */
+  navigate(request: { readonly view: string; readonly app?: ComposerApp }): Promise<void>
 }
 
 /** The global the preload installs; absent in a plain Web build. */

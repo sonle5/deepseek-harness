@@ -7,14 +7,24 @@ import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { clipboard, dialog, shell, type BaseWindow, type FileFilter } from 'electron'
+import type { ComposerNavigationState } from './composer-ipc.ts'
 import type { ComposerInvokeResult } from './composer-sidecar.ts'
 
-/** Commands answered in the main process; the sidecar never sees them. */
+/**
+ * Commands answered in the main process; the sidecar never sees them.
+ *
+ * `publish_navigation_state` is not a Tauri command: it is how the embedded
+ * renderer tells the host which views its sidebar may offer. The standalone
+ * app resolves that name against Tauri and never calls it, so this handler is
+ * the only implementation of it.
+ */
 export const COMPOSER_SHELL_COMMANDS: readonly string[] = Object.freeze([
   'pick_directory', 'open_file_dialog', 'save_file_dialog', 'open_zip_file_dialog', 'open_external',
   'open_config_folder', 'open_app_config_folder', 'copy_text_to_clipboard', 'restart_app',
   // Not a Tauri command: the embedded renderer's replacement for `@tauri-apps/api/path` `homeDir`.
   'get_home_dir',
+  // Not a Tauri command: the embedded renderer's navigation state for the host sidebar.
+  'publish_navigation_state',
 ])
 
 /**
@@ -41,6 +51,12 @@ export interface ComposerShellOptions {
   readonly restart: () => Promise<unknown>
   /** A deferred restart failed. */
   readonly onError: (error: Error) => void
+  /**
+   * Composer published the views its sidebar should offer, and which is current.
+   * The host mirrors them; it never answers, so a rejected publish cannot stall
+   * the renderer.
+   */
+  readonly onNavigation?: (state: ComposerNavigationState) => void
   readonly dialog?: Pick<typeof dialog, 'showOpenDialog' | 'showSaveDialog'>
   readonly shell?: Pick<typeof shell, 'openExternal' | 'openPath'>
   readonly clipboard?: Pick<typeof clipboard, 'writeText'>
@@ -87,6 +103,7 @@ export class ComposerShell {
       case 'copy_text_to_clipboard': return this.copyText(args.text)
       case 'restart_app': return this.restartApp()
       case 'get_home_dir': return { ok: (this.options.homedir ?? homedir)() }
+      case 'publish_navigation_state': return this.publishNavigation(args.state)
       default: return { bridgeError: { code: 'unknown_command', retryable: false } }
     }
   }
@@ -175,6 +192,46 @@ export class ComposerShell {
     }, COMPOSER_RESTART_DEFER_MS)
     return { ok: true }
   }
+
+  /**
+   * Accept Composer's navigation state for the host sidebar.
+   *
+   * The payload crosses a process boundary, so it is rebuilt field by field
+   * rather than forwarded: the sidebar renders these labels and compares these
+   * ids, and a malformed frame must not reach it. An unusable payload is
+   * rejected without clearing the host's last good state — a bad publish
+   * should not blank the navigation.
+   */
+  private publishNavigation(state: unknown): ComposerInvokeResult {
+    const parsed = navigationState(state)
+    if (parsed === undefined) return invalidArguments
+    this.options.onNavigation?.(parsed)
+    return { ok: true }
+  }
+}
+
+const APPS = ['codex', 'vscode', 'claude'] as const
+
+/**
+ * Rebuild a navigation state from an untrusted payload.
+ * @param value - `state` argument of `publish_navigation_state`.
+ * @returns a validated copy, or undefined when any part is unusable.
+ */
+function navigationState(value: unknown): ComposerNavigationState | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { views, current, app } = value as { views?: unknown; current?: unknown; app?: unknown }
+  if (typeof current !== 'string' || !APPS.includes(app as typeof APPS[number]) || !Array.isArray(views)) return undefined
+  const parsed: { id: string; label: string; app?: typeof APPS[number] }[] = []
+  for (const view of views) {
+    if (typeof view !== 'object' || view === null) return undefined
+    const { id, label, app: tab } = view as { id?: unknown; label?: unknown; app?: unknown }
+    if (typeof id !== 'string' || id === '' || typeof label !== 'string' || label === '') return undefined
+    if (tab !== undefined && !APPS.includes(tab as typeof APPS[number])) return undefined
+    parsed.push(tab === undefined ? { id, label } : { id, label, app: tab as typeof APPS[number] })
+  }
+  // The current view must be one the sidebar can mark, or no row would be active.
+  if (!parsed.some(view => view.id === current)) return undefined
+  return { views: parsed, current, app: app as typeof APPS[number] }
 }
 
 function message(error: unknown): string {

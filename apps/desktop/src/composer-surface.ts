@@ -2,7 +2,7 @@
 
 import { ipcMain, type BaseWindow, type IpcMainInvokeEvent } from 'electron'
 import { ComposerIncompatibleError, ComposerSidecar, type ComposerInvokeResult, type ComposerReady, type ComposerSidecarOptions } from './composer-sidecar.ts'
-import { COMPOSER_IPC } from './composer-ipc.ts'
+import { COMPOSER_IPC, type ComposerNavigateRequest, type ComposerNavigationState } from './composer-ipc.ts'
 import { ComposerEventForwarder, type ComposerEventForwarderOptions } from './composer-events.ts'
 import { ComposerShell, isComposerShellCommand, type ComposerShellOptions } from './composer-shell.ts'
 import type { ComposerReleaseTarget } from './composer-quit.ts'
@@ -53,6 +53,8 @@ export interface ComposerSurfaceOptions {
   readonly shell?: Partial<Pick<ComposerShellOptions, 'dialog' | 'shell' | 'clipboard' | 'mkdir' | 'defer'>>
   /** Tests replace the event socket. */
   readonly events?: Partial<Pick<ComposerEventForwarderOptions, 'createSocket' | 'schedule'>>
+  /** Latest navigation Composer published; undefined until it first reports. */
+  readonly onNavigation?: (state: ComposerNavigationState | undefined) => void
 }
 
 
@@ -69,6 +71,7 @@ export class DesktopComposerSurface {
   #recovery: Promise<void> | undefined
   readonly #shell: ComposerShell
   readonly #events: ComposerEventForwarder
+  #navigation: ComposerNavigationState | undefined
 
   constructor(private readonly options: ComposerSurfaceOptions) {
     this.view = new DesktopComposerView(options.preload, options.resources.dist, ({ title, message }) => {
@@ -80,6 +83,10 @@ export class DesktopComposerSurface {
       bridge: (command, args) => this.callSidecar(command, args),
       restart: () => this.restart(),
       onError: options.onError,
+      onNavigation: (state) => {
+        this.#navigation = state
+        this.options.onNavigation?.(state)
+      },
     })
     this.#events = new ComposerEventForwarder({
       ...options.events,
@@ -100,6 +107,30 @@ export class DesktopComposerSurface {
 
   /** Facts the serving sidecar reported at ready (ownership follows later changes); undefined while none serves. */
   get ready(): ComposerReady | undefined { return this.#status.state === 'ready' ? this.#ready : undefined }
+
+  /**
+   * The navigation Composer last published, for the host sidebar.
+   *
+   * Cleared when the surface is reloaded or stops serving: the view that
+   * published it is gone, so its rows would address views nothing can show.
+   */
+  get navigation(): ComposerNavigationState | undefined { return this.#navigation }
+
+  /**
+   * Ask Composer to show one of its views.
+   *
+   * Fire-and-forget: the renderer answers by republishing its state, which is
+   * the one authority on which view is current, so a lost request costs no
+   * inconsistency.
+   * @param request - view to show, and the product tab to select first.
+   */
+  navigate(request: ComposerNavigateRequest): void {
+    const contents = this.view.contents
+    if (contents === undefined || contents.isDestroyed()) return
+    try {
+      contents.send(COMPOSER_IPC.event, { event: 'composer-navigate', payload: request })
+    } catch (_viewGone) { /* The view closed between the check and the send. */ }
+  }
 
   /** The serving sidecar's release requests, for quit and update; undefined while none serves. */
   releaseTarget(): ComposerReleaseTarget | undefined {
@@ -151,7 +182,16 @@ export class DesktopComposerSurface {
   private reloadView(ready: ComposerReady): ComposerReady {
     const contents = this.view.contents
     if (!this.#closed && contents !== undefined && !contents.isDestroyed()) contents.reload()
+    // The reloaded document has not published yet; keep the host from offering
+    // rows that address a renderer state which no longer exists.
+    this.clearNavigation()
     return ready
+  }
+
+  private clearNavigation(): void {
+    if (this.#navigation === undefined) return
+    this.#navigation = undefined
+    this.options.onNavigation?.(undefined)
   }
 
   private async spawn(): Promise<ComposerReady> {
@@ -285,6 +325,9 @@ export class DesktopComposerSurface {
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
+    // The surface that published these rows is going away; nothing can show them now.
+    this.#navigation = undefined
+    this.options.onNavigation?.(undefined)
     if (this.options.ipc !== false) {
       ipcMain.removeHandler(COMPOSER_IPC.invoke)
       ipcMain.removeHandler(COMPOSER_IPC.fatal)

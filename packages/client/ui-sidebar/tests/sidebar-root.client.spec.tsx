@@ -9,9 +9,8 @@ import { allowAllAccess, makeTranslate } from '@deepseek-ai/dsh-client-test-runt
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type {
-  SidebarFooterActionOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarSectionHookContext, SidebarSectionOwnerProps,
-  SidebarSessionActionOwnerProps,
-  SidebarSettingsOwnerProps,
+  SidebarFooterActionOwnerProps, SidebarNavigationOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarSectionHookContext,
+  SidebarSectionOwnerProps, SidebarSessionActionOwnerProps, SidebarSettingsOwnerProps,
 } from '../src/client/contract/slots.ts'
 import { HeaderLeadingControls, type HeaderLeadingControlsProps } from '../src/client/HeaderLeadingControls.tsx'
 import { SidebarRoot } from '../src/client/SidebarRoot.tsx'
@@ -71,6 +70,7 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
   let sessionActionOwner: SidebarSessionActionOwnerProps | undefined
   let sessionActionChildren: ReactNode
+  let navigationOwner: SidebarNavigationOwnerProps | undefined
   const brandMark = <span data-testid="custom-brand-mark">M</span>
   const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
   let current = { collapsed, width, drawer }
@@ -111,6 +111,12 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
           sessionActionChildren = opts?.children
           return <>{opts?.children}<div data-testid="session-action-seat" data-wide={owner.wide} /></>
         }
+        // The browsing-region layer. No occupant here means the shell's own
+        // rows pass through unchanged, which is the layer's contract.
+        if (key === 'sidebar.navigation') {
+          navigationOwner = owner
+          return <>{opts?.children}</>
+        }
         regionOwner = owner as SidebarSectionOwnerProps
         regionContext = opts?.hookContext
         return <div data-testid="region" data-wide={owner.wide}>{content}</div>
@@ -143,6 +149,10 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       return sessionActionOwner
     },
     sessionActionChildren: () => sessionActionChildren,
+    navigationOwner: () => {
+      if (navigationOwner === undefined) throw new Error('navigation layer not rendered')
+      return navigationOwner
+    },
     rerender(next: Partial<typeof current>) {
       current = { ...current, ...next }
       view.rerender(root())
@@ -277,11 +287,11 @@ describe('SidebarRoot shell', () => {
       useRemoteAccess={useRemoteAccess}
       startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((key: string, _owner: unknown, options?: { fallback?: ReactNode }) => {
+      renderSlot={((key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) => {
         if (key === 'sidebar.brand.mark') return <span data-testid="brand-mark">M</span>
         if (key === 'sidebar.brand.name') return <span data-testid="brand-name">Brand</span>
         // The label seat is empty in this build, so the owner's brand fallback renders.
-        return options?.fallback ?? null
+        return options?.children ?? options?.fallback ?? null
       }) as SidebarRootComponentProps['renderSlot']}
     />)
 
@@ -310,8 +320,10 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
     expect(screen.getByText('Nexus Superharness')).toBeTruthy()
@@ -335,8 +347,10 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
     expect(screen.getByText('Nexus Superharness')).toBeTruthy()
@@ -364,8 +378,10 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={startSession} toggleSidebar={vi.fn()} trackEntryClick={trackEntryClick} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
     vi.useFakeTimers()
 
@@ -416,8 +432,10 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
     expect(screen.getByText('Nexus Superharness')).toBeTruthy()

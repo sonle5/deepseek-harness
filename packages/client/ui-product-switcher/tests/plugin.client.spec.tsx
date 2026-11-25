@@ -31,6 +31,7 @@ function fakeBridge(initial: ComposerSwitcherState = ready()) {
     setBounds: vi.fn(async (_bounds: { x: number; y: number; width: number; height: number }) => {}),
     hide: vi.fn(async () => {}),
     retry: vi.fn(async () => {}),
+    navigate: vi.fn(async (_request: { readonly view: string; readonly app?: 'codex' | 'vscode' | 'claude' }) => {}),
     onSelect: vi.fn((next: (product: 'superharness' | 'composer' | 'toggle') => void) => { selectListener = next; return () => { selectListener = undefined } }),
   } satisfies DshComposerBridge
   return {
@@ -57,6 +58,7 @@ async function declareSeats(runtime: SlotTestRuntime): Promise<void> {
   await runtime.declare({
     'sidebar.product': { kind: 'single', scope: 'root' },
     'sidebar.leading.product': { kind: 'single', scope: 'root' },
+    'sidebar.navigation': { kind: 'hoc', scope: 'root' },
     'main': { kind: 'keyed', scope: 'root' },
   })
 }
@@ -179,6 +181,7 @@ it('registers three surfaces and removes them on dispose', async () => {
   const { runtime, owner } = await bench(fake.bridge)
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(1)
   expect(runtime.slots.entries('sidebar.leading.product')).toHaveLength(1)
+  expect(runtime.slots.entries('sidebar.navigation')).toHaveLength(1)
   expect(runtime.slots.entries('main')).toHaveLength(1)
   expect(runtime.slots.entries('main')[0]!.options.key).toBe('composer')
   expect(fake.bridge.subscribe).toHaveBeenCalledTimes(1)
@@ -186,6 +189,7 @@ it('registers three surfaces and removes them on dispose', async () => {
   await owner.dispose()
   expect(runtime.slots.entries('sidebar.product')).toHaveLength(0)
   expect(runtime.slots.entries('sidebar.leading.product')).toHaveLength(0)
+  expect(runtime.slots.entries('sidebar.navigation')).toHaveLength(0)
   expect(runtime.slots.entries('main')).toHaveLength(0)
 })
 
@@ -226,6 +230,53 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   expect(layout.selectPanel).toHaveBeenCalledWith(null)
   expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
   expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+})
+
+it('mirrors Composer navigation in the sidebar only while Composer is the product', async () => {
+  const navigation = {
+    views: [
+      { id: 'providers', label: 'Providers' },
+      { id: 'skills', label: 'Skills', app: 'codex' as const },
+    ],
+    current: 'providers',
+    app: 'codex' as const,
+  }
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  const seat = runtime.renderSlot('sidebar.navigation', { wide: true }, { children: <div data-testid="shell-rows" /> })
+
+  // No navigation published yet: the shell's own browsing region stands, so the
+  // sidebar is never empty while the sidecar starts.
+  expect(seat.view.getByTestId('shell-rows')).toBeTruthy()
+  expect(seat.view.queryByRole('navigation')).toBeNull()
+
+  // Navigation published, but Composer is not the product: still the shell's
+  // rows. Publishing alone must not take over Superharness's sidebar.
+  fake.push(ready({ navigation }))
+  expect(seat.view.getByTestId('shell-rows')).toBeTruthy()
+  expect(seat.view.queryByRole('navigation')).toBeNull()
+
+  // Composer is the product and has published: its rows replace the shell's.
+  const sidebar = runtime.renderSlot('sidebar.product', {})
+  fireEvent.click(sidebar.view.getByRole('button', { name: 'Switch product' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  const nav = seat.view.getByRole('navigation', { name: 'Composer navigation' })
+  expect(seat.view.queryByTestId('shell-rows')).toBeNull()
+  expect(nav.textContent).toContain('Providers')
+  expect(nav.textContent).toContain('Skills')
+  // The published `current` view is the only one marked current, even though
+  // both rows share an id space.
+  expect(seat.view.getByRole('button', { name: 'Providers' }).getAttribute('aria-current')).toBe('page')
+  expect(seat.view.getByRole('button', { name: 'Skills' }).getAttribute('aria-current')).toBeNull()
+
+  // A press routes back to Composer with the view's tab.
+  fireEvent.click(seat.view.getByRole('button', { name: 'Skills' }))
+  expect(fake.bridge.navigate).toHaveBeenCalledWith({ view: 'skills', app: 'codex' })
+
+  // Back to Superharness: the shell's own rows return.
+  fake.selectFromMain('superharness')
+  expect(seat.view.getByTestId('shell-rows')).toBeTruthy()
+  expect(seat.view.queryByRole('navigation')).toBeNull()
 })
 
 it('leaves Composer when another main panel is selected', async () => {

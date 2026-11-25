@@ -12,6 +12,7 @@ export const zh = {
   'status.externalDetail': 'Composer 正在独立窗口中运行。切换回 Superharness 可在此继续工作。',
   'status.retry': '重试',
   'region.label': 'Composer 视图',
+  'nav.label': 'Composer 导航',
 }
 
 /** English product switcher copy. */
@@ -28,6 +29,7 @@ export const en = {
   'status.externalDetail': 'Composer is running in its own window. Switch back to Superharness to work here.',
   'status.retry': 'Retry',
   'region.label': 'Composer view',
+  'nav.label': 'Composer navigation',
 } satisfies Record<keyof typeof zh, string>
 
 /** Japanese dictionary, checked against the English keys. */
@@ -44,6 +46,7 @@ export const ja = {
   'status.externalDetail': 'Composer は独立したウィンドウで実行されています。ここで作業するには Superharness に戻してください。',
   'status.retry': '再試行',
   'region.label': 'Composer ビュー',
+  'nav.label': 'Composer ナビゲーション',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -60,6 +63,7 @@ export const es = {
   'status.externalDetail': 'Composer se está ejecutando en su propia ventana. Vuelve a Superharness para trabajar aquí.',
   'status.retry': 'Reintentar',
   'region.label': 'Vista de Composer',
+  'nav.label': 'Navegación de Composer',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -76,6 +80,7 @@ export const fr = {
   'status.externalDetail': 'Composer s’exécute dans sa propre fenêtre. Revenez à Superharness pour travailler ici.',
   'status.retry': 'Réessayer',
   'region.label': 'Vue Composer',
+  'nav.label': 'Navigation Composer',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -92,6 +97,7 @@ export const de = {
   'status.externalDetail': 'Composer läuft in einem eigenen Fenster. Wechseln Sie zurück zu Superharness, um hier zu arbeiten.',
   'status.retry': 'Erneut versuchen',
   'region.label': 'Composer-Ansicht',
+  'nav.label': 'Composer-Navigation',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -108,6 +114,7 @@ export const ru = {
   'status.externalDetail': 'Composer работает в отдельном окне. Вернитесь в Superharness, чтобы работать здесь.',
   'status.retry': 'Повторить',
   'region.label': 'Представление Composer',
+  'nav.label': 'Навигация Composer',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -124,6 +131,7 @@ export const pt = {
   'status.externalDetail': 'O Composer está sendo executado em uma janela própria. Volte ao Superharness para trabalhar aqui.',
   'status.retry': 'Tentar novamente',
   'region.label': 'Visualização do Composer',
+  'nav.label': 'Navegação do Composer',
 } satisfies Record<keyof typeof en, string>
 
 /** Dictionary key domain of the product switcher namespace. */

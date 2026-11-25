@@ -107,6 +107,7 @@ export function apply(ctx: ClientContext): void {
         'sidebar.footer.action': { kind: 'list', scope: 'root' },
         'sidebar.session.action': { kind: 'hoc', scope: 'root' },
         'sidebar.product': { kind: 'single', scope: 'root' },
+        'sidebar.navigation': { kind: 'hoc', scope: 'root' },
       },
       inject: injectProps,
     }, SidebarRoot)

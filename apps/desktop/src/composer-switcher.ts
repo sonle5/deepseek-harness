@@ -1,7 +1,10 @@
 /** Superharness | Composer switcher: the application document's view of the native Composer surface. */
 
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type Input } from 'electron'
-import { COMPOSER_SWITCHER_IPC, type ComposerProduct, type ComposerSwitcherState } from './composer-ipc.ts'
+import {
+  COMPOSER_SWITCHER_IPC, type ComposerNavigateRequest, type ComposerNavigationState, type ComposerProduct,
+  type ComposerSwitcherState,
+} from './composer-ipc.ts'
 import type { ComposerSurfaceStatus } from './composer-surface.ts'
 import { ComposerIncompatibleError } from './composer-sidecar.ts'
 import type { ComposerBounds, DesktopComposerView } from './composer-view.ts'
@@ -17,6 +20,10 @@ export type ComposerSwitcherSurface = {
   readonly status: ComposerSurfaceStatus
   /** Facts from the sidecar's ready message; undefined while none serves. */
   readonly ready: { readonly version: string; readonly ownership: string } | undefined
+  /** Navigation Composer published, mirrored into the switcher state. */
+  readonly navigation?: ComposerNavigationState | undefined
+  /** Ask Composer to show one of its views. */
+  navigate?(request: ComposerNavigateRequest): void
   /** Start the sidecar when idle; never throws into IPC (failures surface through status). */
   start(): Promise<unknown>
   retry(): Promise<unknown>
@@ -66,6 +73,7 @@ export function composerSwitcherState(surface: ComposerSwitcherSurface | undefin
     ...(ownership === undefined ? {} : { ownership }),
     ...(ready === undefined ? {} : { version: ready.version }),
     visible,
+    ...(surface?.navigation === undefined ? {} : { navigation: surface.navigation }),
   }
   if (status.state === 'restarting') {
     return { ...base, attempt: status.attempt, error: status.error.message }
@@ -178,11 +186,26 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     if (!available || owner === undefined || owner.isDestroyed()) return
     owner.webContents.send(COMPOSER_SWITCHER_IPC.select, product)
   }
+  // Composer's own views, reachable from the host's sidebar. The request is
+  // validated here rather than trusted from the application document: it is a
+  // different renderer, and malformed input must not reach the Composer view.
+  const navigate = (request: unknown): void => {
+    if (typeof request !== 'object' || request === null) throw new Error('Invalid Composer navigation request')
+    const { view, app } = request as { view?: unknown; app?: unknown }
+    if (typeof view !== 'string' || view === '') throw new Error('Invalid Composer navigation request')
+    if (app !== undefined && app !== 'codex' && app !== 'vscode' && app !== 'claude') {
+      throw new Error('Invalid Composer navigation request')
+    }
+    options.surface()?.navigate?.(
+      app === undefined ? { view } : { view, app },
+    )
+  }
   ipcMain.handle(COMPOSER_SWITCHER_IPC.state, (event) => { assertOwner(event); return current() })
   ipcMain.handle(COMPOSER_SWITCHER_IPC.show, (event, bounds: unknown) => { assertOwner(event); show(bounds) })
   ipcMain.handle(COMPOSER_SWITCHER_IPC.bounds, (event, bounds: unknown) => { assertOwner(event); setBounds(bounds) })
   ipcMain.handle(COMPOSER_SWITCHER_IPC.hide, (event) => { assertOwner(event); hide() })
   ipcMain.handle(COMPOSER_SWITCHER_IPC.retry, (event) => { assertOwner(event); return retry() })
+  ipcMain.handle(COMPOSER_SWITCHER_IPC.navigate, (event, request: unknown) => { assertOwner(event); navigate(request) })
   return {
     available,
     start() {
@@ -218,7 +241,8 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     },
     dispose() {
       for (const channel of [COMPOSER_SWITCHER_IPC.state, COMPOSER_SWITCHER_IPC.show,
-        COMPOSER_SWITCHER_IPC.bounds, COMPOSER_SWITCHER_IPC.hide, COMPOSER_SWITCHER_IPC.retry]) {
+        COMPOSER_SWITCHER_IPC.bounds, COMPOSER_SWITCHER_IPC.hide, COMPOSER_SWITCHER_IPC.retry,
+        COMPOSER_SWITCHER_IPC.navigate]) {
         ipcMain.removeHandler(channel)
       }
     },

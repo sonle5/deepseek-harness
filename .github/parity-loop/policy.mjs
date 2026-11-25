@@ -75,17 +75,25 @@ export function latestVerdicts(reviews) {
  *
  * So the only things worth blocking on here are the ones that make auto-merge
  * meaningless: a wrong base, a closed or draft pull request, a branch GitHub
- * cannot merge, and — the important one — a branch whose review requirement
- * cannot be confirmed.
+ * cannot merge, and — the important one — a branch that does not require
+ * review, where enabling auto-merge lands the head without waiting for anyone.
  * @param {object} input Pull-request state.
  * @param {string} input.base Base branch.
  * @param {boolean} input.isDraft Whether the pull request is a draft.
  * @param {string} input.state `open` or `closed`.
  * @param {boolean|null} input.mergeable GitHub's computed mergeability (`null` while pending).
- * @param {boolean|null} input.protectedBranch Whether the base branch enforces review, or `null` when the token cannot read its protection.
+ * @param {boolean|null} input.protectedBranch Whether the base branch is protected at all, or `null` when it cannot be read.
+ * @param {string|null} input.reviewDecision GitHub's review decision for the pull request, or `null` when no rule requires review.
  * @returns {string[]} Blocking reasons; empty means auto-merge may be enabled.
  */
-export function autoMergeBlockers({ base, isDraft, state, mergeable, protectedBranch }) {
+export function autoMergeBlockers({
+  base,
+  isDraft,
+  state,
+  mergeable,
+  protectedBranch,
+  reviewDecision,
+}) {
   const blockers = []
   const baseError = baseBranchError(base)
   if (baseError !== null) blockers.push(baseError)
@@ -95,13 +103,17 @@ export function autoMergeBlockers({ base, isDraft, state, mergeable, protectedBr
   // "probably fine".
   if (mergeable !== true) blockers.push('GitHub has not confirmed the pull request is mergeable.')
   // Without protection there is nothing for auto-merge to wait on, and enabling
-  // it merges the head immediately — the opposite of the intent. An unreadable
-  // protection setting is reported separately: it is a token problem to fix,
-  // not evidence that the branch is unprotected.
+  // it merges the head immediately — the opposite of the intent. Each way of
+  // not knowing gets its own reason because each needs a different fix: an
+  // unreadable flag is a token problem, a protected branch with no review rule
+  // is a protection setting to change, and a null decision on a protected
+  // branch is the same setting seen from the pull request's side.
   if (protectedBranch === null) {
-    blockers.push(`Cannot verify that \`${TARGET_BASE}\` requires review; the token cannot read its protection.`)
+    blockers.push(`Cannot verify that \`${TARGET_BASE}\` is protected; the token cannot read the branch.`)
   } else if (protectedBranch !== true) {
     blockers.push(`\`${TARGET_BASE}\` is not protected; auto-merge would land unreviewed.`)
+  } else if (reviewDecision === null) {
+    blockers.push(`\`${TARGET_BASE}\` is protected but requires no approving review; auto-merge would land unreviewed.`)
   }
   return blockers
 }

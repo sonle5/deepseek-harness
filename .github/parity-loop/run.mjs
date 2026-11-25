@@ -147,65 +147,39 @@ function graphql(query, variables) {
   return parsed.data
 }
 
-/** The node id and head commit the auto-merge mutation pins. */
-const MERGE_TARGET_QUERY = `
+/** The base branch's review decision, which is what auto-merge waits on. */
+const REVIEW_STATE_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       id
       headRefOid
-    }
-  }
-}`
-
-/** The base branch's classic protection, which is what auto-merge waits on. */
-const PROTECTION_QUERY = `
-query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      baseRef {
-        branchProtectionRule {
-          requiresApprovingReviews
-          requiredApprovingReviewCount
-        }
-      }
+      reviewDecision
     }
   }
 }`
 
 /**
- * Read the pull request's node id and head commit.
- * @param {string} repository `owner/name`.
- * @param {number} number Pull-request number.
- * @returns {{id: string, headRefOid: string}} Merge target.
- */
-function readMergeTarget(repository, number) {
-  const [owner, name] = repository.split('/')
-  const pull = graphql(MERGE_TARGET_QUERY, { owner, name, number })?.repository?.pullRequest
-  if (pull === null || pull === undefined) throw new Error(`pull request #${number} is not in ${repository}`)
-  return { id: pull.id, headRefOid: pull.headRefOid }
-}
-
-/**
- * Read the base branch's classic protection rule.
+ * Read the pull request's node id, head commit and review decision.
  *
- * Split from the target read on purpose: a token that cannot see protection
- * must report "cannot verify" for that one fact, not lose the node id it needs
- * to say anything else.
+ * `reviewDecision` rather than `baseRef.branchProtectionRule`: the rule is
+ * admin-only data, and a token without Administration gets `null` for it
+ * rather than an error — so a workflow token cannot tell "no protection" from
+ * "protected, but I may not see the rule", and the gate silently reports every
+ * branch as unprotected. `reviewDecision` is computed by GitHub from the
+ * protection and the current reviews, and a write token can read it:
+ * `REVIEW_REQUIRED` and `CHANGES_REQUESTED` both mean review is required,
+ * while `null` means no rule asks for one (an unprotected base, or one whose
+ * rule no longer requires review).
  * @param {string} repository `owner/name`.
  * @param {number} number Pull-request number.
- * @returns {object|null|undefined} The rule, null when the base has none, undefined when it cannot be read.
+ * @returns {{id: string, headRefOid: string, reviewDecision: string|null}} Merge target.
  */
-function readProtection(repository, number) {
+function readReviewState(repository, number) {
   const [owner, name] = repository.split('/')
-  try {
-    const pull = graphql(PROTECTION_QUERY, { owner, name, number })?.repository?.pullRequest
-    if (pull === null || pull === undefined) return undefined
-    return pull.baseRef?.branchProtectionRule ?? null
-  } catch (error) {
-    process.stdout.write(`::warning::Could not read branch protection: ${error.message}\n`)
-    return undefined
-  }
+  const pull = graphql(REVIEW_STATE_QUERY, { owner, name, number })?.repository?.pullRequest
+  if (pull === null || pull === undefined) throw new Error(`pull request #${number} is not in ${repository}`)
+  return { id: pull.id, headRefOid: pull.headRefOid, reviewDecision: pull.reviewDecision ?? null }
 }
 
 /** Enable auto-merge on one commit, so a later push needs a fresh run. */
@@ -221,48 +195,22 @@ mutation($pullRequestId: ID!, $headOid: GitObjectID!) {
 }`
 
 /**
- * Whether a ruleset on the base requires review, when classic protection is absent.
+ * Whether the base branch is protected at all.
+ *
+ * `branches/{branch}.protected` is readable with a write token, unlike the
+ * protection rule itself. `null` means the call failed — a different fact from
+ * `false`, and one the caller reports separately.
  * @param {string} repository `owner/name`.
  * @param {string} base Base branch name.
- * @returns {boolean|null} True when a ruleset requires review, false when none does, null when it cannot be read.
+ * @returns {boolean|null} True or false when read, null when it could not be.
  */
-function rulesetRequiresReview(repository, base) {
-  let rulesets
+function branchIsProtected(repository, base) {
   try {
-    rulesets = api(`repos/${repository}/rulesets?includes_parents=true`)
+    const branch = api(`repos/${repository}/branches/${encodeURIComponent(base)}`)
+    return branch?.protected === true
   } catch {
     return null
   }
-  if (!Array.isArray(rulesets)) return null
-  for (const summary of rulesets) {
-    if (summary.target !== undefined && summary.target !== 'branch') continue
-    const ruleset = apiOrNull(`repos/${repository}/rulesets/${summary.id}`)
-    // An unreadable ruleset could be the one requiring review, so this is
-    // "cannot verify" rather than "not protected".
-    if (ruleset === null) return null
-    const refs = ruleset.conditions?.ref_name?.include ?? []
-    const covers = refs.length === 0 || refs.some((pattern) => {
-      if (pattern === '~DEFAULT_BRANCH') return false
-      if (pattern === `refs/heads/${base}`) return true
-      if (pattern.endsWith('/*')) return base.startsWith(pattern.slice('refs/heads/'.length, -1))
-      return false
-    })
-    if (covers && (ruleset.rules ?? []).some(rule => rule.type === 'pull_request')) return true
-  }
-  return false
-}
-
-/**
- * Whether the base branch requires an approving review, which is what auto-merge waits on.
- * @param {string} repository `owner/name`.
- * @param {string} base Base branch name.
- * @param {object|null|undefined} protection Classic protection rule, null when the base has none, undefined when it could not be read.
- * @returns {boolean|null} True when review is required, false when it is not, null when it cannot be read.
- */
-function baseRequiresReview(repository, base, protection) {
-  if (protection === undefined) return null
-  if (protection !== null) return protection.requiresApprovingReviews === true
-  return rulesetRequiresReview(repository, base)
 }
 
 /** Request the reviewer when the pull request has none outstanding. */
@@ -299,22 +247,28 @@ function requestReview(repository, number, author) {
 /** Enable GitHub's auto-merge when the pure decision finds nothing blocking. */
 async function enableAutoMerge(repository, number) {
   const pull = await freshPull(repository, number)
-  // Both reads are GraphQL: auto-merge has no REST endpoint, and the REST
-  // protection endpoint needs Administration, which a workflow token never has.
-  const mergeTarget = readMergeTarget(repository, number)
+  // Both facts come from reads a write token can make. Auto-merge has no REST
+  // endpoint at all, and the protection *rule* is admin-only data that reads as
+  // null — silently, not as an error — for a workflow token.
+  const reviewState = readReviewState(repository, number)
+  // `reviewDecision` is only computed while a review rule applies, so `null`
+  // means GitHub sees no rule asking for review. That is the branch setting
+  // this gate refuses to auto-merge on — distinct from failing to read it,
+  // which `readReviewState` throws on and so never reaches here.
   const blockers = autoMergeBlockers({
     base: pull.base.ref,
     isDraft: pull.draft,
     state: pull.state,
     mergeable: pull.mergeable,
-    protectedBranch: baseRequiresReview(repository, pull.base.ref, readProtection(repository, number)),
+    protectedBranch: branchIsProtected(repository, pull.base.ref),
+    reviewDecision: reviewState.reviewDecision,
   })
   if (blockers.length > 0) {
     process.stdout.write(`Not enabling auto-merge:\n${blockers.map(reason => `  - ${reason}`).join('\n')}\n`)
     return
   }
   try {
-    graphql(ENABLE_AUTO_MERGE, { pullRequestId: mergeTarget.id, headOid: mergeTarget.headRefOid })
+    graphql(ENABLE_AUTO_MERGE, { pullRequestId: reviewState.id, headOid: reviewState.headRefOid })
   } catch (error) {
     // Already enabled is not a failure: `synchronize` re-runs this on every push.
     // Anything else is a real error, and a merge gate that hides it would leave

@@ -20,6 +20,13 @@ name: Parity loop
 # The merge itself is GraphQL-only. `POST /repos/{owner}/{repo}/pulls/{n}/auto_merge`
 # does not exist; `enablePullRequestAutoMerge` does, and it takes
 # `expectedHeadOid` so the request pins the commit it was enabled for.
+#
+# Read with care which endpoints this file trusts. The protection *rule*
+# (`branchProtectionRule`, or REST `GET .../protection`) is admin-only data and
+# reads as null — not as an error — for a workflow token, so it cannot be used
+# to decide anything. The gate instead reads two facts a write token can see:
+# `branches/{b}.protected` (REST) and the pull request's `reviewDecision`
+# (GraphQL), which is null exactly when no rule asks for review.
 on:
   pull_request_target:
     types:

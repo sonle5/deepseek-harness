@@ -16,6 +16,7 @@ const clean = {
   state: 'open',
   mergeable: true,
   protectedBranch: true,
+  reviewDecision: 'REVIEW_REQUIRED',
 }
 
 test('develop is the only pull-request base', () => {
@@ -90,14 +91,39 @@ test('an unprotected base blocks auto-merge', () => {
     .includes('`develop` is not protected; auto-merge would land unreviewed.'))
 })
 
-test('unreadable protection blocks as its own reason, not as unprotected', () => {
-  // A token that cannot read protection has found out nothing about the branch.
-  // Reporting it as "unprotected" would send maintainers to fix a protection
-  // rule that is already correct, and offering no reason at all would enable
-  // auto-merge on a branch nobody verified.
-  const blockers = autoMergeBlockers({ ...clean, protectedBranch: null })
-  assert.deepEqual(blockers, ['Cannot verify that `develop` requires review; the token cannot read its protection.'])
-  assert.ok(!blockers.some(reason => reason.includes('is not protected')))
+test('protected but without a review rule blocks as its own reason', () => {
+  // The failure the admin-only protection read caused: `branchProtectionRule`
+  // is null for every token without Administration, so a protected base looked
+  // unprotected. The `protected` flag and `reviewDecision` are both readable
+  // with a write token, and this case is the state they actually report —
+  // protected, but no rule asks for review — which must not land unreviewed.
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: null })
+  assert.deepEqual(blockers, [
+    '`develop` is protected but requires no approving review; auto-merge would land unreviewed.',
+  ])
+})
+
+test('an unreadable protection flag is distinct from an unreadable rule', () => {
+  // Two different failures, two different fixes: one is a token that cannot
+  // see the branch, the other a branch setting. Neither may read as the other.
+  assert.deepEqual(autoMergeBlockers({ ...clean, protectedBranch: null }), [
+    'Cannot verify that `develop` is protected; the token cannot read the branch.',
+  ])
+  assert.deepEqual(autoMergeBlockers({ ...clean, protectedBranch: true, reviewDecision: null }), [
+    '`develop` is protected but requires no approving review; auto-merge would land unreviewed.',
+  ])
+})
+
+test('auto-merge is enabled only when both protection facts are known', () => {
+  // The positive case: a protected base whose review decision says a review
+  // rule applies. REVIEW_REQUIRED and CHANGES_REQUESTED both map to this, so
+  // auto-merge waits for the approval instead of merging the head.
+  assert.deepEqual(autoMergeBlockers(clean), [])
+  // CHANGES_REQUESTED is the same fact as REVIEW_REQUIRED for this gate: a
+  // review rule applies. Auto-merge may be enabled; GitHub still waits for the
+  // approval and the required checks before it merges.
+  assert.deepEqual(autoMergeBlockers({ ...clean, reviewDecision: 'CHANGES_REQUESTED' }), [])
+  assert.deepEqual(autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED' }), [])
 })
 
 test('an already-enabled auto-merge is told apart from a real failure', () => {

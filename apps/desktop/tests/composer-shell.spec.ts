@@ -24,13 +24,15 @@ function harness(options: {
   const restart = vi.fn(() => Promise.resolve())
   const errors: Error[] = []
   const deferred: Array<{ run: () => void; ms: number }> = []
+  const navigation: unknown[] = []
   const handler = new ComposerShell({
     window: () => options.window === 'none' ? undefined : win as never,
     bridge, restart, onError: (error) => { errors.push(error) },
+    onNavigation: (state) => { navigation.push(state) },
     dialog, shell, clipboard, mkdir, homedir: () => '/Users/me',
     defer: (run, ms) => { deferred.push({ run, ms }) },
   })
-  return { handler, win, dialog, shell, clipboard, bridge, mkdir, restart, errors, deferred }
+  return { handler, win, dialog, shell, clipboard, bridge, mkdir, restart, errors, deferred, navigation }
 }
 
 describe('composer shell commands', () => {
@@ -142,5 +144,55 @@ describe('composer shell commands', () => {
     const h = harness()
     h.dialog.showOpenDialog.mockRejectedValueOnce(new Error('dialog broke'))
     expect(await h.handler.call('open_file_dialog', {})).toEqual({ err: 'dialog broke' })
+  })
+})
+
+describe('composer navigation publishing', () => {
+  const state = {
+    views: [
+      { id: 'providers', label: 'Providers' },
+      { id: 'skills', label: 'Skills', app: 'codex' },
+    ],
+    current: 'skills',
+    app: 'codex',
+  }
+
+  it('publishes a valid state as a rebuilt copy', async () => {
+    const h = harness()
+    expect(await h.handler.call('publish_navigation_state', { state: { ...state, extra: 'dropped' } })).toEqual({ ok: true })
+    // Field by field: an unknown key on the payload must not reach the sidebar.
+    expect(h.navigation).toEqual([state])
+  })
+
+  it('rejects a payload the sidebar could not render, keeping the last good state', async () => {
+    const h = harness()
+    await h.handler.call('publish_navigation_state', { state })
+    const rejected = { bridgeError: { code: 'invalid_arguments', retryable: false } }
+    const unusable: unknown[] = [
+      // Absent or non-object payloads.
+      undefined, null, 'state', [],
+      // The state's own flags.
+      { ...state, app: 'terminal' }, { ...state, app: undefined }, { ...state, views: 'providers' },
+      // A view that would render as a blank, unaddressable row.
+      { ...state, views: [{ id: '', label: 'Providers' }], current: '' },
+      { ...state, views: [{ id: 'providers', label: '' }], current: 'providers' },
+      { ...state, views: [null] },
+      { ...state, views: [{ id: 'providers', label: 'Providers', app: 'safari' }] },
+      // `current` outside the roster leaves no row active.
+      { ...state, current: 'agents' },
+      // An empty roster necessarily fails the same check.
+      { ...state, views: [], current: 'providers' },
+    ]
+    for (const value of unusable) {
+      expect(await h.handler.call('publish_navigation_state', { state: value })).toEqual(rejected)
+    }
+    expect(h.navigation).toEqual([state])
+  })
+
+  it('accepts a view without a tab and a state whose current view is first', async () => {
+    const h = harness()
+    const views = [{ id: 'settings', label: 'Settings' }]
+    expect(await h.handler.call('publish_navigation_state', { state: { views, current: 'settings', app: 'claude' } })).toEqual({ ok: true })
+    expect(h.navigation).toEqual([{ views, current: 'settings', app: 'claude' }])
   })
 })

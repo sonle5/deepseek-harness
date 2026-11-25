@@ -1,0 +1,44 @@
+name: Parity loop
+
+# Runs from the base branch's definition (`pull_request_target`), never the
+# pull request's own copy, so a PR cannot rewrite the gate that merges it.
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - review_requested
+      - synchronize
+    branches:
+      - develop
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: parity-loop-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    name: Route review and merge when resolved
+    # A review on a closed pull request has nothing left to route.
+    if: github.event.pull_request.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Always the base branch: this step must never run pull-request code.
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Run the loop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/parity-loop/run.mjs

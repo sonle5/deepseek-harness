@@ -213,7 +213,7 @@ describe('composer release downloads', () => {
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       `https://api.github.com/repos/onenexus-team/nexus-composer/releases/tags/v${VERSION}`, 'https://api.github.com/assets/1',
     ])
-    const init = fetcher.mock.calls[1]![1]
+    const init = fetcher.mock.calls[1]![1] ?? {}
     expect(init.headers).toMatchObject({ authorization: 'Bearer fixture-token', accept: 'application/octet-stream' })
     expect(readFileSync(join(cache, binarySha256))).toEqual(binary)
     await source(`nexus-composer-sidecar-${VERSION}-darwin-arm64`, binarySha256)
@@ -225,7 +225,7 @@ describe('composer release downloads', () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response('{}'))
     const source = releaseComposerArtifacts(lock, VERSION, join(temporary(), 'cache'), {}, fetcher)
     await source(`nexus-composer-embedded-manifest-${VERSION}.json`)
-    expect(fetcher.mock.calls[0]![0]).toBe(`https://github.com/onenexus-team/nexus-composer/releases/download/v${VERSION}/nexus-composer-embedded-manifest-${VERSION}.json`)
-    expect(fetcher.mock.calls[0]![1].headers).not.toHaveProperty('authorization')
+    expect(fetcher.mock.calls[0]?.[0]).toBe(`https://github.com/onenexus-team/nexus-composer/releases/download/v${VERSION}/nexus-composer-embedded-manifest-${VERSION}.json`)
+    expect(fetcher.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization')
   })
 })

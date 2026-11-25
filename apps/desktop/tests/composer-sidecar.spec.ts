@@ -14,10 +14,12 @@ function fakeChild() {
   stdin.setEncoding('utf8')
   stdin.on('data', (chunk: string) => { written.push(...chunk.split('\n').filter(line => line !== '')) })
   const child = Object.assign(new EventEmitter(), {
-    stdin, stdout, stderr, exitCode: null as number | null, signalCode: null as string | null,
-    kill: vi.fn((signal: string) => { exit(null, signal) }),
+    stdin, stdout, stderr, exitCode: null as number | null, signalCode: null as NodeJS.Signals | null,
+    // The supervisor calls `kill(signal)` and only cares that the process goes
+    // away, which the fake models through `exit`.
+    kill: vi.fn((signal: NodeJS.Signals) => { exit(null, signal); return true }),
   })
-  const exit = (code: number | null, signal: string | null = null): void => {
+  const exit = (code: number | null, signal: NodeJS.Signals | null = null): void => {
     if (child.exitCode !== null || child.signalCode !== null) return
     child.exitCode = code
     child.signalCode = signal

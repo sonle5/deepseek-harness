@@ -1,6 +1,6 @@
 /** Superharness | Composer switcher: the application document's view of the native Composer surface. */
 
-import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type Input } from 'electron'
+import { ipcMain, type Input } from 'electron'
 import {
   COMPOSER_SWITCHER_IPC, type ComposerNavigateRequest, type ComposerNavigationState, type ComposerProduct,
   type ComposerSwitcherState,
@@ -29,8 +29,26 @@ export type ComposerSwitcherSurface = {
   retry(): Promise<unknown>
 }
 
+/** What the switcher sends to the application document. */
+export type ComposerSwitcherSender = { send(channel: string, ...args: readonly unknown[]): void }
+
 /** A product window the switcher may attach the Composer view to. */
-export type ComposerSwitcherOwner = Pick<BrowserWindow, 'isDestroyed' | 'webContents' | 'contentView'>
+export interface ComposerSwitcherOwner {
+  isDestroyed(): boolean
+  readonly webContents: ComposerSwitcherSender & { readonly mainFrame: { readonly url: string } }
+  readonly contentView: { addChildView(view: unknown): void; removeChildView(view: unknown): void }
+}
+
+/**
+ * The only two members of an IPC event the switcher reads.
+ *
+ * `sender` is an opaque token compared by identity against the owner's
+ * `webContents`, so it needs no further structure.
+ */
+export interface ComposerSwitcherEvent {
+  readonly sender: unknown
+  readonly senderFrame: { readonly url: string } | null
+}
 
 export interface ComposerSwitcherOptions {
   /** This build embeds a usable Composer; combined with the OS floor for `available`. */
@@ -142,7 +160,7 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
   let lastBounds: ComposerBounds | undefined
   let requested = false
   const available = options.configured && composerOsCompatible(options.osRelease, platform)
-  const assertOwner = (event: IpcMainInvokeEvent): ComposerSwitcherOwner => {
+  const assertOwner = (event: ComposerSwitcherEvent): ComposerSwitcherOwner => {
     const owner = options.window()
     if (owner === undefined || owner.isDestroyed() || event.sender !== owner.webContents
       || event.senderFrame === null || event.senderFrame !== owner.webContents.mainFrame

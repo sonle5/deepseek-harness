@@ -1,21 +1,28 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ComposerSurfaceStatus } from '../src/composer-surface.ts'
 import type { ComposerBounds } from '../src/composer-view.ts'
-import type { ComposerSwitcherOwner } from '../src/composer-switcher.ts'
+import type { ComposerSwitcherEvent, ComposerSwitcherOwner } from '../src/composer-switcher.ts'
 
+/** A channel registration as the switcher installs it; the event is the switcher's own narrow shape. */
+type InstalledHandler = (event: ComposerSwitcherEvent, ...args: unknown[]) => unknown
+
+// `vi.hoisted` runs before imports, so the mock members are declared here with
+// the handler type the switcher's registrations have — narrower than Electron's
+// own, which is what lets the tests call a recorded handler with a fake event.
+const electron = vi.hoisted(() => ({
+  handle: vi.fn<(channel: string, handler: InstalledHandler) => void>(),
+  removeHandler: vi.fn<(channel: string) => void>(),
+}))
 vi.mock('electron', () => ({
-  WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() }, ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
-  clipboard: {}, dialog: {},
+  WebContentsView: vi.fn(), session: {}, shell: { openExternal: vi.fn() },
+  ipcMain: electron, clipboard: {}, dialog: {},
 }))
 
 const { COMPOSER_SWITCHER_IPC, composerOsCompatible, composerSwitcherState, installComposerSwitcher } =
   await import('../src/composer-switcher.ts')
 const { ComposerIncompatibleError } = await import('../src/composer-sidecar.ts')
-const { ipcMain } = await import('electron')
 
-// `ipcMain` here is the mocked module, so `vi.mocked` supplies the mock-member
-// typing directly and no assertion to `unknown` is needed.
-const ipcMock = vi.mocked(ipcMain)
+const ipcMock = electron
 
 /** An Electron `Input` with only the fields the switcher reads set meaningfully. */
 function key(code: string, modifiers: Partial<Record<'control' | 'alt' | 'shift' | 'meta', boolean>>)
@@ -37,9 +44,6 @@ function owner(url = 'dsh-app://app/') {
   } satisfies ComposerSwitcherOwner
   return window
 }
-
-/** A channel registration as `ipcMain.handle` stores it, called through a typed wrapper. */
-type InstalledHandler = (event: unknown, ...args: unknown[]) => Promise<unknown>
 
 function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform; noSurface?: boolean } = {}) {
   // Widened at the boundary: Electron's real BrowserWindow/view carry far more

@@ -1,8 +1,9 @@
 /** Lifecycle of the windowless Nexus Composer sidecar and its loopback command bridge. */
 
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline'
+import type { Readable, Writable } from 'node:stream'
 import { z } from 'zod'
 
 /** Control and bridge contract version this shell speaks (`src-tauri/src/sidecar/mod.rs`). */
@@ -131,11 +132,23 @@ export interface ComposerRestored {
 /**
  * The child-process surface the supervisor actually uses.
  *
- * Narrowed from `ChildProcessWithoutNullStreams` so a test can supply a fake
- * without asserting it into the full node type: the supervisor reads these
- * members and nothing else, and it is the exit paths a fake has to model.
+ * Declared structurally rather than as `ChildProcessWithoutNullStreams`: the
+ * supervisor reads exactly these members, so a fake models them and the real
+ * `spawn` result still satisfies the type. Nothing here narrows what the
+ * supervisor may call — only what it may assume exists.
  */
-export type ComposerChildProcess = Pick<ChildProcessWithoutNullStreams, 'stdin' | 'stdout' | 'stderr' | 'kill' | 'once' | 'exitCode' | 'signalCode'>
+export interface ComposerChildProcess {
+  readonly stdin: Writable
+  readonly stdout: Readable
+  readonly stderr: Readable
+  /** `true` when the signal was delivered. */
+  kill(signal?: NodeJS.Signals | number): boolean
+  readonly exitCode: number | null
+  readonly signalCode: NodeJS.Signals | null
+  /** Both events the supervisor listens for: a spawn failure, and the close that reports the exit. */
+  once(event: 'error', listener: (error: Error) => void): unknown
+  once(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown
+}
 
 /** Process facts the supervisor needs; tests replace the spawn. */
 export interface ComposerSidecarOptions {

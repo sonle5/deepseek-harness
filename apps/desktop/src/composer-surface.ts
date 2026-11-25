@@ -8,13 +8,22 @@ import { ComposerShell, isComposerShellCommand, type ComposerShellOptions } from
 import type { ComposerReleaseTarget } from './composer-quit.ts'
 import {
   DesktopComposerView, composerBridgeError, composerInvokeRequest, isComposerSender, type ComposerResources,
-  type ComposerViewOwner,
+  type ComposerViewMessages, type ComposerViewOwner,
 } from './composer-view.ts'
 
 /** Delays before each restart of a sidecar that failed after ready; one entry per attempt. */
 export const COMPOSER_RESTART_DELAYS_MS: readonly number[] = [1_000, 5_000, 15_000]
 /** A sidecar that stayed up this long earns a fresh restart budget. */
 export const COMPOSER_HEALTHY_MS = 60_000
+/**
+ * Crash-loop copy for a surface built without the shell's dictionaries, which
+ * only tests and embedders without a UI do. The application always supplies
+ * `viewMessages`, so users see their own language.
+ */
+const CRASH_LOOP_FALLBACK: ComposerViewMessages = {
+  title: 'Nexus Composer stopped',
+  detail: 'The Composer view crashed repeatedly. Switch away and back to reload it.',
+}
 
 /** Surface state the shell renders in place of, or around, the Composer view. */
 export type ComposerSurfaceStatus =
@@ -39,6 +48,8 @@ export interface ComposerSurfaceOptions {
   readonly onError: (error: Error) => void
   /** Status changes for the switcher and the Composer surface. */
   readonly onStatus?: (status: ComposerSurfaceStatus) => void
+  /** Localized crash-loop copy; the view falls back to English when a host supplies none. */
+  readonly viewMessages?: () => ComposerViewMessages
   /** Bridge origin changed (undefined while no sidecar serves); browser guests must not reach it. */
   readonly onBridgeUrl?: (url: string | undefined) => void
   /** Tests replace the sidecar and the clock. */
@@ -76,7 +87,7 @@ export class DesktopComposerSurface {
   constructor(private readonly options: ComposerSurfaceOptions) {
     this.view = new DesktopComposerView(options.preload, options.resources.dist, ({ title, message }) => {
       options.onError(new Error(`${title}: ${message}`))
-    })
+    }, () => options.viewMessages?.() ?? CRASH_LOOP_FALLBACK)
     this.#shell = new ComposerShell({
       ...options.shell,
       window: options.window ?? (() => undefined),

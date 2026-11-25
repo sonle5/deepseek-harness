@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.3-alpha.2/nexus-superharness-identity/guide.md
+/:
+  en: d2bbb98697dca060
+  zh: 8d395d9cad12f96c
+/desktop-is-nexus-superharness:
+  en: fb942201844a6139
+  zh: e7b7320dcd180afb
+/desktop-is-nexus-superharness/change:
+  en: 5629363281a2b68a
+  zh: ddf7a0fdbafc8a4e
+/desktop-is-nexus-superharness/migration:
+  en: 399b08e394979680
+  zh: 3e6d96a54a0a422b

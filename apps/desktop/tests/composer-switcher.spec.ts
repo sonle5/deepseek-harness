@@ -234,6 +234,65 @@ describe('composer switcher IPC', () => {
     expect(h.view.show).toHaveBeenLastCalledWith(h.getWindow(), bounds)
   })
 
+  // A native view paints above the document, so a surface that leaves `ready`
+  // must release the column: the application document draws the placeholder
+  // and the Retry action there, and the view would bury both.
+  it('releases the column when the surface starts restarting', async () => {
+    const h = harness()
+    h.surface.ready = { version: '1', ownership: 'owner' }
+    h.surface.status = { state: 'ready' }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 100, height: 90 })
+    expect(h.view.visible).toBe(true)
+    h.surface.status = { state: 'restarting', attempt: 1, error: new Error('crashed') }
+    h.switcher.sync()
+    expect(h.view.visible).toBe(false)
+    expect(h.changed().at(-1)).toMatchObject({ status: 'restarting', attempt: 1, visible: false })
+    // Coming back must reattach at the rectangle the renderer asked for.
+    h.surface.status = { state: 'ready' }
+    h.switcher.sync()
+    expect(h.view.visible).toBe(true)
+    expect(h.view.show).toHaveBeenLastCalledWith(h.getWindow(), { x: 0, y: 48, width: 100, height: 90 })
+  })
+
+  it('releases the column when the surface gives up', async () => {
+    const h = harness()
+    h.surface.ready = { version: '1', ownership: 'owner' }
+    h.surface.status = { state: 'ready' }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 100, height: 90 })
+    expect(h.view.visible).toBe(true)
+    h.surface.status = { state: 'failed', error: new Error('gave up') }
+    h.switcher.sync()
+    expect(h.view.visible).toBe(false)
+    // The published state is how the document learns to draw its Retry action.
+    expect(h.changed().at(-1)).toMatchObject({ status: 'failed', visible: false })
+  })
+
+  // A standalone Composer owns routing; the embedded surface is read-only and
+  // the document explains that. The native view would hide the explanation.
+  it('never covers the column while another Composer owns routing', async () => {
+    const h = harness()
+    h.surface.ready = { version: '1', ownership: 'external' }
+    h.surface.status = { state: 'ready' }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 100, height: 90 })
+    expect(h.view.show).not.toHaveBeenCalled()
+    expect(h.changed().at(-1)).toMatchObject({ ownership: 'external', visible: false })
+    // Moving the remembered rectangle must not attach it either.
+    await h.handler(COMPOSER_SWITCHER_IPC.bounds)(h.event(), { x: 0, y: 48, width: 120, height: 90 })
+    expect(h.view.show).not.toHaveBeenCalled()
+  })
+
+  it('detaches a view that was attached before ownership moved away', async () => {
+    const h = harness()
+    h.surface.ready = { version: '1', ownership: 'owner' }
+    h.surface.status = { state: 'ready' }
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 100, height: 90 })
+    expect(h.view.visible).toBe(true)
+    // A standalone Composer took routing while this view was up.
+    h.surface.ready = { version: '1', ownership: 'external' }
+    h.switcher.sync()
+    expect(h.view.visible).toBe(false)
+  })
+
   it('keeps a blocking overlay on top by not showing Composer', async () => {
     const h = harness()
     h.setBlocked(true)

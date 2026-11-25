@@ -14,6 +14,7 @@ Desktop runs the Harness workspace in a native application. This reference cover
 
 - [Application overview](#application-overview)
 - [Terminal command](#terminal-command)
+- [Embedded Composer](#embedded-composer)
 - [Closing the window and quitting](#closing-the-window-and-quitting)
 - [Key technical decisions](#key-technical-decisions)
 - [Bundled command runtime](#bundled-command-runtime)
@@ -68,6 +69,20 @@ The application menu's **Manage dsh Command…** entry, immediately below **Chec
 On macOS, installation creates `/usr/local/bin/dsh` and requests administrator authentication when the directory requires it. Shell startup files are unchanged. On Windows, the management dialog registers the command in the current user's PATH. A pre-existing command requires confirmation before switching; repairing Desktop's own selected command does not repeat that confirmation. The macOS link preserves and restores the displaced launcher; Windows preserves other PATH entries, including entries that predate registration. A command with higher PATH precedence is reported with its location. After moving the application, use Repair on macOS or Install from the new location on Windows. Remove leaves unrelated installations intact.
 
 Command registration is optional after installing Desktop. Windows manual uninstall removes CLI registration owned by that installation; on macOS, use **Manage dsh Command… → Remove** before uninstalling Desktop. Finish CLI commands before updating or uninstalling Desktop. The CLI runtime version follows the installed Desktop release. See [bundled command runtime](#bundled-command-runtime) for Desktop plugin commands and runtime limitations.
+
+<a id="embedded-composer"></a>
+
+## Embedded Composer
+
+Desktop embeds Nexus Composer as a second product rather than requiring a separately installed application. A product switcher in the sidebar's logo row moves between **Superharness** and **Composer**; ⌘1 and ⌘2 (Ctrl+1, Ctrl+2 on Windows) reach the same selection from the View menu, and the choice is remembered for the next launch.
+
+Composer is a `main` panel of the shared frame, not a window-covering overlay. The sidebar, the drag rows and the window chrome stay mounted while it runs, so both products share one shell and no bar is redrawn.
+
+A supervised sidecar owns Composer's routing. It starts at launch, ahead of the first window, so the clients' configured port is bound before any traffic arrives; ownership is decided once and never retried, which is what lets it take over from a standalone Composer the user has already quit. Development keeps an isolated profile under `userData/composer-development-home`; packaged builds share the standalone Composer's real home, `~/.nexus-composer`. The sidecar is pinned to a schema-33 build through [scripts/composer/lock.json](scripts/composer/lock.json).
+
+The native view covers the center column and reports that column's rectangle, not the window's, through the switcher IPC. Because a native view paints above the document, it is attached only while Composer is actually serving: a starting, restarting or failed surface leaves the column to the application document, which draws its own placeholder and **Retry** action there. While a standalone Composer owns routing the surface is read-only and the document explains why.
+
+Quitting or installing an update releases routing first, so a later standalone Composer or Codex run is not left dialling a dead port. Composer failures stay inside the Composer surface: they are reported to crash diagnostics and never stop Superharness.
 
 <a id="closing-the-window-and-quitting"></a>
 

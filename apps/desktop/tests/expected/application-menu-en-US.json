@@ -18,6 +18,9 @@
     "label": "Check for Updates…"
   },
   {
+    "type": "separator"
+  },
+  {
     "label": "Manage dsh Command…"
   },
   {

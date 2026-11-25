@@ -50,6 +50,29 @@ export interface ComposerSwitcherOptions {
 }
 
 /**
+ * Whether a native view should cover the Composer column right now.
+ *
+ * The view paints above the document, so attaching it when Composer has no
+ * usable document hides whatever the application document is saying instead.
+ * Two states have one: `starting`, where the view is loading Composer's own
+ * document against the sidecar coming up, and `ready`, where that document is
+ * live. `restarting` is a dead document over a restarting sidecar, and `failed`
+ * has no sidecar at all — in both the application document draws the
+ * placeholder and its Retry action. A standalone Composer that owns routing
+ * (`ownership: 'external'`) has a live document too, but the user must see the
+ * notice explaining that this surface is read-only, so the column stays theirs.
+ * @param surface - Composer surface, or undefined when the build embeds none.
+ * @returns true when the view may be attached.
+ */
+export function composerViewAttachable(surface: ComposerSwitcherSurface | undefined): boolean {
+  if (surface === undefined) return false
+  const { state } = surface.status
+  if (state !== 'starting' && state !== 'ready') return false
+  // A standalone Composer owns routing; this sidecar is read-only behind it.
+  return surface.ready?.ownership !== 'external'
+}
+
+/**
  * Whether the running OS can host the Composer surface. macOS before 14 lacks APIs the renderer relies on.
  * @param release - `os.release()`.
  * @param platform - `process.platform`.
@@ -152,8 +175,12 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     requested = true
     // Failed surfaces wait for `retry`, so a show never silently re-enters a restart loop.
     if (surface.status.state === 'idle') void surface.start().catch(() => { /* status carries it */ })
-    // A failed surface has no sidecar behind it; the client renders its own error and retry action.
-    if (surface.status.state !== 'failed') surface.view.show(owner, area)
+    // Only a ready surface this process serves has a document behind it. Anything
+    // else — starting, restarting, failed, or a standalone Composer that owns
+    // routing — leaves the column to the application document, which is drawing
+    // the placeholder, the Retry action or the ownership notice there.
+    if (composerViewAttachable(surface)) surface.view.show(owner, area)
+    else if (surface.view.visible) surface.view.hide()
     options.raiseOverlays?.(owner)
     publish()
   }
@@ -163,6 +190,9 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     const area = validBounds(bounds)
     lastBounds = area
     if (owner === undefined || surface === undefined || !surface.view.visible) return
+    // The status may have changed since the last sync; never keep a view over a
+    // column the application document has taken back.
+    if (!composerViewAttachable(surface)) { surface.view.hide(); publish(); return }
     surface.view.show(owner, area)
     options.raiseOverlays?.(owner)
   }
@@ -178,7 +208,7 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     // A retry that succeeds attaches at the last rectangle the renderer asked for.
     const owner = options.window()
     if (requested && lastBounds !== undefined && owner !== undefined && !owner.isDestroyed()
-      && surface.status.state !== 'failed' && !options.blocked(owner)) surface.view.show(owner, lastBounds)
+      && composerViewAttachable(surface) && !options.blocked(owner)) surface.view.show(owner, lastBounds)
     publish()
   }
   const select = (product: ComposerProduct | 'toggle'): void => {
@@ -221,8 +251,11 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
       const surface = options.surface()
       if (owner === undefined || owner.isDestroyed()) return
       if (surface === undefined) { publish(); return }
-      // A blocking overlay suspends the view without forgetting the client's selection.
-      if (requested && lastBounds !== undefined && !options.blocked(owner) && surface.status.state !== 'failed') {
+      // A blocking overlay suspends the view without forgetting the client's selection,
+      // and a surface that stopped serving must release the column even though the
+      // application document still has Composer selected — that document is what
+      // draws the restarting or failed placeholder, and it is underneath the view.
+      if (requested && lastBounds !== undefined && !options.blocked(owner) && composerViewAttachable(surface)) {
         if (!surface.view.visible || surface.view.owner !== owner) surface.view.show(owner, lastBounds)
       } else if (surface.view.visible) surface.view.hide()
       options.raiseOverlays?.(owner)

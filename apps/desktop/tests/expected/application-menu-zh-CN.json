@@ -18,6 +18,9 @@
     "label": "检查更新…"
   },
   {
+    "type": "separator"
+  },
+  {
     "label": "管理 dsh 命令…"
   },
   {

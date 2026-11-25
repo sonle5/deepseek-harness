@@ -29,6 +29,7 @@ import type { ProductSwitcherInjected, ProductSwitcherSnapshot } from './contrac
 import { NS } from './contract.ts'
 import { de, en, es, fr, ja, pt, ru, zh } from './locales.ts'
 import { LeadingProductSwitcher, ProductSwitcher } from './ProductSwitcher.tsx'
+import { readStoredProduct, writeStoredProduct } from './product-storage.ts'
 
 /** The main-panel key the Composer surface occupies. */
 export const PANEL_ID = 'composer' as MainPanelId
@@ -63,7 +64,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, de, es, fr, ru, pt }), 'product switcher: dictionaries')
 
-  const store = createSnapshotStore<ProductSwitcherSnapshot>({ product: 'superharness', state: initial })
+  const store = createSnapshotStore<ProductSwitcherSnapshot>({ product: readStoredProduct(), state: initial })
   ctx.effect(() => bridge.subscribe((state) => {
     // The snapshot is readonly; main's push replaces its state half wholesale.
     store.set({ product: store.getSnapshot().product, state })
@@ -76,6 +77,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
       : choice
     const current = store.getSnapshot()
     if (next === current.product) return
+    // Remember the choice before publishing it, so a launch that crashes while
+    // the Composer surface starts still comes back to the product the user chose.
+    writeStoredProduct(next)
     store.set({ ...current, product: next })
   }
   // Menu items, accelerators, the tray and the caption menu all arrive here.

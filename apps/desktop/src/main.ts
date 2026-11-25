@@ -596,6 +596,11 @@ async function main(): Promise<void> {
     onNavigation: () => { notifyComposerSwitcher() },
     // Composer's file dialogs are sheets of the application window that hosts its view.
     window: currentMainWindow,
+    // Copy the view shows when its own renderer crash-loops, from the shell's dictionaries.
+    viewMessages: () => ({
+      title: locale.messages.composerCrashTitle,
+      detail: locale.messages.composerCrashDetail,
+    }),
   })
   // Superharness | Composer: the application document asks for the native view; main owns the
   // accelerators and keeps shell overlays above it.
@@ -610,7 +615,11 @@ async function main(): Promise<void> {
       platformView.raise()
     },
   })
-  notifyComposerSwitcher = () => { composerSwitcher.publish() }
+  // Status changes attach and detach the native view, not just the published state:
+  // a surface that starts, restarts, gives up or loses ownership moves between
+  // "has a document worth covering the column with" and "does not", and the
+  // application document draws its placeholder underneath either way.
+  notifyComposerSwitcher = () => { composerSwitcher.sync() }
   if (composer !== undefined) {
     composer.view.onInput = (event, input) => { composerSwitcher.forwardInput(event, input) }
     // A crash loop detaches the view without a command; the client must learn it is no longer visible.

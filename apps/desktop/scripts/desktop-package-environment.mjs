@@ -126,7 +126,13 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return
-  if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  // Signed packaging only demands a feed when the product actually updates.
+  // `PRODUCT_IDENTITY.updatesEnabled` is the same flag `electron-builder-config`
+  // reads, so the two cannot disagree about whether update credentials are
+  // required.
+  if (!options.prepareOnly && PRODUCT_IDENTITY.updatesEnabled) {
+    resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  }
   if (target.platform === 'win32') {
     if (!options.prepareOnly) createWindowsTokenSigner({
       certificateFile: environment.DSH_DESKTOP_WINDOWS_CER_FILE,

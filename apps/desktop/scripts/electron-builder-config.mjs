@@ -34,6 +34,7 @@ import {
   verifyMacOSAppUpdateConfig,
   writeMacOSAppUpdateConfig,
 } from './macos-app-update-config.mjs'
+import { resolveDesktopAutoUpdateConfig } from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
 
 /**
  * Create electron-builder configuration from one release environment.
@@ -100,8 +101,13 @@ export function createElectronBuilderConfig(
     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
   }
   // This product is a downstream build and must never consume the upstream
-  // DeepSeek release feed.
-  const update = undefined
+  // DeepSeek release feed. `PRODUCT_IDENTITY.updatesEnabled` is the single
+  // statement of that: while it is false neither this config nor the
+  // environment check asks for a feed, so signed packaging no longer requires
+  // update credentials it would then throw away.
+  const update = PRODUCT_IDENTITY.updatesEnabled && !unsigned
+    ? resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+    : undefined
   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.

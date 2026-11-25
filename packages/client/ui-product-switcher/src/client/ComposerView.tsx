@@ -116,6 +116,24 @@ function LifecycleStatus({ state, retryComposer, t }: Pick<ComposerSurfaceProps,
 }
 
 /**
+ * Whether the native view can cover this column without hiding the document.
+ *
+ * The view paints above the document, so it is only worth attaching when
+ * Composer has a document of its own to show: `starting` loads it against the
+ * sidecar coming up, and `ready` is live. `restarting` is a dead document over
+ * a restarting sidecar and `failed` has no sidecar at all — here the column
+ * belongs to the placeholder and its Retry action. A standalone Composer that
+ * owns routing draws the "running separately" notice instead. Main enforces the
+ * same rule; this mirror only avoids asking for an attachment it would refuse.
+ * @param state - latest state main pushed.
+ * @returns true when the view should cover the column.
+ */
+function attachable(state: ComposerSwitcherState): boolean {
+  if (state.status !== 'starting' && state.status !== 'ready') return false
+  return state.ownership !== 'external'
+}
+
+/**
  * @param props - the lifecycle state, the bridge commands, and localized copy.
  * @returns the center column reserved for the native Composer view.
  */
@@ -130,6 +148,15 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
   // died. Mounting once breaks that cycle.
   const commands = useRef({ show, setBounds, hide })
   commands.current = { show, setBounds, hide }
+  // Whether the native view may cover the column, read through a ref so the
+  // mount effect can consult the latest state without depending on it.
+  const canAttach = attachable(state)
+  const canAttachNow = useRef(canAttach)
+  canAttachNow.current = canAttach
+  // The mount effect installs its attach/detach routine here so a status change
+  // can re-run it; the effect itself must not depend on the state, or every
+  // pushed state would re-attach and publish again (see the note above).
+  const resync = useRef<() => void>(() => {})
   useEffect(() => {
     const element = viewport.current
     /* v8 ignore next -- the panel always renders its viewport before effects run. */
@@ -145,9 +172,10 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
     }
     // A narrow-window drawer is document content sliding over this column; a
     // native view over it would bury the sidebar the user just opened, so the
-    // view yields for as long as the drawer is open.
+    // view yields for as long as the drawer is open. The same holds whenever
+    // Composer is not serving: the column then belongs to the placeholder.
     const sync = (): void => {
-      if (drawerOpen()) {
+      if (drawerOpen() || !canAttachNow.current) {
         if (!attached) return
         attached = false
         void commands.current.hide().catch(() => { /* window teardown may remove the IPC receiver */ })
@@ -159,6 +187,7 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
       // never needs a second error path here.
       void commands.current.show(bounds()).catch(() => { /* state carries the failure */ })
     }
+    resync.current = sync
     sync()
     const track = (): void => {
       if (!attached) return
@@ -174,12 +203,17 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
       presentation.observe(frame, { attributes: true, attributeFilter: ['data-sidebar-drawer', 'data-sidebar-collapsed'] })
     }
     return () => {
+      resync.current = () => {}
       observer.disconnect()
       presentation?.disconnect()
       window.removeEventListener('resize', track)
       void commands.current.hide().catch(() => { /* window teardown may remove the IPC receiver */ })
     }
   }, [])
+  // Attach and detach as Composer starts, restarts, gives up or regains
+  // ownership. Without this the view would outlive the document it belongs to
+  // and keep painting over the placeholder main had just asked us to show.
+  useEffect(() => { resync.current() }, [canAttach])
   return (
     <div ref={viewport} className={css.surface} role="region" aria-label={t('region.label')}>
       {/* A standalone Composer owns routing; there is no view to attach here. */}

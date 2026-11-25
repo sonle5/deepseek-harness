@@ -14,6 +14,7 @@ Desktop 在原生应用中运行 Harness 工作区。本参考文档说明应用
 
 - [应用概览](#application-overview)
 - [终端命令](#terminal-command)
+- [内嵌 Composer](#embedded-composer)
 - [关闭窗口与退出](#closing-the-window-and-quitting)
 - [关键技术决策](#key-technical-decisions)
 - [内置命令运行时](#bundled-command-runtime)
@@ -68,6 +69,20 @@ Desktop Host 的 Platform API 请求与更新策略请求用相同的 Platform �
 macOS 安装会创建 `/usr/local/bin/dsh`；目录权限需要时，系统会请求管理员认证，不会修改 shell 启动文件。Windows 管理对话框将命令注册到当前用户的 PATH。切换已有命令前会要求确认；修复当前已选中的 Desktop 命令不会重复要求切换确认。macOS 链接会保留并恢复被替换的启动器；Windows 会保留其他 PATH 条目，包括注册前就已存在的条目。若其他命令的 PATH 优先级更高，对话框会显示其位置。移动应用后，macOS 使用“修复”，Windows 从新位置使用“安装”。“移除”不会改动无关安装。
 
 命令注册是安装 Desktop 后的可选操作。Windows 手动卸载会移除属于该安装的 CLI 注册；macOS 卸载前请通过**管理 dsh 命令… → 移除**删除注册。更新或卸载 Desktop 前请结束 CLI 命令。CLI 运行时版本随已安装的 Desktop 版本变化。Desktop 插件命令与运行时限制见[内置命令运行时](#bundled-command-runtime)。
+
+<a id="embedded-composer"></a>
+
+## 内嵌 Composer
+
+Desktop 将 Nexus Composer 作为第二个产品内嵌，而不再要求单独安装该应用。侧边栏标志行中的产品切换器可在 **Superharness** 与 **Composer** 之间切换；⌘1 与 ⌘2（Windows 为 Ctrl+1、Ctrl+2）可从「视图」菜单触发同一选择，所选产品会在下次启动时恢复。
+
+Composer 是共享框架中的一个 `main` 面板，而不是覆盖整个窗口的浮层。它运行期间，侧边栏、拖拽行与窗口边框保持挂载，因此两个产品共享同一外壳，也不会重绘任何栏位。
+
+受监督的 sidecar 持有 Composer 的路由。它在启动时、首个窗口创建之前启动，因此在任何流量到达之前就已绑定客户端配置的端口；归属只决定一次且从不重试，这正是它能从用户已退出的独立 Composer 手中接管的原因。开发模式在 `userData/composer-development-home` 下使用独立配置档；打包版本共享独立 Composer 的真实主目录 `~/.nexus-composer`。sidecar 通过 [scripts/composer/lock.json](scripts/composer/lock.json) 固定为 schema-33 构建。
+
+原生视图覆盖中央列，并经由切换器 IPC 上报该列的矩形，而非窗口矩形。由于原生视图绘制在文档之上，只有在 Composer 实际提供服务时才会挂载：处于启动中、重启中或已失败的界面会把该列留给应用文档，由文档绘制自己的占位提示与 **重试** 操作。当独立 Composer 持有路由时，该界面为只读，文档会说明原因。
+
+退出或安装更新前会先释放路由，因此之后启动的独立 Composer 或 Codex 不会继续拨号一个已失效的端口。Composer 的故障只保留在 Composer 界面内：它们会记入崩溃诊断，但绝不会使 Superharness 停止。
 
 <a id="closing-the-window-and-quitting"></a>
 

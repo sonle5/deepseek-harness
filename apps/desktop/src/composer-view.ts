@@ -115,6 +115,14 @@ export type { ComposerBounds } from './composer-ipc.ts'
 const RENDERER_CRASH_LIMIT = 3
 const RENDERER_CRASH_WINDOW_MS = 60_000
 
+/** Shell copy the view needs when it fails on its own, in the user's language. */
+export interface ComposerViewMessages {
+  /** Short title of the crash-loop failure. */
+  readonly title: string
+  /** What the user can do about it. */
+  readonly detail: string
+}
+
 /** Owns the Composer partition and its single native view. */
 export class DesktopComposerView {
   #view: WebContentsView | undefined
@@ -132,9 +140,11 @@ export class DesktopComposerView {
    * @param preload - Bundled sandboxed Composer preload.
    * @param dist - Built Composer renderer.
    * @param onFatal - Composer reported an unrecoverable startup error; the shell shows it in the Composer surface.
+   * @param messages - Localized crash-loop copy, read at failure time so a language change applies.
    */
   constructor(private readonly preload: string, private readonly dist: string,
-    private readonly onFatal: (error: { title: string; message: string }) => void) {}
+    private readonly onFatal: (error: { title: string; message: string }) => void,
+    private readonly messages: () => ComposerViewMessages) {}
 
   /** Whether the view is attached and shown. */
   get visible(): boolean { return this.#visible && this.#view !== undefined }
@@ -228,7 +238,10 @@ export class DesktopComposerView {
     if (this.#crashes.length > RENDERER_CRASH_LIMIT) {
       this.#visible = false
       this.onVisibility?.()
-      this.onFatal({ title: 'Nexus Composer stopped', message: 'The Composer view crashed repeatedly. Switch away and back to reload it.' })
+      // Localized in the shell's own dictionaries; the view holds no copy of
+      // its own, so this reads the current language at failure time.
+      const { title, detail } = this.messages()
+      this.onFatal({ title, message: detail })
       return
     }
     this.show(owner, bounds)

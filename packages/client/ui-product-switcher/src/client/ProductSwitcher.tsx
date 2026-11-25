@@ -13,9 +13,11 @@
  * The menu is the shared `Menu` primitive, so dismissal, focus return and the
  * menu material all come from the one implementation the rest of the shell
  * uses. The two rows are a radio group: exactly one product is current, and
- * pressing it again is a no-op.
+ * pressing it again is a no-op. Each row is a `menuitemradio` whose
+ * `aria-checked` carries the current product; the menu shares the trigger's
+ * accessible name, and the open trigger names the list in `aria-controls`.
  */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import clsx from 'clsx'
 import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -52,6 +54,7 @@ const PRODUCTS = ['superharness', 'composer'] as const satisfies readonly Compos
  */
 export function ProductControl({ value, label, superharness, composer, onChange, compact, brand }: ProductControlProps) {
   const [open, setOpen] = useState(false)
+  const listId = useId()
   const labels: Record<ComposerProduct, string> = { superharness, composer }
   return (
     <Menu
@@ -59,6 +62,9 @@ export function ProductControl({ value, label, superharness, composer, onChange,
       onClose={() => { setOpen(false) }}
       items={PRODUCTS.map(id => ({ id, label: labels[id] }))}
       selectedId={value}
+      radio
+      label={label}
+      listId={listId}
       onSelect={(id) => {
         setOpen(false)
         onChange(id as ComposerProduct)
@@ -80,6 +86,7 @@ export function ProductControl({ value, label, superharness, composer, onChange,
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
+          aria-controls={open ? listId : undefined}
           onClick={() => { setOpen(v => !v) }}
         >
           <span className={css.name}>{labels[value]}</span>

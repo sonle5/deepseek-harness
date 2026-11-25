@@ -194,6 +194,47 @@ describe('Menu', () => {
     expect(onSelect).toHaveBeenCalledWith('a')
   })
 
+  it('keeps plain menuitem rows without a name or controlled id by default', () => {
+    render(<Menu open anchor={<span>trigger</span>} items={items} selectedId="a" onClose={() => {}} />)
+    const menu = screen.getByRole('menu')
+    expect(menu.hasAttribute('aria-label')).toBe(false)
+    expect(menu.hasAttribute('id')).toBe(false)
+    expect(screen.getByRole('menuitem', { name: 'Alpha' }).hasAttribute('aria-checked')).toBe(false)
+    expect(screen.queryAllByRole('menuitemradio')).toEqual([])
+  })
+
+  it('exposes radio rows, a menu name, and a list id when opted in', async () => {
+    const onSelect = vi.fn()
+    function Harness() {
+      const [open, setOpen] = useState(true)
+      return <Menu open={open} anchor={<button type="button">trigger</button>} items={[{ id: 'a', label: 'Alpha' }, { id: 'c', label: 'Gamma' }]}
+        selectedId="c" radio label="Pick one" listId="pick-list"
+        onSelect={(id) => { onSelect(id); setOpen(false) }} onClose={() => { setOpen(false) }} />
+    }
+    render(<Harness />)
+    expect(screen.getByRole('menu', { name: 'Pick one' }).id).toBe('pick-list')
+    const rows = screen.getAllByRole('menuitemradio')
+    expect(rows.map(row => row.getAttribute('aria-checked'))).toEqual(['false', 'true'])
+    const trigger = screen.getByRole('button', { name: 'trigger' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Tab' })
+    expect(document.activeElement).toBe(rows[0])
+    // Tab settles a radio row exactly as it settles a plain one.
+    fireEvent.keyDown(rows[0]!, { key: 'Tab' })
+    expect(onSelect).toHaveBeenCalledWith('a')
+    await act(async () => { await Promise.resolve() })
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('names a searchable menu and settles its first radio row on Enter', () => {
+    const onSelect = vi.fn()
+    render(<Menu open anchor={<span>trigger</span>} items={[{ id: 'a', label: 'Alpha' }]} radio label="Pick one"
+      search={{ label: 'Search', value: '', onChange: () => {} }} onSelect={onSelect} onClose={() => {}} />)
+    expect(screen.getByRole('menu', { name: 'Pick one' })).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search' }), { key: 'Enter' })
+    expect(onSelect).toHaveBeenCalledWith('a')
+  })
+
   it('walks component rows with the data rows and returns focus to the trigger after one is activated', async () => {
     const onAction = vi.fn()
     function Harness() {

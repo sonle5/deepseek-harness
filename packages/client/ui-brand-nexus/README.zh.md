@@ -26,7 +26,7 @@ kind: "package-reference"
 
 本包注册 `sidebar.brand.mark`、`sidebar.brand.name`、`conversation.hero.brand.mark` 与 `conversation.hero.frame`。图形固定，不接受配置。不同的产品身份应替换本包并占用相同 slot。
 
-字标的无障碍标签与文字标识中的产品名来自 `brandNexus` locale 命名空间，因此翻译后的构建会用各自语言书写的产品名。首页署名的同一行文字也来自该命名空间。
+字标的无障碍标签与文字标识中的产品名来自 `brandNexus` locale 命名空间，因此翻译后的构建会用各自语言书写的产品名。
 
 -----
 
@@ -63,6 +63,6 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-字标是单条填充路径，因此标志取色于 `currentColor`，无需逐主题的图形或包内资源。文字标识与首页署名需要翻译，所以本包自带 locale 目录，而不借用外壳的字典。
+字标是单条填充路径，因此标志取色于 `currentColor`，无需逐主题的图形或包内资源。文字标识中的产品名需要翻译，所以本包自带 locale 目录，而不借用外壳的字典。
 
 </details>

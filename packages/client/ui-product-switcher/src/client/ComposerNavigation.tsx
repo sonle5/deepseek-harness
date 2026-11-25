@@ -18,7 +18,8 @@
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import {
-  IconApiOutlineRegular, IconListPenOutlineRegular, IconSettingsOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular, Tooltip,
+  IconAgentPresetOutlineRegular, IconApiOutlineRegular, IconListPenOutlineRegular, IconSettingsOutlineRegular, IconSkillOutlineRegular,
+  IconSparkleRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -38,6 +39,7 @@ const GLYPHS: Readonly<Record<string, (props: { size?: number }) => React.JSX.El
   providers: IconApiOutlineRegular,
   skills: IconSkillOutlineRegular,
   prompts: IconListPenOutlineRegular,
+  agents: IconAgentPresetOutlineRegular,
   settings: IconSettingsOutlineRegular,
 }
 

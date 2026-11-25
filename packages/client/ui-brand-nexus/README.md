@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package supplies the canonical 82-by-70 Orbit Link mark and wordmark in the application sidebar and a restrained cool-neutral treatment on the blank home. Two opposing trajectories meet through a coordinator node, expressing supervised human-agent collaboration without borrowing Nexus Composer's N monogram. The shipped Web and Desktop compositions mount it in place of the official brand package.
+This package supplies the canonical Nexus N monogram and wordmark in the application sidebar and a restrained cool-neutral treatment on the blank home. The monogram is the mark Nexus Composer has shipped since its first release, carried over now that Composer and Superharness are one application, and the wordmark names the merged product. The shipped Web and Desktop compositions mount it in place of the official brand package.
 
 ## Use this package
 

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包在应用侧栏提供规范的 82×70 Orbit Link 标志与文字标识，并为空白首页提供克制的冷中性氛围。两条相对的轨迹通过一个协调节点相连，表达受监督的人机协作，同时不复用 Nexus Composer 的 N 字标。随产品提供的 Web 与 Desktop 组合用它替代官方品牌包。
+本包在应用侧栏提供规范的 Nexus N 字标与文字标识，并为空白首页提供克制的冷中性氛围。该字标即 Nexus Composer 自首个版本起使用的标志，现随 Composer 与 Superharness 合并为同一应用而沿用；文字标识则标识合并后的产品。随产品提供的 Web 与 Desktop 组合用它替代官方品牌包。
 
 ## 使用本包
 

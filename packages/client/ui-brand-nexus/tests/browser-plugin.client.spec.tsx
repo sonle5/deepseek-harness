@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
-import { NexusBrandMark, NexusBrandName } from '../src/client/Brand.tsx'
+import { NEXUS_MONOGRAM, NexusBrandMark, NexusBrandName } from '../src/client/Brand.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
@@ -68,7 +68,7 @@ describe('Nexus browser-brand plugin', () => {
     for (const hole of HOLES) expect(subject.slots.entries(hole)).toHaveLength(0)
   })
 
-  it('renders the Orbit Link Nexus mark at the requested host size and its own wordmark', () => {
+  it('renders the Nexus N monogram at the requested host size and its own wordmark', () => {
     const name = render(<NexusBrandName />)
     expect(name.container.textContent).toBe('Nexus Superharness')
     name.unmount()
@@ -76,18 +76,11 @@ describe('Nexus browser-brand plugin', () => {
     const mark = render(<NexusBrandMark size={34} />)
     const svg = mark.container.querySelector('svg')
     expect(svg?.getAttribute('width')).toBe('34')
-    expect(svg?.getAttribute('viewBox')).toBe('0 0 82 70')
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 96 96')
     const paths = [...mark.container.querySelectorAll('path')]
-    expect(paths.map(path => path.getAttribute('d'))).toEqual([
-      'M16 50C8 40 10 25 22 18C32 12 45 15 50 24',
-      'M64 22C72 32 70 47 58 54C48 60 35 57 30 48',
-    ])
-    const channels = paths[0]?.parentElement
-    expect(channels?.getAttribute('stroke')).toBe('currentColor')
-    expect(channels?.getAttribute('stroke-width')).toBe('5.5')
-    expect([...mark.container.querySelectorAll('circle')].map(circle => `${circle.getAttribute('cx')},${circle.getAttribute('cy')}`))
-      .toEqual(['16,50', '64,22', '40,36'])
-    expect(mark.container.querySelector('circle')?.getAttribute('fill')).toBe('currentColor')
+    expect(paths.map(path => path.getAttribute('d'))).toEqual([NEXUS_MONOGRAM])
+    expect(paths[0]?.getAttribute('fill')).toBe('currentColor')
+    expect(mark.container.querySelector('circle')).toBeNull()
     mark.rerender(<NexusBrandMark size={24} />)
     expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('24')
   })

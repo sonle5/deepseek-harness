@@ -60,16 +60,16 @@ it('ships only the declared generated Nexus icons', async () => {
   expect(maskableDocument(source)).toContain(`scale(${MASKABLE_ARTWORK_SCALE})`)
 })
 
-it('ships fixed-color Nexus Orbit Link favicons selected by document media queries', async () => {
+it('ships fixed-color Nexus monogram favicons selected by document media queries', async () => {
   const index = await readFile(join(DIST_ROOT, 'index.html'), 'utf8')
   expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon-dark.svg" media="(prefers-color-scheme: dark)" />')
   expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon.svg" media="(prefers-color-scheme: light)" />')
   const light = await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')
   const dark = await readFile(join(DIST_ROOT, 'favicon-dark.svg'), 'utf8')
   expect(light).not.toContain('<style>')
-  expect(light).toContain('viewBox="0 0 82 70"')
+  expect(light).toContain('viewBox="0 0 96 96"')
   expect(light).toContain('stop-color="#101C2B"')
   expect(light).toContain('stop-color="#22D3EE"')
-  expect(light).toContain('fill="#F8FBFD"')
+  expect(light).toContain('d="M24 20H37L61 48V20H72V76H59L35 48V76H24Z"')
   expect(dark).toBe(light)
 })

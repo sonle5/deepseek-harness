@@ -22,7 +22,7 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
 
   // The sidebar renders from the boot graph: every inject layer activated.
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
-  expect(document.querySelector('svg[data-nexus-brand-mark][viewBox="0 0 82 70"]')).not.toBeNull()
+  expect(document.querySelector('svg[data-nexus-brand-mark][viewBox="0 0 96 96"]')).not.toBeNull()
   screen.getByText('Nexus Superharness')
   expect(document.title).toBe('Nexus Superharness')
   // The compact layout dropped group session counts; the fixture workspace

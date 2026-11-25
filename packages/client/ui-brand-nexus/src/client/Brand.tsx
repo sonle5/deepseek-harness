@@ -5,10 +5,15 @@ type NexusBrandMarkProps = SidebarBrandMarkOwnerProps & {
   readonly className?: string | undefined
 }
 
+/** The N monogram Nexus Composer has shipped since its first release. */
+export const NEXUS_MONOGRAM = 'M24 20H37L61 48V20H72V76H59L35 48V76H24Z'
+
 /**
- * Render two supervised actors linked through one coordinator node.
+ * Render the product monogram: Composer's N, carried over now that the two
+ * products are one application. It is a single filled path, so the mark takes
+ * its colour from `currentColor` and needs no per-theme artwork.
  * @param props - Host-supplied mark presentation.
- * @returns the Nexus mark.
+ * @returns the Nexus monogram.
  */
 export function NexusBrandMark({ size, className }: NexusBrandMarkProps) {
   return (
@@ -16,18 +21,12 @@ export function NexusBrandMark({ size, className }: NexusBrandMarkProps) {
       className={[css.mark, className].filter(Boolean).join(' ')}
       width={size}
       height={size}
-      viewBox="0 0 82 70"
+      viewBox="0 0 96 96"
       data-nexus-brand-mark=""
       role="img"
       aria-label="Nexus Superharness"
     >
-      <g stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 50C8 40 10 25 22 18C32 12 45 15 50 24" fill="none" />
-        <path d="M64 22C72 32 70 47 58 54C48 60 35 57 30 48" fill="none" />
-        <circle cx="16" cy="50" r="5" fill="currentColor" stroke="none" />
-        <circle cx="64" cy="22" r="5" fill="currentColor" stroke="none" />
-        <circle cx="40" cy="36" r="4" fill="currentColor" stroke="none" />
-      </g>
+      <path d={NEXUS_MONOGRAM} fill="currentColor" />
     </svg>
   )
 }

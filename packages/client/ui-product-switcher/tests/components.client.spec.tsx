@@ -97,7 +97,7 @@ describe('ProductControl', () => {
     // The mark belongs to the sidebar's `sidebar.brand.mark` seat, which sits
     // immediately before this trigger; drawing one here would be a second
     // source for the identity.
-    expect(document.querySelector('svg[viewBox="0 0 82 70"]')).toBeNull()
+    expect(document.querySelector('svg[data-nexus-brand-mark]')).toBeNull()
   })
 
   it('grows its Menu anchor wrapper in the brand form so the label stays left-aligned', () => {

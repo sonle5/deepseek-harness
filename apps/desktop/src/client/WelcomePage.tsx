@@ -178,14 +178,8 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     <main className="welcome" aria-labelledby={heading}>
       <div className="brand" role="img" aria-label={m.welcomeBrand}>
         <span className="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 82 70">
-            <g stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 50C8 40 10 25 22 18C32 12 45 15 50 24" fill="none" />
-              <path d="M64 22C72 32 70 47 58 54C48 60 35 57 30 48" fill="none" />
-              <circle cx="16" cy="50" r="5" fill="currentColor" stroke="none" />
-              <circle cx="64" cy="22" r="5" fill="currentColor" stroke="none" />
-              <circle cx="40" cy="36" r="4" fill="currentColor" stroke="none" />
-            </g>
+          <svg viewBox="0 0 96 96">
+            <path d="M24 20H37L61 48V20H72V76H59L35 48V76H24Z" fill="currentColor" />
           </svg>
         </span>
         <span className="brand-name" aria-hidden="true">

@@ -10,13 +10,13 @@ import { packIco, renderTrayIconEntries, TRAY_ICON_SIZES } from './render-tray-i
 
 const execute = promisify(execFile)
 const APP_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256] as const
-const MARK_PATHS = [
-  'M16 50C8 40 10 25 22 18C32 12 45 15 50 24',
-  'M64 22C72 32 70 47 58 54C48 60 35 57 30 48',
-] as const
+/** Composer's N monogram, the one mark both products now share. */
+const MARK_PATH = 'M24 20H37L61 48V20H72V76H59L35 48V76H24Z'
 
-function markArtwork(color: string, core: string, x: number, y: number, size: number): string {
-  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 82 70" preserveAspectRatio="xMidYMid meet"><g stroke="${color}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><g fill="none">${MARK_PATHS.map(path => `<path d="${path}"/>`).join('')}</g><circle cx="16" cy="50" r="5" fill="${color}" stroke="none"/><circle cx="64" cy="22" r="5" fill="${core}" stroke="none"/><circle cx="40" cy="36" r="4" fill="${color}" stroke="none"/></g></svg>`
+function markArtwork(color: string, x: number, y: number, size: number): string {
+  // The 96-unit box is Composer's own artwork box: the monogram fills half of
+  // it horizontally, exactly as it does on the app tile.
+  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 96 96" preserveAspectRatio="xMidYMid meet"><path d="${MARK_PATH}" fill="${color}"/></svg>`
 }
 
 function brandArtwork(width: number, height: number, dark: boolean, compact = false): Buffer {
@@ -31,8 +31,11 @@ function brandArtwork(width: number, height: number, dark: boolean, compact = fa
   const nameY = compact ? markY + markSize + 37 : height / 2 - 6
   const subtitleY = compact ? nameY + 45 : nameY + 28
   const textAnchor = compact ? 'middle' : 'start'
-  const markXOffset = markSize * 11 / 138
-  const markSizeInTile = markSize * 116 / 138
+  // The app tile is 87.5 % of its 1024-unit canvas, and Composer's monogram
+  // occupies the full 96-unit artwork box inside it. Draw the artwork box at
+  // badge ÷ 0.875 so the installer badge shows the same mark-to-tile ratio.
+  const markScale = 1 / 0.875
+  const markOffset = markSize * (1 - markScale) / 2
   const name = compact
     ? `<text x="${textX}" y="${nameY}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="24" font-weight="600">Nexus</text>
        <text x="${textX}" y="${nameY + 24}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600">Superharness</text>
@@ -41,10 +44,10 @@ function brandArtwork(width: number, height: number, dark: boolean, compact = fa
     : `<text x="${textX}" y="${nameY}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="${Math.round(height * 0.18)}" font-weight="600" letter-spacing="-1.2">Nexus Superharness</text>
        <text x="${textX}" y="${subtitleY}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height * 0.058)}" font-weight="600" letter-spacing="1.8">BUILT ON DEEPSEEK HARNESS</text>`
   return Buffer.from(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="orbit-brand" x1="8" y1="10" x2="78" y2="62" gradientUnits="userSpaceOnUse"><stop stop-color="#22d3ee"/><stop offset=".55" stop-color="#0891b2"/><stop offset="1" stop-color="#0e7490"/></linearGradient></defs>
+    <defs><linearGradient id="nexus-brand" x1="8" y1="10" x2="78" y2="62" gradientUnits="userSpaceOnUse"><stop stop-color="#22d3ee"/><stop offset=".55" stop-color="#0891b2"/><stop offset="1" stop-color="#0e7490"/></linearGradient></defs>
     <rect width="${width}" height="${height}" fill="${dark ? '#0f172a' : '#f8fafc'}"/>
     <rect x="${markX}" y="${markY}" width="${markSize}" height="${markSize}" rx="${markSize * 0.23}" fill="${tile}" stroke="${border}" stroke-width="${Math.max(2, markSize * 0.018)}"/>
-    ${markArtwork('url(#orbit-brand)', dark ? '#f8fbfd' : '#15171c', markX + markXOffset, markY + markXOffset, markSizeInTile)}
+    ${markArtwork('url(#nexus-brand)', markX + markOffset, markY + markOffset, markSize * markScale)}
     ${name}
   </svg>`)
 }

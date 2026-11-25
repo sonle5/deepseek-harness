@@ -58,18 +58,12 @@ describe('Nexus Superharness in the default web profile', () => {
     expect(await page.locator('[data-nexus-attribution]').textContent()).toBe('Built on DeepSeek Harness')
     expect(await page.locator('[data-nexus-brand-mark]').count()).toBeGreaterThan(0)
     const mark = page.locator('[data-nexus-brand-mark]').first()
-    expect(await mark.getAttribute('viewBox')).toBe('0 0 82 70')
-    expect(await mark.locator('circle').count()).toBe(3)
+    expect(await mark.getAttribute('viewBox')).toBe('0 0 96 96')
+    expect(await mark.locator('circle').count()).toBe(0)
     expect(await mark.locator('path').evaluateAll(paths => paths.map(path => path.getAttribute('d')))).toEqual([
-      'M16 50C8 40 10 25 22 18C32 12 45 15 50 24',
-      'M64 22C72 32 70 47 58 54C48 60 35 57 30 48',
+      'M24 20H37L61 48V20H72V76H59L35 48V76H24Z',
     ])
-    expect(await mark.locator('circle').evaluateAll(circles =>
-      circles.map(circle => `${circle.getAttribute('cx')},${circle.getAttribute('cy')}`))).toEqual([
-      '16,50',
-      '64,22',
-      '40,36',
-    ])
+    expect(await mark.locator('path').first().getAttribute('fill')).toBe('currentColor')
     await page.screenshot({ path: `${captureDir}/blank-home-light.png`, fullPage: true })
   })
 

@@ -19,16 +19,37 @@ import {
   REVIEWER,
 } from './policy.mjs'
 
+/**
+ * Run one `gh api` invocation, retrying transient upstream failures.
+ *
+ * GitHub answers 502/503 and occasionally truncates a body during an incident.
+ * A review gate that dies on one of those has not decided anything, so retry a
+ * few times with a short backoff before giving up.
+ */
+function gh(args, { input } = {}) {
+  const attempts = 4
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return execFileSync('gh', args, {
+        input,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+    } catch (error) {
+      const output = `${error.stdout ?? ''}${error.stderr ?? ''}`
+      const transient = /HTTP 5\d\d|Server Error|unexpected end of JSON input|Bad Gateway/i.test(output)
+      if (!transient || attempt === attempts) throw error
+      execFileSync('sleep', [String(attempt * 3)], { stdio: 'ignore' })
+    }
+  }
+}
+
 /** Run one `gh api` call and parse its JSON body. */
 function api(path, { method = 'GET', body } = {}) {
   const args = ['api', path]
   if (method !== 'GET') args.push('-X', method)
   if (body !== undefined) args.push('--input', '-')
-  const output = execFileSync('gh', args, {
-    input: body === undefined ? undefined : JSON.stringify(body),
-    encoding: 'utf8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
+  const output = gh(args, { input: body === undefined ? undefined : JSON.stringify(body) })
   return output.trim() === '' ? null : JSON.parse(output)
 }
 
@@ -50,7 +71,7 @@ function unresolvedThreads(repository, number) {
   for (;;) {
     const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${owner}`, '-F', `name=${name}`, '-F', `number=${String(number)}`]
     if (after !== undefined) args.push('-F', `after=${after}`)
-    const result = execFileSync('gh', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] })
+    const result = gh(args)
     const threads = JSON.parse(result).data.repository.pullRequest.reviewThreads
     unresolved += threads.nodes.filter(node => !node.isResolved).length
     if (!threads.pageInfo.hasNextPage) return unresolved
@@ -59,10 +80,14 @@ function unresolvedThreads(repository, number) {
 }
 
 /** Request the reviewer when the pull request has none outstanding. */
-function requestReview(repository, number, pull) {
+function requestReview(repository, number) {
   const reviews = api(`repos/${repository}/pulls/${number}/reviews?per_page=100`)
   const verdicts = latestVerdicts(reviews)
-  const requested = (pull.requested_reviewers ?? []).map(user => user.login)
+  // Read the outstanding requests rather than trusting the event payload, which
+  // is a snapshot: a `synchronize` event still carries the reviewers as they
+  // were, and asking again is a no-op only by luck.
+  const outstanding = api(`repos/${repository}/pulls/${number}/requested_reviewers`)
+  const requested = [...(outstanding.users ?? []), ...(outstanding.teams ?? [])].map(user => user.login ?? user.slug)
   // A dismissal means the code moved under the reviewer's verdict, so ask again.
   const dismissed = reviews.some(review => review.user?.login === REVIEWER && review.state?.toUpperCase() === 'DISMISSED')
   if (!needsReviewRequest({ requested, reviewed: verdicts.reviewed, dismissed })) {
@@ -103,8 +128,13 @@ function mergeIfApproved(repository, number, pull) {
 function main() {
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
   const pull = event.pull_request
-  const repository = event.repository.full_name
+  const repository = event.repository?.full_name ?? process.env.GITHUB_REPOSITORY
   const number = pull.number
+
+  if (!repository) {
+    process.stdout.write('::error::No repository in the event or GITHUB_REPOSITORY.\n')
+    return
+  }
 
   const baseError = baseBranchError(pull.base.ref)
   if (baseError !== null) {
@@ -116,7 +146,7 @@ function main() {
     process.stdout.write(`#${number} is ${pull.state}; nothing to do.\n`)
     return
   }
-  requestReview(repository, number, pull)
+  requestReview(repository, number)
   mergeIfApproved(repository, number, pull)
 }
 

@@ -32,6 +32,8 @@ Composer 是一个**主面板**，而不是窗口层。两个产品共用同一�
 
 菜单项、快捷键、托盘与标题栏菜单通过 `onSelect` 到达文档；`superharness` 与 `composer` 选中产品，`toggle` 翻转当前产品。重复选择不产生操作。原生视图周围的焦点、层级与输入阻断仍由主进程负责。
 
+所选产品在文档重新加载、主窗口重建与应用重新启动后保持不变。文档把每次选择保存在源本地的 `dsh.productSwitcher.product` 存储中。加载时，若主进程报告原生视图可见，文档从 Composer 开始，因为主进程在重新加载时保持该视图挂载，并把它重新挂到重建的窗口；保存的选择为 `composer` 时也从 Composer 开始；缺失、无法读取或其他存储值均从 Superharness 开始。因此切换器标签与中间栏绘制的内容从首次渲染起保持一致。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

@@ -64,7 +64,13 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, de, es, fr, ru, pt }), 'product switcher: dictionaries')
 
-  const store = createSnapshotStore<ProductSwitcherSnapshot>({ product: readStoredProduct(), state: initial })
+  // Main keeps the Composer view attached across a reload and reattaches it to a
+  // recreated window. A visible view therefore names the product even when the
+  // stored choice is missing or stale, so the switcher never names Superharness
+  // over a painted Composer.
+  const product = initial.visible ? 'composer' : readStoredProduct()
+  if (initial.visible) writeStoredProduct(product)
+  const store = createSnapshotStore<ProductSwitcherSnapshot>({ product, state: initial })
   ctx.effect(() => bridge.subscribe((state) => {
     // The snapshot is readonly; main's push replaces its state half wholesale.
     store.set({ product: store.getSnapshot().product, state })

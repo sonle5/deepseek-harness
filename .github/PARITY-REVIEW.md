@@ -3,10 +3,17 @@
 Nexus Superharness is measured against Codex Desktop. Each release cut from
 `develop` is reviewed on a real Mac, every gap becomes an Issue, and each Issue
 carries enough context that the fixing agent needs nothing beyond the Issue body.
-This file is the operating procedure; the label and form requirements below are
-enforced by [`issue-policy.yml`](workflows/issue-policy.yml) and
-[`issue-lifecycle.yml`](workflows/issue-lifecycle.yml), so a review that skips
-them fails CI rather than quietly producing an untriageable Issue.
+This file is the operating procedure. The label rules below are enforced by
+[`issue-policy.yml`](workflows/issue-policy.yml) and
+[`issue-lifecycle.yml`](workflows/issue-lifecycle.yml); the review and merge
+rules are enforced by `develop`'s branch protection, which the
+[Parity loop](workflows/parity-loop.yml) workflow relies on rather than
+re-implements.
+
+Two things this procedure asks of a reviewer that no workflow can check: whether
+an Issue records the surface, the current behaviour and the reference behaviour
+(the form asks, but an empty answer passes), and whether a parity Issue names a
+gap Codex actually has. Both are review judgement.
 
 ## The loop
 
@@ -21,7 +28,10 @@ visual review on this Mac ──► parity Issue (+ parity, area/*, p*)
         │                     (Fixes #N, kind/*, area/*, review @onenexus-superagent)
         │                              │
         │                              ▼
-        │                     reviews resolved ──► merged by the maintainer
+        │              @onenexus-superagent approves the head commit
+        │                              │
+        │                              ▼
+        │                     GitHub merges when protection is satisfied
         │                              │
         └──────────────────────────────┴──► next release cut from develop
 ```
@@ -78,9 +88,20 @@ satisfies and how each was checked.
 
 ## Merging
 
-Merge only after every review comment is resolved and the required checks pass.
+Nobody merges by hand, and no workflow merges on its own. `develop` is protected:
+it requires one approving review from someone other than the author, dismisses
+stale approvals when the branch moves, requires an approval of the last push, and
+requires every review conversation to be resolved. The Parity loop therefore only
+asks GitHub to auto-merge the pull request, and GitHub applies those rules to the
+commit it is about to merge — so an approval cannot carry over to a commit it did
+not see.
+
 Squash to one commit per Issue so `develop` reads as a list of gaps closed. The
 first release after a merge is what the next review measures.
+
+`develop` currently has no required status checks: the fork's CI workflows still
+reference upstream organisation secrets and do not run here. Protection enforces
+review, not CI, until those workflows can run.
 
 ## Scope
 

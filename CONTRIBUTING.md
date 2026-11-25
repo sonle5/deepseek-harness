@@ -35,11 +35,14 @@ closes the gaps one at a time. Work lands on `develop`:
 - **Label it.** Exactly one `kind/*` and at least one `area/*`, as the
   [issue policy](.github/issue-management/README.md) requires.
 - **Review goes to `@onenexus-superagent`.** The loop requests it
-  automatically; re-requesting after a dismissal is also automatic.
-- **Merge is automatic once nothing is outstanding.** The loop squashes into
-  `develop` when the reviewer has approved, no review requests changes, no
-  thread is unresolved, and the branch is mergeable. Nothing merges early and
-  nothing merges with a review still open.
+  automatically; re-requesting after a dismissal is also automatic. A pull
+  request the agent opened is not routed to it — GitHub refuses the request and
+  an author cannot approve — so those wait for a human reviewer.
+- **`develop` is protected.** It needs one approving review from someone other
+  than the author, dismisses stale approvals when the branch moves, requires an
+  approval of the last push, and requires every review conversation to be
+  resolved. The loop enables GitHub's auto-merge rather than merging, so those
+  rules apply to the exact commit that lands.
 
 See [the parity review procedure](.github/PARITY-REVIEW.md) for how a release is
 reviewed and how gaps are written up.

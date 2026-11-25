@@ -34,7 +34,7 @@ function owner(url = 'dsh-app://app/') {
   return { isDestroyed: () => false, webContents, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } }
 }
 
-function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform } = {}) {
+function harness(overrides: { configured?: boolean; osRelease?: string; platform?: NodeJS.Platform; noSurface?: boolean } = {}) {
   // Widened at the boundary: Electron's real BrowserWindow/view carry far more
   // members than a fake needs, and the switcher only touches these few.
   const view = {
@@ -62,7 +62,7 @@ function harness(overrides: { configured?: boolean; osRelease?: string; platform
     platform: overrides.platform ?? 'darwin',
     // A fake window carries only the members the switcher touches.
     window: () => window as unknown as ComposerSwitcherOwner | undefined,
-    surface: () => surface,
+    surface: () => overrides.noSurface === true ? undefined : surface,
     blocked: () => blocked,
     raiseOverlays,
   })
@@ -136,6 +136,48 @@ describe('composer switcher state', () => {
   })
 })
 
+describe('composer switcher launch start', () => {
+  it('starts an idle surface without a Composer view, so the proxy binds before traffic', () => {
+    const h = harness()
+    h.switcher.start()
+    expect(h.surface.start).toHaveBeenCalledTimes(1)
+    // Starting is not showing: no rectangle is known at launch, and the client selects the product later.
+    expect(h.view.show).not.toHaveBeenCalled()
+  })
+
+  it('starts once, so a launch and a first view never spawn two sidecars', async () => {
+    const h = harness()
+    h.switcher.start()
+    // The real surface reports `starting` synchronously; a second start would double-spawn otherwise.
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 48, width: 10, height: 10 })
+    h.switcher.start()
+    expect(h.surface.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a failed surface for the client to retry', () => {
+    const h = harness()
+    h.surface.status = { state: 'failed', error: new Error('boom') }
+    h.switcher.start()
+    expect(h.surface.start).not.toHaveBeenCalled()
+  })
+
+  it('does nothing without an available surface', () => {
+    expect(() => { harness({ noSurface: true, configured: false }).switcher.start() }).not.toThrow()
+    const noSurface = harness({ noSurface: true })
+    noSurface.switcher.start()
+    const unavailable = harness({ configured: false })
+    unavailable.switcher.start()
+    expect(unavailable.surface.start).not.toHaveBeenCalled()
+  })
+
+  it('reports a start failure through the switcher state rather than throwing at launch', async () => {
+    const h = harness()
+    h.surface.start.mockImplementationOnce(() => Promise.reject(new Error('spawn failed')))
+    expect(() => { h.switcher.start() }).not.toThrow()
+    await vi.waitFor(() => { expect(h.surface.start).toHaveBeenCalledTimes(1) })
+  })
+})
+
 describe('composer switcher IPC', () => {
   it('reports state to the application document', async () => {
     const h = harness()
@@ -171,8 +213,7 @@ describe('composer switcher IPC', () => {
     expect(h.changed().at(-1)).toMatchObject({ visible: true })
   })
 
-  it('does not start a failed surface from show; retry does', async () => {
-    const h = harness()
+  it('does not start a failed surface from show; retry does', async () => {    const h = harness()
     h.surface.status = { state: 'failed', error: new Error('boom') }
     await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 0, y: 0, width: 10, height: 10 })
     expect(h.surface.start).not.toHaveBeenCalled()

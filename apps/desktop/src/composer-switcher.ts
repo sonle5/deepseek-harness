@@ -88,6 +88,13 @@ export function composerSwitcherState(surface: ComposerSwitcherSurface | undefin
 export function installComposerSwitcher(options: ComposerSwitcherOptions): {
   /** This build and OS can host Composer; menu entries and accelerators exist only then. */
   readonly available: boolean
+  /**
+   * Start the embedded sidecar at launch instead of on the first Composer view, so its proxy binds the
+   * clients' configured port before any traffic arrives. Ownership is decided once at startup and never
+   * retried, so a sidecar started later cannot take over from a standalone Composer that already quit.
+   * A no-op without an available surface; failures surface through the switcher state.
+   */
+  start(): void
   /** Push the current state to the application document. */
   publish(): void
   /** Re-attach after the window was recreated, or hide while an overlay blocks input. */
@@ -178,6 +185,13 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
   ipcMain.handle(COMPOSER_SWITCHER_IPC.retry, (event) => { assertOwner(event); return retry() })
   return {
     available,
+    start() {
+      const surface = options.surface()
+      // Only an idle surface starts: a failed one waits for `retry`, exactly as `show` decides, so launch
+      // never re-enters a restart loop the user has not asked to resume.
+      if (!available || surface === undefined || surface.status.state !== 'idle') return
+      void surface.start().catch(() => { /* status carries the failure to the client */ })
+    },
     publish,
     sync() {
       const owner = options.window()

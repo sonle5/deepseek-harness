@@ -607,6 +607,12 @@ async function main(): Promise<void> {
   // Overlays attach and release asynchronously (update prompt, mandatory update); the Composer view
   // yields to them and comes back when they release.
   const disposeComposerOverlaySync = updateOverlays.subscribe(() => { composerSwitcher.sync() })
+  // Start the embedded Composer at launch rather than on the first Composer view. Ownership is decided
+  // once and never retried, so a sidecar spawned only when the view opens would start too late to take
+  // over from a standalone Composer the user has already quit — every client would keep dialling a dead
+  // port until someone pressed the switcher. Starting here binds the clients' configured port as soon as
+  // the app is up. Against a standalone that still owns routing it stays read-only and shows its notice.
+  composerSwitcher.start()
   // One release decision at a time; a second quit request joins the open one.
   let composerRelease: Promise<boolean> | undefined
   const releaseComposer = (): Promise<boolean> => composerRelease ??= releaseComposerForQuit({

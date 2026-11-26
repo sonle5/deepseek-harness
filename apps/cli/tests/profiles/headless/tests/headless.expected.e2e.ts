@@ -97,9 +97,18 @@ async function expectHeadlessStream(normalized: string, expectedPath: string): P
   expect(parseJsonl(normalized)).toEqual(parseJsonl(expected))
 }
 
+/** Heartbeat interval of {@link deepseekDefaultsServer}. */
+const HEARTBEAT_INTERVAL_MS = 60
+/**
+ * `streamIdleTimeoutMs` of `fixtures/deepseek-defaults.patch.yml`. A heartbeat
+ * delayed past this window by a loaded runner fires the idle timeout, and
+ * llm-retry then resends the agent request.
+ */
+const DEEPSEEK_DEFAULTS_IDLE_TIMEOUT_MS = 2_000
+
 /** Serve one deterministic DeepSeek-compatible response while retaining its request body. */
 async function deepseekDefaultsServer(
-  options: { waitForTitleRequest?: boolean; piAiCompatibility?: true } = {},
+  options: { heartbeats?: number; waitForTitleRequest?: boolean; piAiCompatibility?: true } = {},
 ): Promise<DeepSeekDefaultsServer> {
   const requests: JsonObject[] = []
   const paths: string[] = []
@@ -111,13 +120,13 @@ async function deepseekDefaultsServer(
       requests.push(JSON.parse(body) as JsonObject)
       paths.push(request.url ?? '')
       response.writeHead(200, { 'content-type': 'text/event-stream' })
-      let keepAlives = 3
+      let keepAlives = options.heartbeats ?? 3
       const write = (): void => {
         // One-shot teardown may cancel background title work after the main response.
         if (keepAlives-- > 0
           || (options.waitForTitleRequest === true && !requests.some(isTitleRequest))) {
           response.write(': keep-alive\n\n')
-          timer = setTimeout(write, 60)
+          timer = setTimeout(write, HEARTBEAT_INTERVAL_MS)
           return
         }
         if (options.piAiCompatibility !== true) {
@@ -138,7 +147,7 @@ async function deepseekDefaultsServer(
           '',
         ].join('\n\n'))
       }
-      let timer = setTimeout(write, 60)
+      let timer = setTimeout(write, HEARTBEAT_INTERVAL_MS)
       response.once('close', () => { clearTimeout(timer) })
     })
   })
@@ -840,7 +849,10 @@ describe('headless stream-json snapshots', () => {
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
   it('keeps provider comments alive and sends DeepSeek defaults through the one-shot app', async () => {
-    const server = await deepseekDefaultsServer()
+    // Heartbeats alone hold the response silent for longer than the idle window.
+    const server = await deepseekDefaultsServer({
+      heartbeats: Math.ceil(1.5 * DEEPSEEK_DEFAULTS_IDLE_TIMEOUT_MS / HEARTBEAT_INTERVAL_MS),
+    })
     try {
       const result = await runLoaderSmoke({
         label: 'DeepSeek adapter defaults headless stream-json snapshot',
@@ -863,7 +875,13 @@ describe('headless stream-json snapshots', () => {
       })
 
       expect(result.stderr).toBe('')
-      expect(server.requests).toHaveLength(2)
+      // A heartbeat gap that outlasts the idle window resends the agent request; name its failure.
+      expect(parseJsonl(result.stdout)
+        .map(record => record.event as JsonObject | undefined)
+        .filter(event => event?.type === 'llm/retry')
+        .map(event => (event?.data as JsonObject).failure)).toEqual([])
+      expect(server.requests.map(request => isTitleRequest(request) ? 'title' : 'agent').sort())
+        .toEqual(['agent', 'title'])
       expect(server.paths).toEqual(['/v1/messages', '/v1/messages'])
       const agentRequest = server.requests.find(request => request.max_tokens === 256_000)
       const titleRequest = server.requests.find(isTitleRequest)

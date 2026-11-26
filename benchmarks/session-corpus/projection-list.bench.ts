@@ -13,10 +13,10 @@ const WORKER = join(import.meta.dirname, '..', '.dsh-build', 'session-corpus', '
 const ATTEMPTS = 3
 const WORKER_TIMEOUT_MS = 120_000
 /**
- * Coarse throughput allowances before CI scaling and variance headroom: at least half the slowest
- * hosted first-call median (AMD EPYC 7763, Node 24: modest 123 ms, tail 900 ms, cheap 456 ms).
+ * Coarse throughput allowances before CI scaling and variance headroom. The cheap allowance is
+ * about half the slowest serialized hosted first-call median, 350.8 ms on an AMD EPYC 7763 / Node 24.
  */
-const LIST_REFERENCE_MS = { modest: 65, tail: 500, cheap: 230 } as const
+const LIST_REFERENCE_MS = { modest: 50, tail: 500, cheap: 180 } as const
 /** Queue-delay reference allowance above the measured 16 ms work slices and one-row overshoot. */
 const CALLBACK_REFERENCE_MS = 30
 /** Reference retained-heap allowance; memory receives variance headroom but no CPU scaling. */

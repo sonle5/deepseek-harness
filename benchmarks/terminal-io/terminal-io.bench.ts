@@ -11,10 +11,10 @@ const ATTEMPTS = 5
 const WORKER = join(import.meta.dirname, '..', '.dsh-build', 'terminal-io', 'terminal-io.worker.js')
 /**
  * Reference expectations before shared CI scaling and headroom. Ingest uses the M5 Pro / Node 26.5
- * measurement. Completion uses at least half the slowest hosted median, because AMD EPYC 7763
- * runners exceed the shared 2× scale: up to 127.3 ms steady and 312.4 ms five MiB under Node 24.
+ * measurement. Completion uses about half the slowest serialized hosted median, because AMD EPYC
+ * 7763 runners exceed the shared 2× scale: 106.0 ms steady and 264.8 ms five MiB under Node 24.
  */
-const EXPECTED_MS = { steadyIngest: 20, steadyComplete: 65, fullComplete: 160 }
+const EXPECTED_MS = { steadyIngest: 20, steadyComplete: 55, fullComplete: 135 }
 const MAX_CAPACITY_RATIO = 4
 /** Terminal output is buffered in memory; no storage access is timed. */
 const IO_SHARE = 0

@@ -35,7 +35,7 @@ export function writeStoredProduct(product: ComposerProduct): void {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(PRODUCT_STORAGE_KEY, product)
-  } catch {
+  } catch (_writeFailed) {
     // A failed write only costs the next launch its restored selection.
   }
 }

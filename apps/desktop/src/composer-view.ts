@@ -275,12 +275,16 @@ export class DesktopComposerView {
 }
 
 function openExternally(url: string): void {
+  let destination: URL
   try {
-    const destination = new URL(url)
-    if ((destination.protocol === 'https:' || destination.protocol === 'http:') && !destination.username && !destination.password) {
-      void shell.openExternal(url).catch(() => { /* OS browser launch failure is not actionable here. */ })
-    }
-  } catch (_invalidUrl) { /* Ignore. */ }
+    destination = new URL(url)
+  } catch (_invalidUrl) {
+    // A string the renderer supplied is not a URL, so there is nothing to open.
+    return
+  }
+  if ((destination.protocol === 'https:' || destination.protocol === 'http:') && !destination.username && !destination.password) {
+    void shell.openExternal(url).catch(() => { /* OS browser launch failure is not actionable here. */ })
+  }
 }
 
 /** Result for a rejected or unavailable invoke, in the renderer envelope. */

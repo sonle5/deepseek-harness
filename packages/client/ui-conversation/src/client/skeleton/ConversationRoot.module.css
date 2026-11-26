@@ -422,6 +422,11 @@
 
 /* The floating Session panel overlays the transcript's right gutter. Its
    controls take precedence over the resize strip underneath it. */
+/* css-selector-gate: the panel renders from ui-session-panel inside the chat
+   aside, while this handle is a sibling of the hero frame; neither subtree can
+   name the other's state, and the two packages share no runtime fact. A custom
+   property is set by an ancestor, which the panel is not, so the presentation
+   is only observable as an ancestor of this rule's subject. */
 .root:has([data-session-panel='overlay']) .widthHandle[data-side='right'] {
   display: none;
 }

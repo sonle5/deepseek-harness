@@ -200,6 +200,8 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   const resize = stubResizeObserver()
   const fake = fakeBridge()
   const { runtime, layout } = await bench(fake.bridge)
+  // Starting on Superharness withdrew any stale request; count only the detach.
+  fake.bridge.hide.mockClear()
   const sidebar = runtime.renderSlot('sidebar.product', {})
   // The panel is mounted by the frame's keyed slot; selecting it is what shows
   // the surface, exactly as for any other global panel.
@@ -375,6 +377,8 @@ it('leaves Composer when another main panel is selected', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()
   const { runtime } = await bench(fake.bridge)
+  // Starting on Superharness withdrew any stale request; count only the detach.
+  fake.bridge.hide.mockClear()
   const sidebar = runtime.renderSlot('sidebar.product', {})
   const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
   fake.selectFromMain('composer')
@@ -466,6 +470,24 @@ it('restores Superharness after a reload that left Composer', async () => {
   const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
   expect(panel.view.queryByRole('region', { name: 'Composer view' })).toBeNull()
   expect(fake.bridge.show).not.toHaveBeenCalled()
+})
+
+it('withdraws a hidden Composer request when a reload starts on Superharness', async () => {
+  // Main still holds the request behind a blocking overlay or a surface that is
+  // not serving, so the view is hidden; nothing was saved before the reload.
+  const fake = fakeBridge(ready({ status: 'restarting', visible: false }))
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
+})
+
+it('starts on Superharness when main is gone before the withdrawal lands', async () => {
+  const fake = fakeBridge()
+  fake.bridge.hide.mockRejectedValueOnce(new Error('window closed'))
+  const { runtime } = await bench(fake.bridge)
+  await act(async () => {})
+  expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
+  expect(runtime.ctx.logger.buffer.filter(message => message.type === 'error')).toHaveLength(0)
 })
 
 it('starts on Superharness when the saved choice is not a product', async () => {

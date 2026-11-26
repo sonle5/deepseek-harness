@@ -5,8 +5,9 @@ import { runPnpmCommand } from './compile-referenced-projects.ts'
 
 /**
  * Cases whose wall-clock endpoints cannot absorb a sibling: they drive a
- * browser page, compare animation frames or paced streams, or spawn fresh
- * children and budget their startup. Corpus cases tolerate a sibling.
+ * browser page, compare animation frames or paced streams, spawn fresh
+ * children and budget their startup, or budget CPU-bound endpoints that a
+ * sibling slows past their limit. The stored-corpus cases tolerate a sibling.
  */
 export const SERIAL_BENCH_FILES = [
   'benchmarks/long-session-browser/long-session.bench.ts',
@@ -20,6 +21,11 @@ export const SERIAL_BENCH_FILES = [
   // Request-history budgets 297 ms against a 212 ms healthy median; a sibling
   // pushed it to 342 ms.
   'benchmarks/agent-continuation/agent-continuation.bench.ts',
+  // CPU-bound list and terminal endpoints: beside the 204 s stored-corpus file
+  // on an EPYC 7763, the cheap-list first call reached 456 ms and the five MiB
+  // send 312 ms, 1.5–1.8× their medians on the other hosted CPUs.
+  'benchmarks/session-corpus/projection-list.bench.ts',
+  'benchmarks/terminal-io/terminal-io.bench.ts',
 ] as const
 
 const CONFIG = ['--config', 'vitest.bench.config.ts'] as const
@@ -27,8 +33,8 @@ const CONFIG = ['--config', 'vitest.bench.config.ts'] as const
 /**
  * Run one phase of the suite.
  * @param root - Repository root containing the Vitest configuration.
- * @param phase - `first` runs the CPU cases two at a time; `last` runs the
- *   browser cases one at a time.
+ * @param phase - `first` runs the remaining cases two at a time; `last` runs
+ *   `SERIAL_BENCH_FILES` one at a time.
  * @param reportPhase - report ownership: by default `first` clears the report and
  *   `last` renders it; `all` lets a phase that runs alone on its runner do both.
  * @throws If the phase fails.

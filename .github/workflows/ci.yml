@@ -422,8 +422,9 @@ jobs:
 
   # The two suite phases run on separate idle runners from the shared build
   # output: phase `first` holds the corpus cases that tolerate a sibling and
-  # phase `last` the browser, animation-frame, and fresh-child cases that need
-  # an idle runner (SERIAL_BENCH_FILES in scripts/run-bench-suite.ts).
+  # phase `last` the browser, animation-frame, fresh-child, and sibling-sensitive
+  # CPU cases that need an idle runner (SERIAL_BENCH_FILES in
+  # scripts/run-bench-suite.ts).
   node-24-bench:
     needs: node-24-build
     if: github.event_name == 'pull_request'

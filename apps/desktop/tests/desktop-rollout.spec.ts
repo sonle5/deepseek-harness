@@ -411,18 +411,18 @@ it.each(['missing-yaml', 'wrong-approval', 'not-uploaded', 'wrong-zone', 'not-se
     } finally { vi.restoreAllMocks(); await rm(f.root, { recursive: true, force: true }) }
   })
 
-it('executes the master guard and keeps all rollout preflights ahead of dependency installation', async () => {
+it('executes the master and develop guard and keeps all rollout preflights ahead of dependency installation', async () => {
   const workflow = load(await readFile('.github/workflows/desktop-rollout.yml', 'utf8')) as {
     jobs: Record<string, { steps: Array<{ id?: string; run?: string; uses?: string; env?: Record<string, string> }> }>
   }
   const route = workflow.jobs.route!.steps
   const command = route[0]!.run!
-  for (const ref of ['refs/heads/master', 'refs/heads/stale-feature']) {
+  for (const ref of ['refs/heads/master', 'refs/heads/develop', 'refs/heads/stale-feature']) {
     const result = spawnSync(process.execPath, ['-e', command.slice('node -e "'.length, -1)], {
       env: { ...process.env, GITHUB_REF: ref }, encoding: 'utf8', timeout: 30_000,
     })
     expect(result.error).toBeUndefined()
-    expect(result.status).toBe(ref === 'refs/heads/master' ? 0 : 1)
+    expect(result.status).toBe(ref === 'refs/heads/stale-feature' ? 1 : 0)
   }
   const preflight = route.findIndex(step => step.id === 'preflight')
   expect(preflight).toBeGreaterThan(0)

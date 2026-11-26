@@ -73,6 +73,9 @@ it('allows repository branch packages for test but rejects them for production',
     .toMatchObject({ sourceRef: f.source.sourceRef, preset: 'test' })
   f.source.preset = 'production'
   expect(() => resolveDesktopPublishRoute('owner/repo', f.run, { source: f.source }, f.jobs, f.routes)).toThrow(/Production source/u)
+  f.source.sourceRef = 'develop'
+  expect(resolveDesktopPublishRoute('owner/repo', f.run, { source: f.source }, f.jobs, f.routes))
+    .toMatchObject({ sourceRef: 'develop', preset: 'production' })
 })
 
 it('matches Intel artifacts to the Intel workflow on a machine serving both architectures', () => {

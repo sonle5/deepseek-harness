@@ -112,6 +112,14 @@ it('does not replace changed bytes when recovering an already completed publicat
   } finally { await installer.handle.close() }
 })
 
+it('accepts a develop production build when route and manifest agree', async () => {
+  const f = await fixture()
+  const route = { ...f.route, sourceRef: 'develop' }
+  const manifest = { ...f.manifest, source: { ...f.manifest.source, sourceRef: route.sourceRef } }
+  const installer = await prepareWebsiteInstaller(f.directory, manifest, route, 'owner/repo', 'production-123')
+  await installer.handle.close()
+})
+
 it('rejects an unsupported source ref even when route and manifest agree', async () => {
   const f = await fixture()
   const route = { ...f.route, sourceRef: 'feature/unapproved' }

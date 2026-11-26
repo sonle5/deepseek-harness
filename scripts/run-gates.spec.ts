@@ -534,6 +534,15 @@ describe('gate graph validation', () => {
     },
   )
 
+  it.each(['ci-primary', 'ci-static', 'check-all'] as const)(
+    'keeps parity loop policy tests in %s',
+    (mode) => {
+      const ids = withPnpmEntrypoint(() => gatesForMode(mode).map(subject => subject.id))
+
+      expect(ids).toContain('parity-loop')
+    },
+  )
+
   it.each(['ci-primary', 'ci-static', 'check-all', 'hygiene'] as const)(
     'keeps hard-coded Client UI copy enforcement in %s',
     (mode) => {

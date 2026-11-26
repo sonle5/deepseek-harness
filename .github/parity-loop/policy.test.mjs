@@ -6,7 +6,8 @@ import {
   baseBranchError,
   latestVerdicts,
   needsReviewRequest,
-  REVIEWER,
+  reviewerFor,
+  REVIEWERS,
   TARGET_BASE,
 } from './policy.mjs'
 
@@ -26,45 +27,84 @@ test('develop is the only pull-request base', () => {
   assert.match(baseBranchError('master'), /must target `develop`/u)
 })
 
-test('the reviewer is requested once, and again only after a dismissal', () => {
+const [PRIMARY, PEER] = REVIEWERS
+
+test('the reviewer pool names each agent once', () => {
+  assert.ok(REVIEWERS.length >= 2, 'peer routing needs at least two agents')
+  assert.equal(new Set(REVIEWERS).size, REVIEWERS.length)
+  assert.ok(Object.isFrozen(REVIEWERS))
+})
+
+test('a pull request from outside the pool goes to the primary reviewer', () => {
+  assert.equal(reviewerFor('sonle5'), PRIMARY)
+  assert.equal(reviewerFor(undefined), PRIMARY)
+})
+
+test('an agent-authored pull request goes to a peer, never to its author', () => {
+  // GitHub rejects a review request to the author with 422, and an author
+  // cannot approve their own pull request.
+  assert.equal(reviewerFor(PRIMARY), PEER)
+  assert.equal(reviewerFor(PEER), PRIMARY)
+})
+
+test('a third agent extends peer routing to the most senior non-author', () => {
+  const pool = ['a', 'b', 'c']
+  assert.equal(reviewerFor('a', pool), 'b')
+  assert.equal(reviewerFor('b', pool), 'a')
+  assert.equal(reviewerFor('c', pool), 'a')
+  assert.equal(reviewerFor('human', pool), 'a')
+})
+
+test('a single-entry pool has no peer for its own pull requests', () => {
+  assert.equal(reviewerFor('solo', ['solo']), null)
+  assert.equal(reviewerFor('human', ['solo']), 'solo')
+})
+
+test('the routed reviewer is requested once, and again only after a dismissal', () => {
   const route = overrides => needsReviewRequest({
-    requested: [], reviewed: [], latestDismissed: false, authoredByReviewer: false, ...overrides,
+    reviewer: PEER, requested: [], reviewed: [], latestDismissed: false, ...overrides,
   })
   assert.equal(route({}), true)
-  assert.equal(route({ requested: [REVIEWER] }), false)
-  assert.equal(route({ reviewed: [REVIEWER] }), false)
+  assert.equal(route({ requested: [PEER] }), false)
+  assert.equal(route({ reviewed: [PEER] }), false)
+  // Another account's request or verdict does not stand in for the routed reviewer's.
+  assert.equal(route({ requested: [PRIMARY] }), true)
+  assert.equal(route({ reviewed: [PRIMARY] }), true)
   // Code moved under a dismissed review, so ask again.
-  assert.equal(route({ reviewed: [REVIEWER], latestDismissed: true }), true)
+  assert.equal(route({ reviewed: [PEER], latestDismissed: true }), true)
 })
 
 test('a dismissal followed by an approval stops asking for review', () => {
   // The sequence dismiss → re-request → approve must settle. Counting any past
   // dismissal instead of the latest verdict re-requests an approved PR forever.
-  const verdicts = latestVerdicts([
-    { user: { login: REVIEWER }, state: 'DISMISSED' },
-    { user: { login: REVIEWER }, state: 'APPROVED' },
-  ])
-  assert.equal(verdicts.latestDismissed, false)
-  assert.equal(needsReviewRequest({
-    requested: [], reviewed: verdicts.reviewed, latestDismissed: verdicts.latestDismissed, authoredByReviewer: false,
-  }), false)
+  for (const reviewer of [PRIMARY, PEER]) {
+    const verdicts = latestVerdicts([
+      { user: { login: reviewer }, state: 'DISMISSED' },
+      { user: { login: reviewer }, state: 'APPROVED' },
+    ], reviewer)
+    assert.equal(verdicts.latestDismissed, false, reviewer)
+    assert.equal(needsReviewRequest({
+      reviewer, requested: [], reviewed: verdicts.reviewed, latestDismissed: verdicts.latestDismissed,
+    }), false, reviewer)
+  }
 })
 
-test('an agent-authored pull request is never routed to the agent', () => {
-  // GitHub rejects the request with 422 and an author cannot approve, so the
-  // loop must leave these to a human rather than fail on every event.
-  assert.equal(needsReviewRequest({
-    requested: [], reviewed: [], latestDismissed: false, authoredByReviewer: true,
-  }), false)
+test('only the routed reviewer’s dismissal asks for review again', () => {
+  const reviews = [
+    { user: { login: PRIMARY }, state: 'DISMISSED' },
+    { user: { login: PEER }, state: 'APPROVED' },
+  ]
+  assert.equal(latestVerdicts(reviews, PEER).latestDismissed, false)
+  assert.equal(latestVerdicts(reviews, PRIMARY).latestDismissed, true)
 })
 
 test('each reviewer’s latest verdict wins over their first', () => {
   const verdicts = latestVerdicts([
-    { user: { login: REVIEWER }, state: 'CHANGES_REQUESTED' },
+    { user: { login: PRIMARY }, state: 'CHANGES_REQUESTED' },
     { user: { login: 'someone' }, state: 'COMMENTED' },
-    { user: { login: REVIEWER }, state: 'APPROVED' },
-  ])
-  assert.deepEqual(verdicts.reviewed, [REVIEWER])
+    { user: { login: PRIMARY }, state: 'APPROVED' },
+  ], PRIMARY)
+  assert.deepEqual(verdicts.reviewed, [PRIMARY])
   assert.equal(verdicts.latestDismissed, false)
 })
 

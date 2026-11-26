@@ -13,9 +13,11 @@ name: Parity loop
 # approving review from someone other than the author, dismissal of stale
 # approvals on push, and the required checks — to the commit it merges. That
 # ordering is why stale-approval and mid-flight-push races cannot land
-# unreviewed code. The author is excluded by GitHub, not by this file: an
-# author cannot approve their own pull request, so an agent-authored pull
-# request needs a human approver.
+# unreviewed code. GitHub excludes the author from approving, and rejects a
+# review request to the author, so the loop routes review through
+# `REVIEWERS` in `.github/parity-loop/policy.mjs`: a pull request from outside
+# that list goes to its first entry, and an agent-authored pull request goes to
+# the most senior other agent in it.
 #
 # The merge itself is GraphQL-only. `POST /repos/{owner}/{repo}/pulls/{n}/auto_merge`
 # does not exist; `enablePullRequestAutoMerge` does, and it takes

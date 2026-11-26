@@ -34,10 +34,11 @@ closes the gaps one at a time. Work lands on `develop`:
   [Parity gap](.github/ISSUE_TEMPLATE/parity-gap.md) form asks for exactly that.
 - **Label it.** Exactly one `kind/*` and at least one `area/*`, as the
   [issue policy](.github/issue-management/README.md) requires.
-- **Review goes to `@onenexus-superagent`.** The loop requests it
-  automatically; re-requesting after a dismissal is also automatic. A pull
-  request the agent opened is not routed to it — GitHub refuses the request and
-  an author cannot approve — so those wait for a human reviewer.
+- **Review goes to a peer agent.** The loop requests it automatically;
+  re-requesting after a dismissal is also automatic. A pull request from a
+  person goes to `@onenexus-superagent`. A pull request an agent opened goes to
+  the most senior other agent in the loop's reviewer list, because GitHub
+  refuses a request to the author and an author cannot approve.
 - **`develop` is protected.** It needs one approving review from someone other
   than the author, dismisses stale approvals when the branch moves, requires an
   approval of the last push, and requires every review conversation to be

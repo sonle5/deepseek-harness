@@ -5,6 +5,16 @@
   height: 100%;
   min-width: 0;
   background: var(--dsw-alias-bg-layer-1);
+  /* The header's layout modes key off the width of the column this root fills,
+     not the viewport. An open right panel narrows the column while the viewport
+     stays wide, so a media query would keep the wide single-row header in space
+     too small for it and starve the title row below the preset label's own
+     breakpoint. Inline-size containment measures the column and leaves block
+     sizing alone. Every floating surface inside this subtree (Menu, Tooltip,
+     HoverCard, the image lightbox, ContextMeter) portals to document.body, so
+     the stacking context this creates holds no unportaled popover that AppFrame
+     chrome needs to float above. */
+  container-type: inline-size;
 }
 
 /* `conversation.hero.frame` contract on the home: layer decorations at negative z-index paint above this
@@ -303,7 +313,13 @@
   max-width: calc(100vw - 24px);
 }
 
-@media (max-width: 900px) {
+/* The narrow layout moves the view control onto its own row. It keys off this
+   column's width (the container on `.root`), not the viewport: an open right
+   panel narrows the column while the viewport stays wide, and a media query
+   would keep the three-column row in space too small for it — leaving the title
+   row under the preset label's own 540px breakpoint, so the header stops naming
+   what the session runs. */
+@container (max-width: 900px) {
   .header {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: minmax(52px, auto) auto;

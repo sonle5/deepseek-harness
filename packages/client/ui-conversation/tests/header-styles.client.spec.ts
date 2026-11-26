@@ -35,12 +35,17 @@ describe('conversation header geometry', () => {
     expect(css.match(/^\.headerCorner\s*\{([^}]*)\}/m)?.[1]).toContain('margin-left: 8px')
   })
 
-  it('moves the view control below the title on narrow windows', () => {
-    const narrow = /@media \(max-width: 900px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+  it('moves the view control below the title when the column is narrow', () => {
+    // The column, not the viewport: an open right panel narrows this subtree
+    // while the viewport stays wide, so the breakpoint has to measure the
+    // container `.root` declares.
+    expect(css.match(/^\.root\s*\{([^}]*)\}/m)?.[1]).toContain('container-type: inline-size')
+    const narrow = /@container \(max-width: 900px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
     expect(narrow).toContain('grid-template-columns: auto minmax(0, 1fr)')
     expect(narrow).toContain('grid-template-rows: minmax(52px, auto) auto')
     expect(narrow).toContain('grid-column: 1 / -1')
     expect(narrow).toContain('grid-row: 2')
+    expect(css).not.toMatch(/@media \(max-width: 900px\)/)
   })
 
   it('keeps the corner control inside the phone header padding', () => {

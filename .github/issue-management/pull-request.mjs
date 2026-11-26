@@ -89,12 +89,54 @@ export async function lifecyclePullRequestSnapshot(number) {
 const EXEMPT_MESSAGE =
   'Issue policy exempt：当前 PR 不在强制范围（Draft、Bot/App 或尚无 review request/review）。\n'
 
+/** The repository whose Project board this policy enforces. */
+const POLICY_REPOSITORY = `${config.organization}/${config.repository}`
+
+const FOREIGN_REPOSITORY_MESSAGE =
+  'Issue policy 不适用：策略绑定 deepseek-harness/deepseek-harness 的 Project，当前仓库没有它。\n'
+
+/**
+ * Whether the policy governs the repository the workflow is running in.
+ *
+ * The policy enforces membership in one organization's Project board, which only
+ * that repository has — anywhere else every Project read 404s and the job can
+ * only fail.
+ *
+ * This check has to run here rather than as an `if:` on the job: GitHub executes
+ * a `pull_request` workflow from the pull request head's copy of the workflow
+ * file, while this module is checked out from the trusted default branch. A job
+ * condition would be editable by the author of the pull request it is meant to
+ * gate. An unset `GITHUB_REPOSITORY` means a unit test or a local run, where the
+ * policy itself is what is under test, so it still applies.
+ * @param {Record<string, string|undefined>} [environment] Process environment.
+ * @returns {boolean} True when the policy governs the running repository.
+ */
+export function policyApplies(environment = process.env) {
+  const running = environment.GITHUB_REPOSITORY
+  return running === undefined || running === POLICY_REPOSITORY
+}
+
+/**
+ * Report the fork exemption through the workflow outputs and stdout.
+ * @returns {{eligible: boolean, needsProject: boolean}} The exempt decision.
+ */
+function reportForeignRepository() {
+  if (process.env.GITHUB_OUTPUT) {
+    // `legacy-automated` is deliberately left unset: it only gates the legacy
+    // rollout, and the validate step must still run to print the exemption.
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, 'eligible=false\nexempt=true\nneeds-project=false\n')
+  }
+  process.stdout.write(FOREIGN_REPOSITORY_MESSAGE)
+  return { eligible: false, needsProject: false }
+}
+
 /**
  * Determine current policy eligibility and Project access needs without Project credentials.
  * @param {{pull_request: {number: number}}} event GitHub event identifying the PR.
  * @returns {Promise<{eligible: boolean, needsProject: boolean}>} Trusted workflow decisions.
  */
 export async function runPullRequestPreflight(event) {
+  if (!policyApplies()) return reportForeignRepository()
   const pull = await pullRequestSnapshot(event.pull_request.number, false)
   const eligible = requiresPullRequestPolicy(pull)
   const needsProject = eligible && pull.references.resolving.length > 0
@@ -114,6 +156,14 @@ export async function runPullRequestPreflight(event) {
  * @returns {Promise<void>} Resolves on success or exemption; rejects policy failures.
  */
 export async function runPullRequestCheck(event) {
+  // The preflight output cannot gate this step on a fork (`legacy-automated` is
+  // unset so the legacy path still validates), and the snapshot would otherwise
+  // read the upstream repository's pull request with this fork's number — a
+  // different pull request entirely. Exempt before the first read.
+  if (!policyApplies()) {
+    process.stdout.write(FOREIGN_REPOSITORY_MESSAGE)
+    return
+  }
   const pull = await pullRequestSnapshot(event.pull_request.number)
   const errors = validatePullRequest(pull)
   if (errors.length > 0) {

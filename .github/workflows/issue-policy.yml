@@ -14,14 +14,11 @@ permissions:
 jobs:
   policy:
     name: Issue policy
-    # The policy enforces membership in the upstream organization's Project
-    # board: config.json hardcodes one organization, one project number and
-    # that project's custom field names, and the App token below is scoped to
-    # the same identities. A fork has neither the organization nor the App
-    # credentials, so the job can only ever 404 there. Gate on the repository
-    # the policy was written for rather than letting every fork PR carry a
-    # permanent red X for a rule that cannot apply to it.
-    if: github.repository == 'deepseek-harness/deepseek-harness'
+    # This job stays unconditional on purpose, and the exemption for a fork lives
+    # in pull-request.mjs instead. GitHub runs a `pull_request` workflow from the
+    # pull request head's copy of this file, while the policy scripts are checked
+    # out from the trusted default branch; a repository condition here would be
+    # editable by the author of the pull request it is meant to gate.
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy

@@ -38,7 +38,10 @@ jobs:
     # token below is scoped to the same identities. A fork has neither, so the
     # job can only ever 404 there — and it is not a read-only check like
     # issue-policy, it *writes* board state, so it must not run against a
-    # different repository at all. Same reasoning as the gate on issue-policy.
+    # different repository at all. This one may live on the job: it is not a
+    # required check, so removing it in a pull request only makes that pull
+    # request's own token mint fail. issue-policy is the opposite case and keeps
+    # its exemption in pull-request.mjs for exactly that reason.
     if: >-
       github.repository == 'deepseek-harness/deepseek-harness' &&
       (github.event_name != 'pull_request_review' || github.event.review.state == 'changes_requested') &&

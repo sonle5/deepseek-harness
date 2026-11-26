@@ -1792,7 +1792,9 @@ describe('Issue lifecycle workflow', () => {
     // The lifecycle writes Project state through the upstream organization's
     // App, which a fork does not have — and unlike issue-policy it mutates the
     // board, so running it against another repository is wrong, not merely
-    // useless. Both gates name the same repository.
+    // useless. A job condition is safe here because this job is not a required
+    // check: dropping the condition in a pull request only breaks that pull
+    // request's own token mint.
     expect(lifecycleJob.if).toContain("github.repository == 'deepseek-harness/deepseek-harness'")
     expect(lifecycleJob.if).toContain("github.event.review.state == 'changes_requested'")
     expect(lifecycleJob.if).toContain('github.event.changes.body != null')
@@ -1836,10 +1838,13 @@ describe('Issue lifecycle workflow', () => {
     expect(preflightStep?.run).toContain('if [ -f .github/issue-management/selective-preflight.json ]; then')
     expect(preflightStep?.run).toContain('node .github/issue-management/policy.mjs pr-preflight')
     expect(preflightStep?.if).toBeUndefined()
-    // The policy is bound to one organization's Project board, so it is gated
-    // to the repository that owns that board. Without this a fork PR carries a
-    // permanent red check for a rule that cannot apply to it.
-    expect(policyJob.if).toBe("github.repository == 'deepseek-harness/deepseek-harness'")
+    // The policy is bound to one organization's Project board, so a fork must be
+    // exempt — but not through a job condition: a `pull_request` workflow runs
+    // the pull request head's copy of the file, while the policy scripts are
+    // checked out from the trusted default branch. A condition here would be
+    // editable by the author of the pull request it gates. The exemption lives
+    // in pull-request.mjs (`policyApplies`) instead.
+    expect(policyJob.if).toBeUndefined()
     expect(validateStep?.if).toBe("${{ steps.preflight.outputs.legacy-automated != 'true' }}")
 
     expect(tokenStep).toMatchObject({

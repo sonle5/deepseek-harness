@@ -896,6 +896,29 @@ test('fails closed when current resolving Issues need a Project token preflight 
   assert.equal(fixture.requests.length, 6)
 })
 
+test('exempts a repository that does not own the Project board', async (t) => {
+  const fixture = mockPolicyApi(t, { pull: { body: 'Fixes #2' }, issues: { 2: {} } })
+  process.env.GITHUB_REPOSITORY = 'someone/fork'
+  t.after(() => { delete process.env.GITHUB_REPOSITORY })
+  const event = { pull_request: { number: 10 } }
+  assert.deepEqual(await runPullRequestPreflight(event), { eligible: false, needsProject: false })
+  // The exemption must precede the first read: the same number in another
+  // repository is a different pull request, and reading upstream's would judge
+  // the wrong one.
+  assert.deepEqual(fixture.requests, [])
+  assert.equal(fixture.workflowOutput(), 'eligible=false\nexempt=true\nneeds-project=false\n')
+  await runPullRequestCheck(event)
+  assert.deepEqual(fixture.requests, [])
+  assert.ok(fixture.output.every((text) => text.includes('Issue policy 不适用')))
+})
+
+test('applies the policy to the repository that owns the board', async (t) => {
+  mockPolicyApi(t, { pull: { body: 'Fixes #2' }, issues: { 2: {} } })
+  process.env.GITHUB_REPOSITORY = 'deepseek-harness/deepseek-harness'
+  t.after(() => { delete process.env.GITHUB_REPOSITORY })
+  assert.deepEqual(await runPullRequestPreflight({ pull_request: { number: 10 } }), { eligible: true, needsProject: true })
+})
+
 test('performs no lifecycle requests for removed signals or title-only edits', async (t) => {
   const fixture = mockPolicyApi(t)
   for (const action of ['synchronize', 'labeled', 'unlabeled']) {

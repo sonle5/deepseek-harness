@@ -841,6 +841,44 @@ describe('ConversationRoot resident composer', () => {
     expect(b.setPinned).not.toHaveBeenCalled()
   })
 
+  /**
+   * Make `getComputedStyle` report `maxWidth` for the view-control row only.
+   * The stylesheet cap is the tab budget, so a case must be able to state one
+   * without a real cascade, which jsdom does not apply.
+   * @param maxWidth - the cap to report for the row.
+   */
+  function stubViewControlCap(maxWidth: string): void {
+    const realGetComputedStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
+      const style = realGetComputedStyle(element)
+      if (!element.hasAttribute('data-conversation-view-controls')) return style
+      return Object.assign(Object.create(null) as CSSStyleDeclaration, style, { maxWidth })
+    })
+  }
+
+  it('budgets the two default Views from the pill cap, not the pill content it hugs', () => {
+    // The pill hugs the tabs it shows, so its border-box width is a function of
+    // the budget: reading it settles at one tab and the second default View can
+    // never appear. The stylesheet cap is definite from the viewport, so a wide
+    // cap with a content-sized pill must still show both defaults.
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(64)
+    stubViewControlCap('420px')
+    const b = mount(sessionSnapshotOf(), undefined, undefined, { entryActions: true, headerOnly: true })
+    expect(within(b.view.getByRole('tablist')).getAllByRole('tab').map(tab => tab.textContent))
+      .toEqual(['Chat', 'Trajectory'])
+  })
+
+  it('falls back to the measured width where the layout gives the pill no cap', () => {
+    // The 900px layout stretches the pill, so its cap is `none` and unparseable.
+    // The budget must then be the delivered width rather than collapse to the
+    // one-View floor that an unreadable cap would otherwise produce.
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(420)
+    stubViewControlCap('none')
+    const b = mount(sessionSnapshotOf(), undefined, undefined, { entryActions: true, headerOnly: true })
+    expect(within(b.view.getByRole('tablist')).getAllByRole('tab').map(tab => tab.textContent))
+      .toEqual(['Chat', 'Trajectory'])
+  })
+
   it('folds and restores Views on container resize without changing selection, and disconnects on unmount', () => {
     const liveWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
     const viewTabs = ['chat', 'trajectory', 'timeline', 'inspector', 'notes'].map(id => ({ id, label: id }))

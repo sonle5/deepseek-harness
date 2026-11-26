@@ -26,7 +26,7 @@ vi.mock('node:fs', async (importOriginal) => {
   // the spec still runs, and a POSIX-only match would hide the staged manifest
   // from `electron-builder.config.mjs` and collapse the Composer resource.
   const isComposerManifest = (path: Parameters<typeof actual.existsSync>[0]): boolean =>
-    String(path).replaceAll('\\', '/').endsWith('/composer/manifest.json')
+    portablePath(String(path)).endsWith('/composer/manifest.json')
   const existsSync = (path: Parameters<typeof actual.existsSync>[0]): boolean => {
     if (isComposerManifest(path)) return staged.composer !== undefined && String(path) === staged.composer
     return actual.existsSync(path)
@@ -159,9 +159,8 @@ describe('desktop macOS release signature', () => {
       // Normalize before the prefix test: on Windows these paths are separated by
       // backslashes, so a bare `${tree}/` would match nothing and the assertion
       // would pass without proving the Composer sits outside either tree.
-      const portable = (value: string): string => value.replaceAll('\\', '/')
       for (const tree of [paths.dsh, paths.runtime]) {
-        expect(portable(paths.composer).startsWith(`${portable(tree)}/`)).toBe(false)
+        expect(portablePath(paths.composer).startsWith(`${portablePath(tree)}/`)).toBe(false)
       }
     } finally { staged.composer = undefined }
   })

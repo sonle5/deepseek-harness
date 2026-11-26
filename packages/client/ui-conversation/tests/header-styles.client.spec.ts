@@ -9,13 +9,9 @@ describe('conversation header geometry', () => {
     const header = css.match(/\.header\s*\{([^}]*)\}/)?.[1]
     expect(header).toContain('grid-template-columns: auto minmax(0, 1fr) auto')
     expect(header).toContain('min-height: 64px')
-    // The view controls own the grid slot and a definite width; the tab pill
-    // inside hugs them. The budget measurement reads the slot, so it must not
-    // depend on how many tabs the pill currently shows.
-    const controls = css.match(/\.viewControls\s*\{([^}]*)\}/)?.[1]
-    expect(controls).toContain('grid-column: 3')
-    expect(controls).toContain('width: min(420px, 42vw)')
     const tabs = css.match(/\.tabs\s*\{([^}]*)\}/)?.[1]
+    expect(tabs).toContain('grid-column: 3')
+    expect(tabs).toContain('max-width: min(420px, 42vw)')
     expect(tabs).toContain('border-radius: var(--dsw-radius-md)')
     expect(tabs).toContain('background: var(--dsw-alias-bg-module-platform)')
     const tab = css.match(/\.tab\s*\{([^}]*)\}/)?.[1]

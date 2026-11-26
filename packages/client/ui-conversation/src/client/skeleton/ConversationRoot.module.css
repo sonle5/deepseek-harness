@@ -220,30 +220,20 @@
   display: none;
 }
 
-/* The measured slot for the conversation views. Its width is definite from the
-   viewport, never from the tab count: the tab budget is read from here, so a
-   content-sized box would make the number of visible tabs depend on itself and
-   the second default view could never appear. The pill inside hugs its tabs. */
-.viewControls {
+/* Conversation views form one quiet segmented control on the trailing edge,
+   matching Composer's compact top-level mode picker. */
+.tabs {
   grid-column: 3;
   grid-row: 1;
   z-index: 1;
   display: flex;
-  justify-content: flex-end;
-  width: min(420px, 42vw);
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-/* Conversation views form one quiet segmented control on the trailing edge,
-   matching Composer's compact top-level mode picker. */
-.tabs {
-  display: flex;
   gap: 2px;
+  width: auto;
+  max-width: min(420px, 42vw);
   min-width: 0;
-  max-width: 100%;
   box-sizing: border-box;
   align-items: center;
+  justify-self: end;
   flex-wrap: nowrap;
   margin: 0;
   padding: 3px;
@@ -321,15 +311,12 @@
     padding-bottom: 8px;
   }
 
-  .viewControls {
+  .tabs {
     grid-column: 1 / -1;
     grid-row: 2;
-    width: auto;
+    justify-self: stretch;
+    max-width: none;
     align-self: end;
-  }
-
-  .tabs {
-    max-width: 100%;
   }
 }
 

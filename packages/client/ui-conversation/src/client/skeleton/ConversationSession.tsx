@@ -119,20 +119,32 @@ export function ConversationSessionHeader({
   const showTabs = !hideChrome && tabs.length > 1
   const tabRow = useRef<HTMLDivElement>(null)
   const [visibleViewLimit, setVisibleViewLimit] = useState(1)
-  // Observe only the available row width; individual tabs are not measured.
+  // Budget the tabs from the width the pill may occupy, never from the width it
+  // currently has. The pill hugs the tabs it shows, so reading that width makes
+  // the count depend on itself: it settles at one and the second default View
+  // can never appear. The stylesheet caps the pill at `min(420px, 42vw)`, which
+  // is definite from the viewport and reserves no layout, so that cap is the
+  // budget. Where the cap is not a used length — the narrow layout stretches the
+  // pill, and a DOM without the cascade applies none — the measured width is.
+  // Individual tabs are still never measured.
   useLayoutEffect(() => {
     const row = tabRow.current
     if (row === null || !hasEntryActions) return
     const updateLimit = (width: number): void => {
       setVisibleViewLimit(Math.max(1, Math.floor((width - 48) / 120)))
     }
-    updateLimit(row.clientWidth)
+    /** The stylesheet cap in pixels, or the element's own width where it has none. */
+    const budget = (fallback: number): number => {
+      const maxWidth = Number.parseFloat(getComputedStyle(row).maxWidth)
+      return Number.isFinite(maxWidth) ? maxWidth : fallback
+    }
+    updateLimit(budget(row.clientWidth))
     if (typeof ResizeObserver === 'undefined') return
-    // The row has padding but no border or scrollbar. Its delivered border-box width,
-    // rounded like clientWidth, preserves the tab thresholds without forcing layout again.
+    // The delivered border-box width stands in for the cap when the cascade does
+    // not apply, rounded like clientWidth so the thresholds match the first read.
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        for (const size of entry.borderBoxSize) updateLimit(Math.round(size.inlineSize))
+        for (const size of entry.borderBoxSize) updateLimit(budget(Math.round(size.inlineSize)))
       }
     })
     observer.observe(row, { box: 'border-box' })
@@ -226,41 +238,36 @@ export function ConversationSessionHeader({
         </div>
       </div>
       {showTabs && (
-        // The measured row is this grid slot, not the pill inside it: the pill
-        // is content-sized, so reading its width would make the tab budget
-        // depend on the tabs it currently shows.
-        <div ref={tabRow} className={css.viewControls} data-conversation-view-controls="">
-          {/* data-conversation-tabs: marks the tab strip, which the window-chrome
-              geometry and the browser coverage lane anchor on. */}
-          <div className={css.tabs}>
-            <div className={css.viewTabs} role="tablist" data-conversation-tabs="">
-              {visibleTabs.map(viewTab => (
-                <button
-                  key={viewTab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={viewTab.id === active?.id}
-                  className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                  onClick={() => { selectView(viewTab.id) }}
-                >
-                  <ViewTabLabel label={viewTab.label} />
-                </button>
-              ))}
-            </div>
-            {hasEntryActions && (
-              <ViewsMoreMenu
-                label={t('session.moreViews')}
-                current={currentInMore}
-                entries={moreTabs.map(viewTab => ({
-                  id: viewTab.id, label: viewTab.label,
-                  pinned: !unpinned.includes(viewTab.id), active: viewTab.id === active?.id,
-                }))}
-                onOpen={selectView}
-                onPinnedChange={setPinned}
-                renderSlot={renderSlot}
-              />
-            )}
+        // data-conversation-tabs: marks the tab strip, which the window-chrome
+        // geometry and the browser coverage lane anchor on.
+        <div ref={tabRow} className={css.tabs} data-conversation-view-controls="">
+          <div className={css.viewTabs} role="tablist" data-conversation-tabs="">
+            {visibleTabs.map(viewTab => (
+              <button
+                key={viewTab.id}
+                type="button"
+                role="tab"
+                aria-selected={viewTab.id === active?.id}
+                className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                onClick={() => { selectView(viewTab.id) }}
+              >
+                <ViewTabLabel label={viewTab.label} />
+              </button>
+            ))}
           </div>
+          {hasEntryActions && (
+            <ViewsMoreMenu
+              label={t('session.moreViews')}
+              current={currentInMore}
+              entries={moreTabs.map(viewTab => ({
+                id: viewTab.id, label: viewTab.label,
+                pinned: !unpinned.includes(viewTab.id), active: viewTab.id === active?.id,
+              }))}
+              onOpen={selectView}
+              onPinnedChange={setPinned}
+              renderSlot={renderSlot}
+            />
+          )}
         </div>
       )}
     </>

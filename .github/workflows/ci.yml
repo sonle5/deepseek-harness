@@ -64,7 +64,10 @@ jobs:
   #
   # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
   # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
-  # pick the hosted enterprise pools below. Setting the variable to
+  # pick the hosted enterprise pools below — except in a repository that is
+  # itself a fork, which owns no runner groups and so falls back to the generic
+  # hosted image instead of queueing against a pool nobody serves. Setting the
+  # variable to
   # 'selfhosted' (repo Settings → Actions → Variables; writer-manageable
   # repository state — not PR-editable, no merge required) retargets them
   # all onto the in-house

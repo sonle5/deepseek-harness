@@ -99,8 +99,8 @@ const FOREIGN_REPOSITORY_MESSAGE =
  * Whether the policy governs the repository the workflow is running in.
  *
  * The policy enforces membership in one organization's Project board, which only
- * that repository has — anywhere else every Project read 404s and the job can
- * only fail.
+ * that repository has — anywhere else every Project read fails, and on a fork the
+ * token step gives up earlier still, on an empty `client-id`.
  *
  * This check has to run here rather than as an `if:` on the job: GitHub executes
  * a `pull_request` workflow from the pull request head's copy of the workflow

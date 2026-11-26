@@ -106,8 +106,11 @@ const FOREIGN_REPOSITORY_MESSAGE =
  * a `pull_request` workflow from the pull request head's copy of the workflow
  * file, while this module is checked out from the trusted default branch. A job
  * condition would be editable by the author of the pull request it is meant to
- * gate. An unset `GITHUB_REPOSITORY` means a unit test or a local run, where the
- * policy itself is what is under test, so it still applies.
+ * gate.
+ *
+ * Actions always provides `GITHUB_REPOSITORY`, so the unset case only arises
+ * outside a workflow — a unit test or a local run. The policy is what is under
+ * test there, so it applies.
  * @param {Record<string, string|undefined>} [environment] Process environment.
  * @returns {boolean} True when the policy governs the running repository.
  */

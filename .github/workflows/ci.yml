@@ -64,7 +64,10 @@ jobs:
   #
   # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
   # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
-  # pick the hosted enterprise pools below. Setting the variable to
+  # pick the hosted enterprise pools below — except in a repository that is
+  # itself a fork, which owns no runner groups and so falls back to the generic
+  # hosted image instead of queueing against a pool nobody serves. Setting the
+  # variable to
   # 'selfhosted' (repo Settings → Actions → Variables; writer-manageable
   # repository state — not PR-editable, no merge required) retargets them
   # all onto the in-house
@@ -83,7 +86,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     name: node 24 / static
     env:
       # Shared hosts expose host CPUs, not an isolated allocation.
@@ -150,7 +153,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     # Two instrumented file shards run on separate runners; the first also
     # runs the uninstrumented heavy suites. node-24-coverage-report merges the
     # shard blobs and owns the thresholds and the duration history.
@@ -285,7 +288,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-8core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-8core') }}
     name: node 24 / coverage report
     steps:
       # Runner cleanup owns tool caches and fixtures, including cancelled runs.
@@ -363,7 +366,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     name: node 24 / lint
     env:
       # Shared hosts expose host CPUs, not an isolated allocation.
@@ -584,7 +587,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     name: node 24 / build
     env:
       # Shared hosts expose host CPUs, not an isolated allocation.
@@ -691,7 +694,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     name: node 24 / snapshots and artifacts
     env:
       # Shared hosts expose host CPUs, not an isolated allocation.
@@ -827,7 +830,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || (github.event.repository.fork && 'ubuntu-latest' || 'dsh-ubuntu-24-04-16core') }}
     strategy:
       fail-fast: false
       matrix:

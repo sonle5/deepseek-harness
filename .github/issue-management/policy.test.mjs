@@ -784,7 +784,7 @@ test('rejects multiple, unknown, legacy, and Issue-source PR labels', () => {
 })
 
 const mockPolicyApi = (t, { pull = {}, requested = true, reviews = [], issues = {}, priority = 'P1', projectError = false } = {}) => {
-  const environment = ['GH_TOKEN', 'GITHUB_TOKEN', 'PROJECT_TOKEN', 'GITHUB_API_URL', 'GITHUB_OUTPUT']
+  const environment = ['GH_TOKEN', 'GITHUB_TOKEN', 'PROJECT_TOKEN', 'GITHUB_API_URL', 'GITHUB_OUTPUT', 'GITHUB_REPOSITORY']
   const previous = new Map(environment.map((key) => [key, process.env[key]]))
   const directory = mkdtempSync(join(tmpdir(), 'dsh-policy-'))
   t.after(() => {
@@ -796,6 +796,9 @@ const mockPolicyApi = (t, { pull = {}, requested = true, reviews = [], issues = 
   })
   for (const key of environment) delete process.env[key]
   process.env.GITHUB_TOKEN = 'repository-token'
+  // GitHub always sets this; pin it to the repository that owns the Project so
+  // the fixture tests the policy rather than the fork exemption.
+  process.env.GITHUB_REPOSITORY = 'deepseek-harness/deepseek-harness'
   process.env.GITHUB_OUTPUT = join(directory, 'output')
   const requests = []
   const output = []
@@ -894,6 +897,27 @@ test('fails closed when current resolving Issues need a Project token preflight 
   pull.draft = false
   await assert.rejects(runPullRequestCheck(event), /Project access denied/)
   assert.equal(fixture.requests.length, 6)
+})
+
+test('exempts a repository that does not own the Project board', async (t) => {
+  const fixture = mockPolicyApi(t, { pull: { body: 'Fixes #2' }, issues: { 2: {} } })
+  process.env.GITHUB_REPOSITORY = 'someone/fork'
+  const event = { pull_request: { number: 10 } }
+  assert.deepEqual(await runPullRequestPreflight(event), { eligible: false, needsProject: false })
+  // The exemption must precede the first read: the same number in another
+  // repository is a different pull request, and reading upstream's would judge
+  // the wrong one.
+  assert.deepEqual(fixture.requests, [])
+  assert.equal(fixture.workflowOutput(), 'eligible=false\nexempt=true\nneeds-project=false\n')
+  await runPullRequestCheck(event)
+  assert.deepEqual(fixture.requests, [])
+  assert.ok(fixture.output.every((text) => text.includes('Issue policy 不适用')))
+})
+
+test('applies the policy to the repository that owns the board', async (t) => {
+  mockPolicyApi(t, { pull: { body: 'Fixes #2' }, issues: { 2: {} } })
+  process.env.GITHUB_REPOSITORY = 'deepseek-harness/deepseek-harness'
+  assert.deepEqual(await runPullRequestPreflight({ pull_request: { number: 10 } }), { eligible: true, needsProject: true })
 })
 
 test('performs no lifecycle requests for removed signals or title-only edits', async (t) => {

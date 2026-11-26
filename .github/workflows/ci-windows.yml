@@ -29,7 +29,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+          || (github.event.repository.fork && 'windows-latest' || 'dsh-windows-2025-16core') }}
     defaults:
       run:
         shell: pwsh
@@ -70,7 +70,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+          || (github.event.repository.fork && 'windows-latest' || 'dsh-windows-2025-16core') }}
     name: windows node 24 / build & observational
     timeout-minutes: 60
     env:
@@ -162,13 +162,20 @@ jobs:
           $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
   windows-coverage:
+    # Observational on a fork: `windows-checks-passed` needs only
+    # windows-publisher, windows-build and windows-native-tests, so a red run
+    # here cannot block a merge. That matters because windows-latest runs as
+    # `runneradmin`, and several `sandbox-windows-acl` assertions depend on an
+    # account and privilege set the upstream pool provides but the hosted image
+    # does not. The coverage figure is still collected and compared upstream,
+    # where the job runs on `dsh-windows-2025-16core`.
     if: github.event_name == 'pull_request'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-16vcpu-windows-2025'
           || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+          || (github.event.repository.fork && 'windows-latest' || 'dsh-windows-2025-16core') }}
     name: windows node 24 / coverage
     timeout-minutes: 120
     env:
@@ -246,7 +253,7 @@ jobs:
           || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+          || (github.event.repository.fork && 'windows-latest' || 'dsh-windows-2025-16core') }}
     name: windows node 24 / native tests
     timeout-minutes: 60
     steps:

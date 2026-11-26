@@ -718,26 +718,46 @@ describe('CI workflow', () => {
       linuxAggregate: aggregate['runs-on'] as string,
       windows: windowsBuild['runs-on'] as string,
     }
-    const evaluate = (expression: string, vars: Record<string, string>, login = 'maintainer'): unknown => {
+    // Two distinct facts decide the pool, and conflating them is the bug this
+    // guards: `repository.fork` says whether *this* repository has to borrow
+    // runners, while `pull_request.head.repo.fork` only says the branch came
+    // from a fork. Upstream receives many contributor PRs whose head is a
+    // fork — those still run on the upstream enterprise pools.
+    const evaluate = (expression: string, vars: Record<string, string>,
+      options: { login?: string; baseFork?: boolean; headFork?: boolean } = {}): unknown => {
+      const { login = 'maintainer', baseFork = false, headFork = false } = options
       return evaluateRunsOn(expression, {
         vars,
         fromJSON: JSON.parse,
-        github: { event: { pull_request: { user: { login } } } },
+        github: { event: { repository: { fork: baseFork }, pull_request: { user: { login }, head: { repo: { fork: headFork } } } } },
       })
     }
-    for (const [name, selector, variable, pool, hosted] of [
-      ['linux gates', selectors.linux, 'DSH_CI_FAILOVER_LINUX', ['self-hosted', 'linux', 'x64', 'vm-backup'], 'dsh-ubuntu-24-04-16core'],
-      ['linux aggregate', selectors.linuxAggregate, 'DSH_CI_FAILOVER_LINUX', ['self-hosted', 'linux', 'x64', 'vm-backup'], 'ubuntu-latest'],
-      ['windows lanes', selectors.windows, 'DSH_CI_FAILOVER_WINDOWS', ['self-hosted', 'dsh-win-ci', 'windows'], 'dsh-windows-2025-16core'],
+    for (const [name, selector, variable, pool, hosted, forkRunner] of [
+      ['linux gates', selectors.linux, 'DSH_CI_FAILOVER_LINUX', ['self-hosted', 'linux', 'x64', 'vm-backup'], 'dsh-ubuntu-24-04-16core', 'ubuntu-latest'],
+      ['linux aggregate', selectors.linuxAggregate, 'DSH_CI_FAILOVER_LINUX', ['self-hosted', 'linux', 'x64', 'vm-backup'], 'ubuntu-latest', 'ubuntu-latest'],
+      ['windows lanes', selectors.windows, 'DSH_CI_FAILOVER_WINDOWS', ['self-hosted', 'dsh-win-ci', 'windows'], 'dsh-windows-2025-16core', 'windows-latest'],
     ] as const) {
       expect(evaluate(selector, { [variable]: 'blacksmith' }), `${name} blacksmith value`).toMatch(/^blacksmith-/)
       expect(evaluate(selector, { [variable]: 'selfhosted' }), `${name} selfhosted value`).toEqual(pool)
       // The blacksmith branch must not capture the selfhosted pool, and the
       // dependabot exclusion applies to the pool, not to the blacksmith tier.
-      expect(evaluate(selector, { [variable]: 'selfhosted' }, 'dependabot[bot]'), `${name} dependabot on selfhosted`).toBe(hosted)
+      expect(evaluate(selector, { [variable]: 'selfhosted' }, { login: 'dependabot[bot]' }), `${name} dependabot on selfhosted`).toBe(hosted)
       for (const mode of ['', 'hosted', 'unexpected']) {
         expect(evaluate(selector, { [variable]: mode }), `${name} default on ${mode}`).toBe(hosted)
       }
+      // A repository that is itself a fork owns no in-house runners, so the
+      // unset default must land on a hosted image instead of queueing forever
+      // against a label nobody serves.
+      expect(evaluate(selector, {}, { baseFork: true }), `${name} default on a fork repository`).toBe(forkRunner)
+      expect(evaluate(selector, {}, { baseFork: true, headFork: true }), `${name} default on a fork repository, fork head`).toBe(forkRunner)
+      // The case that must NOT change: upstream, contributor PR from a fork.
+      // The base repository is not a fork and has the enterprise pools, so the
+      // head being a fork is irrelevant to where it runs.
+      expect(evaluate(selector, {}, { baseFork: false, headFork: true }), `${name} upstream with a fork head`).toBe(hosted)
+      // An explicit blacksmith or selfhosted switch still wins on a fork: the
+      // operator named a pool, and the fork guard is a default, not an override.
+      expect(evaluate(selector, { [variable]: 'blacksmith' }, { baseFork: true }), `${name} blacksmith on a fork`).toMatch(/^blacksmith-/)
+      expect(evaluate(selector, { [variable]: 'selfhosted' }, { baseFork: true }), `${name} selfhosted on a fork`).toEqual(pool)
     }
 
     // The run-gates aggregate lanes stop at the first blocking gate failure so
@@ -1769,6 +1789,13 @@ describe('Issue lifecycle workflow', () => {
 
     expect(lifecycle.on).toHaveProperty('pull_request')
     expect(lifecycle.on).toHaveProperty('pull_request_review')
+    // The lifecycle writes Project state through the upstream organization's
+    // App, which a fork does not have — and unlike issue-policy it mutates the
+    // board, so running it against another repository is wrong, not merely
+    // useless. A job condition is safe here because this job is not a required
+    // check: dropping the condition in a pull request only breaks that pull
+    // request's own token mint.
+    expect(lifecycleJob.if).toContain("github.repository == 'deepseek-harness/deepseek-harness'")
     expect(lifecycleJob.if).toContain("github.event.review.state == 'changes_requested'")
     expect(lifecycleJob.if).toContain('github.event.changes.body != null')
     // Keep the subscription-type gates: issue-lifecycle does not re-subscribe
@@ -1811,6 +1838,12 @@ describe('Issue lifecycle workflow', () => {
     expect(preflightStep?.run).toContain('if [ -f .github/issue-management/selective-preflight.json ]; then')
     expect(preflightStep?.run).toContain('node .github/issue-management/policy.mjs pr-preflight')
     expect(preflightStep?.if).toBeUndefined()
+    // The policy is bound to one organization's Project board, so a fork must be
+    // exempt — but not through a job condition: a `pull_request` workflow runs
+    // the pull request head's copy of the file, while the policy scripts are
+    // checked out from the trusted default branch. A condition here would be
+    // editable by the author of the pull request it gates. The exemption lives
+    // in pull-request.mjs (`policyApplies`) instead.
     expect(policyJob.if).toBeUndefined()
     expect(validateStep?.if).toBe("${{ steps.preflight.outputs.legacy-automated != 'true' }}")
 

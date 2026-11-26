@@ -136,7 +136,9 @@ function graphql(query, variables) {
       let errors = []
       try {
         errors = JSON.parse(body).errors ?? []
-      } catch { /* not JSON after all; fall through to the original error */ }
+      } catch (_notJson) { /* A body starting with `{` can still be a non-JSON
+        message, and that failure is expected here: the original `gh` error is
+        rethrown below and carries the real message. */ }
       if (errors.length > 0) throw new Error(`GraphQL: ${errors.map(item => item.message).join('; ')}`)
     }
     throw error

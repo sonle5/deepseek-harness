@@ -1124,7 +1124,8 @@ jobs:
   # without keeping a cancelled workflow alive for an obsolete verdict.
   # GitHub reports `abandoned` for a matrix with a leg that no runner acquired,
   # which the scarce macOS publisher leg hits. The verdict reads each publisher
-  # leg: a leg without a runner warns, and a leg that ran must succeed.
+  # leg: a macOS leg without a runner warns, every other leg must succeed, and
+  # at least one leg must succeed.
   all-checks-passed:
     name: all checks passed
     # This bookkeeping-only verdict must not depend on custom-pool
@@ -1160,10 +1161,13 @@ jobs:
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
               ...context.repo, run_id: context.runId, attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT), per_page: 100,
             })
-            for (const job of jobs.filter(job => job.name.startsWith('publisher-isolated ('))) {
+            const legs = jobs.filter(job => job.name.startsWith('publisher-isolated ('))
+            if (!legs.some(job => job.conclusion === 'success')) core.setFailed('no publisher-isolated leg succeeded in this run attempt')
+            for (const job of legs) {
               if (job.conclusion === 'success') continue
               if (job.runner_id) core.setFailed(`${job.name} ran and concluded ${job.conclusion}`)
-              else core.warning(`${job.name} never acquired a runner; re-run it when one is available`)
+              else if (job.name === 'publisher-isolated (macos)') core.warning(`${job.name} never acquired a runner; re-run it when one is available`)
+              else core.setFailed(`${job.name} never acquired a runner`)
             }
       - name: All checks passed
         run: echo "All needed jobs succeeded (${{ join(needs.*.result, ', ') }})"

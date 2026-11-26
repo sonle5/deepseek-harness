@@ -349,20 +349,30 @@ describe('CI workflow', () => {
       expect(requests).toEqual([{ owner: 'owner', repo: 'repo', run_id: 7, attempt_number: 2, per_page: 100 }])
       return { warnings, failures }
     }
-    const linux = { name: 'publisher-isolated (linux)', conclusion: 'success', runner_id: 1000001309 }
+    // GitHub names an unnamed matrix leg `<job id> (<matrix value>)`, which the
+    // script matches; derive the fixture names from the workflow itself.
+    const publisher = workflowJob(ci, 'publisher-isolated')
+    expect(publisher).not.toHaveProperty('name')
+    const matrix = isRecord(publisher.strategy) && isRecord(publisher.strategy.matrix) ? publisher.strategy.matrix.os : undefined
+    if (!Array.isArray(matrix)) throw new TypeError('the publisher matrix must list operating systems')
+    const [linuxName, macosName] = matrix.map(os => `publisher-isolated (${String(os)})`)
+    expect([linuxName, macosName]).toEqual(['publisher-isolated (linux)', 'publisher-isolated (macos)'])
+    const linux = { name: linuxName, conclusion: 'success', runner_id: 1000001309 }
+    const abandonedMacos = { name: macosName, conclusion: 'cancelled', runner_id: 0 }
     const unrelated = { name: 'node 24 / coverage 2/2', conclusion: 'failure', runner_id: 1000001308 }
-    expect(await classifyJobs([linux, unrelated, { name: 'publisher-isolated (macos)', conclusion: 'cancelled', runner_id: 0 }])).toEqual({
-      warnings: ['publisher-isolated (macos) never acquired a runner; re-run it when one is available'],
-      failures: [],
-    })
+    const macosWarning = 'publisher-isolated (macos) never acquired a runner; re-run it when one is available'
+    expect(await classifyJobs([linux, unrelated, abandonedMacos])).toEqual({ warnings: [macosWarning], failures: [] })
     // A sibling leg that ran and failed stays a failure in the same abandoned matrix.
-    expect(await classifyJobs([
-      { ...linux, conclusion: 'failure' },
-      { name: 'publisher-isolated (macos)', conclusion: 'cancelled', runner_id: 0 },
-    ])).toEqual({
-      warnings: ['publisher-isolated (macos) never acquired a runner; re-run it when one is available'],
-      failures: ['publisher-isolated (linux) ran and concluded failure'],
+    expect(await classifyJobs([{ ...linux, conclusion: 'failure' }, abandonedMacos])).toEqual({
+      warnings: [macosWarning],
+      failures: ['no publisher-isolated leg succeeded in this run attempt', 'publisher-isolated (linux) ran and concluded failure'],
     })
+    // Only the scarce macOS leg may go unacquired, and some leg must have run.
+    expect(await classifyJobs([{ ...linux, conclusion: 'cancelled', runner_id: 0 }, abandonedMacos])).toEqual({
+      warnings: [macosWarning],
+      failures: ['no publisher-isolated leg succeeded in this run attempt', 'publisher-isolated (linux) never acquired a runner'],
+    })
+    expect(await classifyJobs([unrelated])).toEqual({ warnings: [], failures: ['no publisher-isolated leg succeeded in this run attempt'] })
   })
 
   it.each(['ci.yml', 'ci-master.yml', 'e2e.yml', 'release.yml', 'release-vendor.yml'])(

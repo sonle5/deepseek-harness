@@ -17,7 +17,6 @@
 - button "账号菜单": 更多
 - banner:
   - button "打开右侧边栏"
-- text: 基于 DeepSeek Harness 构建
 - img "Nexus Superharness"
 - text: 探索未至之境 预览版
 - button "选择工作区": workspace

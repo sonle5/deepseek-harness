@@ -204,9 +204,11 @@ export function resolveClientBuildEnvironment(
     return {
       DSH_CLIENT_COMMIT_HASH: commitHash,
       DSH_CLIENT_VERSION: version,
+      // A local build carries no fixed title: AppFrame falls back to the
+      // localized `brand.localBuild` string, so a developer's own
+      // `DSH_CLIENT_TITLE` still applies and the profile stays isolated.
       ...(profile === 'official' ? OFFICIAL_CLIENT_BUILD_ENVIRONMENT : {
         DSH_CLIENT_BUILD_PROFILE: 'local',
-        DSH_CLIENT_TITLE: 'Nexus Superharness',
         ...(environment.DSH_CLIENT_GIT_DIRTY === 'true' ? { DSH_CLIENT_GIT_DIRTY: 'true' } : {}),
       }),
     }

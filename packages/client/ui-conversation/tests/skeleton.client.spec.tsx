@@ -757,6 +757,18 @@ describe('ConversationRoot resident composer', () => {
     expect(b.actionsOwner().entries.map(entry => entry.id)).toEqual(['timeline'])
   })
 
+  it('measures the view-control slot rather than the pill it sizes', () => {
+    // The pill hugs its tabs, so a reading taken from it would shrink to the
+    // tabs already visible and the budget would never grow past one View.
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute('data-conversation-view-controls') ? 420 : 64
+    })
+    const viewTabs = ['chat', 'trajectory', 'timeline'].map(id => ({ id, label: id }))
+    const b = mount(sessionSnapshotOf(), undefined, undefined, { viewTabs, entryActions: true, headerOnly: true })
+    expect(within(b.view.getByRole('tablist')).getAllByRole('tab').map(tab => tab.textContent))
+      .toEqual(['chat', 'trajectory', 'timeline'])
+  })
+
   it('keeps an unpinned View selected without exposing its tab', () => {
     const viewTabs: ViewTab[] = [
       { id: 'chat', label: 'Chat' },
@@ -825,7 +837,7 @@ describe('ConversationRoot resident composer', () => {
     expect(external()).toEqual(['Chat', 'Trajectory', 'Timeline'])
     expect(b.actionsOwner().entries.find(entry => entry.id === 'inspector')?.active).toBe(true)
     expect(b.view.getByRole('button', { name: zh['session.moreViews'] })).toBeTruthy()
-    const row = b.view.getByRole('tablist').parentElement!
+    const row = b.view.container.querySelector('[data-conversation-view-controls]')!
     const rowReads = () => readWidth.mock.contexts.filter(element => element === row).length
     const reads = rowReads()
     width = 1000
@@ -845,7 +857,7 @@ describe('ConversationRoot resident composer', () => {
     const liveWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
     const viewTabs = ['chat', 'trajectory', 'timeline', 'inspector', 'notes'].map(id => ({ id, label: id }))
     const b = mount(sessionSnapshotOf(), undefined, undefined, { viewTabs, entryActions: true })
-    const row = b.view.getByRole('tablist').parentElement!
+    const row = b.view.container.querySelector('[data-conversation-view-controls]')!
     const external = () => within(b.view.getByRole('tablist')).getAllByRole('tab').map(tab => tab.textContent)
     expect(external()).toEqual(viewTabs.map(tab => tab.label))
     act(() => { b.store.actions.setView('notes') })

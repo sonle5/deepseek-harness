@@ -226,36 +226,41 @@ export function ConversationSessionHeader({
         </div>
       </div>
       {showTabs && (
-        // data-conversation-tabs: marks the tab strip, which the window-chrome
-        // geometry and the browser coverage lane anchor on.
-        <div ref={tabRow} className={css.tabs} data-conversation-view-controls="">
-          <div className={css.viewTabs} role="tablist" data-conversation-tabs="">
-            {visibleTabs.map(viewTab => (
-              <button
-                key={viewTab.id}
-                type="button"
-                role="tab"
-                aria-selected={viewTab.id === active?.id}
-                className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                onClick={() => { selectView(viewTab.id) }}
-              >
-                <ViewTabLabel label={viewTab.label} />
-              </button>
-            ))}
+        // The measured row is this grid slot, not the pill inside it: the pill
+        // is content-sized, so reading its width would make the tab budget
+        // depend on the tabs it currently shows.
+        <div ref={tabRow} className={css.viewControls} data-conversation-view-controls="">
+          {/* data-conversation-tabs: marks the tab strip, which the window-chrome
+              geometry and the browser coverage lane anchor on. */}
+          <div className={css.tabs}>
+            <div className={css.viewTabs} role="tablist" data-conversation-tabs="">
+              {visibleTabs.map(viewTab => (
+                <button
+                  key={viewTab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={viewTab.id === active?.id}
+                  className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                  onClick={() => { selectView(viewTab.id) }}
+                >
+                  <ViewTabLabel label={viewTab.label} />
+                </button>
+              ))}
+            </div>
+            {hasEntryActions && (
+              <ViewsMoreMenu
+                label={t('session.moreViews')}
+                current={currentInMore}
+                entries={moreTabs.map(viewTab => ({
+                  id: viewTab.id, label: viewTab.label,
+                  pinned: !unpinned.includes(viewTab.id), active: viewTab.id === active?.id,
+                }))}
+                onOpen={selectView}
+                onPinnedChange={setPinned}
+                renderSlot={renderSlot}
+              />
+            )}
           </div>
-          {hasEntryActions && (
-            <ViewsMoreMenu
-              label={t('session.moreViews')}
-              current={currentInMore}
-              entries={moreTabs.map(viewTab => ({
-                id: viewTab.id, label: viewTab.label,
-                pinned: !unpinned.includes(viewTab.id), active: viewTab.id === active?.id,
-              }))}
-              onOpen={selectView}
-              onPinnedChange={setPinned}
-              renderSlot={renderSlot}
-            />
-          )}
         </div>
       )}
     </>

@@ -33,12 +33,14 @@ H means designed outer height in CSS pixels, including borders. R means CSS `bor
 | Compact control | H20–28; small buttons, compact icon buttons, compact menu items | R8 | `--dsw-radius-sm` |
 | Standard control or single-line cell | H32–40; buttons, inputs, selects, navigation rows | R12 | `--dsw-radius-md` |
 | Large control or grouped content | Large buttons, deliberately multiline cells, nested form groups | R16 | `--dsw-radius-lg` |
-| Independent content card | Settings cards, message bubbles, guide entry cards | R20 | `--dsw-radius-xl` |
-| Main enclosing surface | Composer, dialogs, main or floating panels | R28 | `--dsw-radius-panel` |
+| Independent content card | Settings cards, message bubbles, guide entry cards | R16 | `--dsw-radius-xl` |
+| Main enclosing surface | Composer, dialogs, main or floating panels | R20 | `--dsw-radius-panel` |
 
-Prefer an existing shared size variant when a proposed control falls between these bands. A taller card remains a card: do not promote it to R28 merely because it exceeds a button's height. A multiline cell intentionally designed for multiple lines uses R16; an ordinary button whose label wraps retains its button variant.
+The card and panel steps sit one tier tighter than the earlier scale: `--dsw-radius-xl` now resolves to the same 16px as `--dsw-radius-lg`, and `--dsw-radius-panel` to 20px. Keep the two names distinct even where their values coincide, so the card tier can still move on its own; a card stays a card because of its role, not because its number differs from the grouped-content step.
 
-Concrete defaults: `Button` uses H28/R8 for `sm` and H36/R12 for `md`, including outline variants. Standard H32 inputs and H36 selectors use R12. The Workspace files and New terminal guide entries both use R20, including title-only and described variants. Reserve R28 for their enclosing panel or dialog, not those entries. Composer statistics and the context-occupancy trigger use compact-control R8 with the theme curve, including hover, expanded, and focus states.
+Prefer an existing shared size variant when a proposed control falls between these bands. A taller card remains a card: do not promote it to R20 merely because it exceeds a button's height. A multiline cell intentionally designed for multiple lines uses R16; an ordinary button whose label wraps retains its button variant.
+
+Concrete defaults: `Button` uses H28/R8 for `sm` and H36/R12 for `md`, including outline variants. Standard H32 inputs and H36 selectors use R12. The Workspace files and New terminal guide entries both use R16, including title-only and described variants. Reserve R20 for their enclosing panel or dialog, not those entries. Composer statistics and the context-occupancy trigger use compact-control R8 with the theme curve, including hover, expanded, and focus states.
 
 Code blocks, diffs, and preview cards share R16: changed-file entry cards, delivered-file cards, submitted-plan cards, created-task cards, generic file attachment cards before and after sending, and hover preview panels. The 40px icon tiles inside changed-file, delivery, submitted-plan, and created-task cards use R10 on all four corners as a component-specific exception and share the same neutral tile fill and border in both themes. Their hover fills keep the same contour.
 
@@ -66,7 +68,7 @@ Distinguish these three arrangements before changing a child radius:
 |---|---|---|
 | Circular concentric inset | Inner R = max(0, outer R − inset); both arcs share a center and use `round` | Outer R16, inset 4, inner R12 |
 | Fill flush against an enclosing edge | The enclosure owns the visible corner; clip the fill or inherit the matching corner | A split-button card with two independent hover regions |
-| Separate card or form group inside another surface | Choose the child's semantic tier; do not subtract all parent padding mechanically | R16 editor within an R20 settings card |
+| Separate card or form group inside another surface | Choose the child's semantic tier; do not subtract all parent padding mechanically | A `--dsw-radius-lg` editor within a `--dsw-radius-xl` settings card |
 
 Standard menus use outer R16, 4px padding, and R12 items, including command selection, task menus, and the exposed highlights in the subagent switcher menu. Tree disclosure gutters retain their indentation. Compact menus use outer R12, 4px padding, and R8 items. Shared `SegmentedControl` uses outer R12, 4px inset, and R8 segments/indicator; `SegmentedTabs` uses outer R16, 4px inset, and R12 segments/indicator. Keep indicator offsets, width calculations, submenu alignment, and pointer bridges consistent when changing padding.
 
@@ -88,7 +90,7 @@ For a split guide card, put the shared radius and clipping on the outer card; gi
 }
 ```
 
-The enclosing guide sets `--dsl-guide-entry-radius: var(--dsw-radius-xl)`. Do not give the inner buttons their own R28 ends while the outer card is R20.
+The enclosing guide sets `--dsl-guide-entry-radius: var(--dsw-radius-xl)`. Do not give the inner buttons their own panel-tier ends while the outer card is on the card tier. Today `--dsw-radius-xl` and `--dsw-radius-lg` both resolve to 16px, so an inner button may legitimately read `--dsw-radius-lg`; what stays wrong is a literal or panel-tier radius that ignores the token.
 
 <a id="settings-cards"></a>
 ## Settings card materials

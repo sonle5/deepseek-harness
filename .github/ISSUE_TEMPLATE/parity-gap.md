@@ -12,8 +12,8 @@ the observed surface and the reference behaviour, so quote what the app does
 today and what Codex Desktop does instead.
 
 This body is also the brief for the fixing agent: the PR that closes it must
-reference this issue with `Fixes #N`, and the issue asks for a review request
-to @onenexus-superagent, so the fixing PR inherits both.
+reference this issue with `Fixes #N`, and the fixing PR is routed for review to
+an agent that did not author it, so the change is signed off by a peer.
 -->
 
 ## Gap

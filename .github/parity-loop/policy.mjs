@@ -1,7 +1,15 @@
 /** Pure decisions for the develop parity loop: review routing and auto-merge eligibility. */
 
-/** The agent that reviews every parity PR, and the only reviewer the loop waits on. */
-export const REVIEWER = 'onenexus-superagent'
+/**
+ * The agent accounts that review parity pull requests, most senior first.
+ *
+ * The first entry is the reviewer every human-authored pull request goes to.
+ * The rest exist so an agent-authored pull request can be reviewed by its peer:
+ * GitHub rejects a review request from the author with 422 and excludes the
+ * author from approving, so the loop routes an agent's pull request to the
+ * *other* agent instead of leaving it for a human.
+ */
+export const REVIEWERS = Object.freeze(['onenexus-superagent', 'onenexus-superagent-hdt98'])
 
 /** The integration branch. `master` mirrors upstream and is never a PR base here. */
 export const TARGET_BASE = 'develop'
@@ -20,36 +28,38 @@ export function baseBranchError(base) {
 }
 
 /**
- * Decide whether the reviewer still needs requesting.
+ * The reviewer to route a pull request to, given its author.
  *
- * A reviewer who already reviewed is not re-requested: re-requesting would
- * dismiss nothing but would queue the agent again on every push.
- * @param {object} input Review state.
- * @param {readonly string[]} input.requested Logins with an outstanding request.
- * @param {readonly string[]} input.reviewed Logins whose latest review is decisive.
- * @param {boolean} input.latestDismissed Whether the reviewer's own latest review is a dismissal.
- * @param {boolean} input.authoredByReviewer Whether the reviewer opened this pull request.
- * @returns {boolean} Whether to request a review.
+ * A reviewer may not review its own pull request, so an agent-authored one goes
+ * to a peer agent. A pull request by anyone else — a human, or a bot the loop
+ * does not know — goes to the primary reviewer. `null` means there is no
+ * eligible reviewer at all: the author is the only configured agent, so the
+ * pull request must wait for a human.
+ * @param {string|undefined|null} author Login of the pull-request author.
+ * @param {readonly string[]} [reviewers] Reviewer logins, most senior first.
+ * @returns {string|null} The login to request, or null when no peer exists.
  */
-export function needsReviewRequest({ requested, reviewed, latestDismissed, authoredByReviewer }) {
-  // GitHub rejects a review request from the author with 422, and an author
-  // cannot approve their own pull request, so an agent-authored PR needs a
-  // human approver and must not route to the agent at all.
-  if (authoredByReviewer) return false
-  if (requested.includes(REVIEWER)) return false
-  // Only the reviewer's *latest* verdict matters. A dismissal followed by a
-  // fresh approval is settled; a dismissal as the latest verdict is not.
-  if (latestDismissed) return true
-  return !reviewed.includes(REVIEWER)
+export function reviewerFor(author, reviewers = REVIEWERS) {
+  // A pull request from someone outside the reviewer pool goes to the primary.
+  if (!reviewers.includes(author)) return reviewers[0] ?? null
+  // Otherwise take the most senior reviewer who is not the author. With one
+  // agent configured, an agent-authored pull request has no peer: null, not a
+  // request GitHub would reject.
+  return reviewers.find(login => login !== author) ?? null
 }
 
 /**
- * Reduce a review list to each reviewer's latest verdict.
+ * Reduce a review list to each reviewer's latest decisive verdict.
  *
  * Dismissed reviews are kept, because a dismissal followed by an approval must
  * be told apart from one that is still the reviewer's last word.
+ *
+ * The verdict of the reviewer that will actually be asked is read from this map
+ * by the caller, rather than pre-computed here: which reviewer that is depends
+ * on the pull request's author, and computing a single `latestDismissed` up
+ * front would answer for the wrong reviewer on an agent-authored pull request.
  * @param {readonly {user: {login: string}, state: string}[]} reviews Reviews oldest first.
- * @returns {{reviewed: string[], latestDismissed: boolean}} Logins with a decisive latest review, and whether the reviewer's latest is a dismissal.
+ * @returns {Map<string, string>} Login to that reviewer's latest `APPROVED`, `CHANGES_REQUESTED` or `DISMISSED` state.
  */
 export function latestVerdicts(reviews) {
   const latest = new Map()
@@ -58,10 +68,31 @@ export function latestVerdicts(reviews) {
     if (state !== 'APPROVED' && state !== 'CHANGES_REQUESTED' && state !== 'DISMISSED') continue
     latest.set(review.user.login, state)
   }
-  return {
-    reviewed: [...latest.keys()],
-    latestDismissed: latest.get(REVIEWER) === 'DISMISSED',
-  }
+  return latest
+}
+
+/**
+ * Decide whether the reviewer still needs requesting.
+ *
+ * A reviewer who already reviewed is not re-requested: re-requesting would
+ * dismiss nothing but would queue the agent again on every push.
+ * @param {object} input Review state.
+ * @param {string|undefined|null} input.author Login of the pull-request author.
+ * @param {readonly string[]} input.requested Logins with an outstanding request.
+ * @param {Map<string, string>} input.verdicts Each reviewer's latest decisive state.
+ * @returns {boolean} Whether to request a review.
+ */
+export function needsReviewRequest({ author, requested, verdicts }) {
+  const reviewer = reviewerFor(author)
+  // No peer to route to. Requesting the author is a 422 and the author cannot
+  // approve, so the loop leaves the pull request to a human rather than fail.
+  if (reviewer === null) return false
+  if (requested.includes(reviewer)) return false
+  // Only the reviewer's *latest* verdict matters. A dismissal followed by a
+  // fresh approval is settled; a dismissal as the latest verdict is not.
+  const verdict = verdicts.get(reviewer)
+  if (verdict === 'DISMISSED') return true
+  return verdict !== 'APPROVED' && verdict !== 'CHANGES_REQUESTED'
 }
 
 /**

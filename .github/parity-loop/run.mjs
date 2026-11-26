@@ -1,6 +1,6 @@
 /**
- * Operate the develop parity loop for one pull request: route review to the agent,
- * and hand the merge to GitHub once the branch's protection is satisfied.
+ * Operate the develop parity loop for one pull request: route review to an
+ * agent, and hand the merge to GitHub once the branch's protection is satisfied.
  *
  * Reads on every relevant event, writes only what the read justifies:
  *  - `request-review`  a review request for the reviewer when none is outstanding
@@ -13,6 +13,12 @@
  * approved" enforceable rather than a race between this script's reads and its
  * write.
  *
+ * Review routing is peer-aware. A pull request by a human goes to the primary
+ * agent. A pull request an agent authored goes to a *peer* agent, because
+ * GitHub rejects a review request from the author with 422 and excludes the
+ * author from approving — so the agent that wrote the code is never the agent
+ * asked to review it.
+ *
  * Every decision is pure and lives in `policy.mjs`, which its test exercises.
  */
 import fs from 'node:fs'
@@ -24,7 +30,7 @@ import {
   baseBranchError,
   latestVerdicts,
   needsReviewRequest,
-  REVIEWER,
+  reviewerFor,
 } from './policy.mjs'
 
 /** Upper bound on a mergeability read that GitHub has not finished computing. */
@@ -224,26 +230,22 @@ function requestReview(repository, number, author) {
   // were, and asking again is a no-op only by luck.
   const outstanding = api(`repos/${repository}/pulls/${number}/requested_reviewers`)
   const requested = [...(outstanding.users ?? []), ...(outstanding.teams ?? [])].map(user => user.login ?? user.slug)
-  if (!needsReviewRequest({
-    requested,
-    reviewed: verdicts.reviewed,
-    latestDismissed: verdicts.latestDismissed,
-    authoredByReviewer: author === REVIEWER,
-  })) {
-    process.stdout.write(author === REVIEWER
-      ? `#${number} is authored by @${REVIEWER}; leaving review to a human.\n`
-      : 'Review already routed to the reviewer.\n')
+  const reviewer = reviewerFor(author)
+  if (!needsReviewRequest({ author, requested, verdicts })) {
+    process.stdout.write(reviewer === null
+      ? `#${number} is authored by @${author}, the only configured reviewer; leaving review to a human.\n`
+      : `#${number}: review already routed to @${reviewer}.\n`)
     return
   }
   // A reviewer GitHub will not request is a configuration problem the auto-merge
   // gate will surface; do not fail the run here.
   const created = apiOrNull(`repos/${repository}/pulls/${number}/requested_reviewers`, {
     method: 'POST',
-    body: { reviewers: [REVIEWER] },
+    body: { reviewers: [reviewer] },
   })
   process.stdout.write(created === null
-    ? `::warning::Requesting review from @${REVIEWER} failed; auto-merge stays blocked.\n`
-    : `Requested review from @${REVIEWER}.\n`)
+    ? `::warning::Requesting review from @${reviewer} failed; auto-merge stays blocked.\n`
+    : `Requested review from @${reviewer}.\n`)
 }
 
 /** Enable GitHub's auto-merge when the pure decision finds nothing blocking. */

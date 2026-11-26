@@ -25,7 +25,7 @@ visual review on this Mac ──► parity Issue (+ parity, area/*, p*)
         │                              │
         │                              ▼
         │                     fixing PR into develop
-        │                     (Fixes #N, kind/*, area/*, review @onenexus-superagent)
+        │                     (Fixes #N, kind/*, area/*, review by an agent that is not the author)
         │                              │
         │                              ▼
         │              one approving review from someone other than the author
@@ -69,13 +69,22 @@ The Issue body is the brief. A fixing PR:
 - says `Fixes #N`, so merging closes the Issue and the lifecycle workflow moves
   it to Done,
 - carries exactly one `kind/*` and at least one `area/*`,
-- requests review from `@onenexus-superagent`.
+- requests review from an agent, never from its own author.
 
-`@onenexus-superagent` cannot approve a pull request it authored — GitHub
-excludes authors from approving their own PRs, and there is no CODEOWNERS file
-here to make the agent a required approver — so an agent-authored PR needs one
-other person to approve it. The protection asks for one non-author approval; it
-does not require that the approver be the agent.
+The loop routes review by author. A PR a human opened goes to
+`@onenexus-superagent`. A PR an agent opened goes to the *peer* agent —
+`@onenexus-superagent-hdt98` for a PR by `@onenexus-superagent`, and the reverse
+— because GitHub refuses a review request from the author (422) and excludes the
+author from approving its own PR. So the agent that wrote a change is never the
+agent asked to sign it off; two agents reviewing each other is the intended
+shape, not a fallback. The protection asks for one non-author approval, which a
+peer agent supplies.
+
+The reviewer list lives in one place, `REVIEWERS` in
+[`policy.mjs`](parity-loop/policy.mjs), most senior first. Adding a third agent
+to that array extends peer routing automatically. Removing the peer leaves a
+single-entry list, and agent-authored PRs then wait for a human — the loop
+reports that rather than requesting a review GitHub would reject.
 
 PR kinds and their meanings are the ones the policy already knows:
 

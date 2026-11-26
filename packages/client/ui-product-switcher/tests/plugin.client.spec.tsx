@@ -12,7 +12,10 @@ import { apply as applyPlugin, inject as pluginInject } from '../src/client/inde
 /** The plugin entrypoint, hoisted so mounting does not hand an inline async function to a void-shaped property. */
 const PLUGIN = { inject: [...pluginInject], apply: applyPlugin }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); localStorage.clear() })
+
+/** localStorage key the plugin saves the selected product under. */
+const PRODUCT_KEY = 'dsh.productSwitcher.product'
 
 /** A ready, available state; a case overrides what it exercises. */
 function ready(overrides: Partial<ComposerSwitcherState> = {}): ComposerSwitcherState {
@@ -197,6 +200,8 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   const resize = stubResizeObserver()
   const fake = fakeBridge()
   const { runtime, layout } = await bench(fake.bridge)
+  // Starting on Superharness withdrew any stale request; count only the detach.
+  fake.bridge.hide.mockClear()
   const sidebar = runtime.renderSlot('sidebar.product', {})
   // The panel is mounted by the frame's keyed slot; selecting it is what shows
   // the surface, exactly as for any other global panel.
@@ -372,6 +377,8 @@ it('leaves Composer when another main panel is selected', async () => {
   const resize = stubResizeObserver()
   const fake = fakeBridge()
   const { runtime } = await bench(fake.bridge)
+  // Starting on Superharness withdrew any stale request; count only the detach.
+  fake.bridge.hide.mockClear()
   const sidebar = runtime.renderSlot('sidebar.product', {})
   const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
   fake.selectFromMain('composer')
@@ -405,6 +412,108 @@ it('follows main selections and ignores a repeat of the current product', async 
   expect(current()).toContain('Composer')
   fake.selectFromMain('toggle')
   expect(current()).toContain('Superharness')
+})
+
+it('saves the selected product and restores Composer after a reload', async () => {
+  stubResizeObserver()
+  const first = fakeBridge()
+  const before = await bench(first.bridge)
+  first.selectFromMain('composer')
+  expect(localStorage.getItem(PRODUCT_KEY)).toBe('composer')
+  await before.owner.dispose()
+
+  // The reloaded document finds main still showing the view it attached.
+  const fake = fakeBridge(ready({ visible: true }))
+  const { runtime } = await bench(fake.bridge)
+  const trigger = runtime.renderSlot('sidebar.product', {}).view.getByRole('button', { name: 'Switch product' })
+  expect(trigger.textContent).toContain('Composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
+  expect(panel.view.getByRole('region', { name: 'Composer view' })).toBeTruthy()
+  expect(fake.bridge.show).toHaveBeenCalledTimes(1)
+})
+
+it('names Composer when main shows its view even without a saved choice', async () => {
+  stubResizeObserver()
+  const fake = fakeBridge(ready({ visible: true }))
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.renderSlot('sidebar.product', {}).view.getByRole('button', { name: 'Switch product' }).textContent)
+    .toContain('Composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+  expect(localStorage.getItem(PRODUCT_KEY)).toBe('composer')
+})
+
+it('restores Composer at relaunch, before main has attached any view', async () => {
+  stubResizeObserver()
+  localStorage.setItem(PRODUCT_KEY, 'composer')
+  const fake = fakeBridge(ready({ visible: false }))
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+  runtime.renderSlot('main', {}, { entryKey: 'composer' })
+  expect(fake.bridge.show).toHaveBeenCalledTimes(1)
+})
+
+it('restores Superharness after a reload that left Composer', async () => {
+  stubResizeObserver()
+  const first = fakeBridge()
+  const before = await bench(first.bridge)
+  first.selectFromMain('composer')
+  first.selectFromMain('superharness')
+  expect(localStorage.getItem(PRODUCT_KEY)).toBe('superharness')
+  await before.owner.dispose()
+
+  const fake = fakeBridge(ready({ visible: false }))
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.renderSlot('sidebar.product', {}).view.getByRole('button', { name: 'Switch product' }).textContent)
+    .toContain('Superharness')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  const panel = runtime.renderSlot('main', {}, { entryKey: 'composer' })
+  expect(panel.view.queryByRole('region', { name: 'Composer view' })).toBeNull()
+  expect(fake.bridge.show).not.toHaveBeenCalled()
+})
+
+it('withdraws a hidden Composer request when a reload starts on Superharness', async () => {
+  // Main still holds the request behind a blocking overlay or a surface that is
+  // not serving, so the view is hidden; nothing was saved before the reload.
+  const fake = fakeBridge(ready({ status: 'restarting', visible: false }))
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
+})
+
+it('starts on Superharness when main is gone before the withdrawal lands', async () => {
+  const fake = fakeBridge()
+  fake.bridge.hide.mockRejectedValueOnce(new Error('window closed'))
+  const { runtime } = await bench(fake.bridge)
+  await act(async () => {})
+  expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
+  expect(runtime.ctx.logger.buffer.filter(message => message.type === 'error')).toHaveLength(0)
+})
+
+it('starts on Superharness when the saved choice is not a product', async () => {
+  localStorage.setItem(PRODUCT_KEY, 'chat')
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+})
+
+it('keeps the selection when storage is unavailable', async () => {
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  fake.selectFromMain('composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
+})
+
+it('keeps the selection in a document without storage', async () => {
+  vi.stubGlobal('localStorage', undefined)
+  const fake = fakeBridge()
+  const { runtime } = await bench(fake.bridge)
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBeNull()
+  fake.selectFromMain('composer')
+  expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
 })
 
 it('retries a failed Composer from the surface', async () => {

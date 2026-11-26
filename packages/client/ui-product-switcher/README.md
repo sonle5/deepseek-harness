@@ -32,6 +32,8 @@ While the frame mounts its `shell.leading` seat (the collapsed desktop sidebar's
 
 Menu items, accelerators, the tray, and the caption menu reach the document through `onSelect`; `superharness` and `composer` select a product and `toggle` flips the current one. A repeat selection is a no-op. Focus, z-order, and input blocking around the native view remain main's responsibility.
 
+The selected product survives a document reload, a recreated main window, and a relaunch. The document saves every selection in origin-local `dsh.productSwitcher.product` storage. On load it starts on Composer when main reports the native view as visible, because main keeps that view attached across a reload and reattaches it to a recreated window, or when the saved choice is `composer`; a missing, unreadable, or other stored value starts on Superharness. A document that starts on Superharness calls `hide()` once, because main can still hold a Composer request behind a blocking overlay or a surface that is not serving and would otherwise attach the view when that clears. The switcher label and the painted center column therefore agree from the first render.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

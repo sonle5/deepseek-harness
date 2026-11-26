@@ -1,6 +1,5 @@
 - banner:
   - button "Open right sidebar"
-- text: Built on DeepSeek Harness
 - img "Nexus Superharness"
 - text: Into the Unknown Preview
 - button "Choose workspace": workspace

@@ -2,7 +2,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import css from './Brand.module.css'
 
-/** Locale namespace carrying the product name and home attribution. */
+/** Locale namespace carrying the product name. */
 export const NS = 'brandNexus'
 
 type NexusBrandMarkProps = SidebarBrandMarkOwnerProps & PropsLocale<typeof NS> & {

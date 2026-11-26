@@ -106,23 +106,23 @@ describe('Nexus browser-brand plugin', () => {
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
 
     const t = brandT(subject.locale)
-    expect(t('home.attribution')).toBe('Built on DeepSeek Harness')
+    expect(t('product.name')).toBe('Nexus Superharness')
 
     subject.locale.setLocale('zh')
     const name = render(<NexusBrandName t={brandT(subject.locale)} />)
     expect(name.container.textContent).toBe('Nexus Superharness')
-    expect(brandT(subject.locale)('home.attribution')).toBe(zh['home.attribution'])
+    expect(brandT(subject.locale)('product.name')).toBe(zh['product.name'])
     name.unmount()
   })
 
-  it('frames the blank home with the aura, the oversized mark and the attribution', async () => {
+  it('frames the blank home with the aura and the oversized mark, without an attribution', async () => {
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
     const t = brandT(subject.locale)
 
     const frame = render(<NexusHeroFrame hero t={t}><p>Conversation</p></NexusHeroFrame>)
-    expect(frame.container.textContent).toContain('Built on DeepSeek Harness')
-    expect(frame.container.textContent).toContain('Conversation')
+    expect(frame.container.textContent).toBe('Conversation')
+    expect(frame.container.querySelector('[data-nexus-attribution]')).toBeNull()
     expect(frame.container.querySelector('[data-nexus-home]')?.getAttribute('aria-hidden')).toBe('true')
     expect(frame.container.querySelectorAll('[data-nexus-aura]')).toHaveLength(1)
     expect(frame.container.querySelector('[data-nexus-glyph] svg')?.getAttribute('width')).toBe('420')

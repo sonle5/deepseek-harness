@@ -49,15 +49,3 @@
   width: clamp(180px, 28vw, 420px);
   height: auto;
 }
-
-.attribution {
-  position: absolute;
-  bottom: 18px;
-  left: 22px;
-  color: var(--dsw-alias-label-tertiary);
-  font-family: var(--dsw-font-family);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  opacity: 0.72;
-}

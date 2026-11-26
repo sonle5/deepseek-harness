@@ -26,7 +26,7 @@ This package supplies the canonical Nexus N monogram and wordmark in the applica
 
 The package registers `sidebar.brand.mark`, `sidebar.brand.name`, `conversation.hero.brand.mark`, and `conversation.hero.frame`. The artwork is fixed presentation and takes no configuration. A different product identity replaces this package and occupies the same slots.
 
-The product name in the mark's accessible label and in the wordmark comes from the `brandNexus` locale namespace, so a translated build names the product in its own language. The home attribution line comes from the same namespace.
+The product name in the mark's accessible label and in the wordmark comes from the `brandNexus` locale namespace, so a translated build names the product in its own language.
 
 -----
 
@@ -63,6 +63,6 @@ These limits define how brand presentation is supplied. They are current package
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-The monogram is one filled path, so the mark takes its colour from `currentColor` and needs no per-theme artwork or package asset. The wordmark and the home attribution are localized, which is why this package carries a locale catalog of its own rather than borrowing the shell's.
+The monogram is one filled path, so the mark takes its colour from `currentColor` and needs no per-theme artwork or package asset. The wordmark's product name is localized, which is why this package carries a locale catalog of its own rather than borrowing the shell's.
 
 </details>

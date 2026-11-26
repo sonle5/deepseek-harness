@@ -17,15 +17,12 @@ export function NexusHeroFrame({ hero, t, children }: NexusHeroFrameProps) {
   return (
     <div className={css.frame}>
       {hero && (
-        <>
-          <div className={css.decoration} data-nexus-home="" aria-hidden="true">
-            <span className={css.aura} data-nexus-aura="" />
-            <span className={css.glyph} data-nexus-glyph="">
-              <NexusBrandMark size={420} t={t} />
-            </span>
-          </div>
-          <span className={css.attribution} data-nexus-attribution="">{t('home.attribution')}</span>
-        </>
+        <div className={css.decoration} data-nexus-home="" aria-hidden="true">
+          <span className={css.aura} data-nexus-aura="" />
+          <span className={css.glyph} data-nexus-glyph="">
+            <NexusBrandMark size={420} t={t} />
+          </span>
+        </div>
       )}
       {children}
     </div>

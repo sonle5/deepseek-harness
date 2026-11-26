@@ -718,11 +718,18 @@ describe('CI workflow', () => {
       linuxAggregate: aggregate['runs-on'] as string,
       windows: windowsBuild['runs-on'] as string,
     }
-    const evaluate = (expression: string, vars: Record<string, string>, login = 'maintainer', fork = false): unknown => {
+    // Two distinct facts decide the pool, and conflating them is the bug this
+    // guards: `repository.fork` says whether *this* repository has to borrow
+    // runners, while `pull_request.head.repo.fork` only says the branch came
+    // from a fork. Upstream receives many contributor PRs whose head is a
+    // fork — those still run on the upstream enterprise pools.
+    const evaluate = (expression: string, vars: Record<string, string>,
+      options: { login?: string; baseFork?: boolean; headFork?: boolean } = {}): unknown => {
+      const { login = 'maintainer', baseFork = false, headFork = false } = options
       return evaluateRunsOn(expression, {
         vars,
         fromJSON: JSON.parse,
-        github: { event: { pull_request: { user: { login }, head: { repo: { fork } } } } },
+        github: { event: { repository: { fork: baseFork }, pull_request: { user: { login }, head: { repo: { fork: headFork } } } } },
       })
     }
     for (const [name, selector, variable, pool, hosted, forkRunner] of [
@@ -734,16 +741,23 @@ describe('CI workflow', () => {
       expect(evaluate(selector, { [variable]: 'selfhosted' }), `${name} selfhosted value`).toEqual(pool)
       // The blacksmith branch must not capture the selfhosted pool, and the
       // dependabot exclusion applies to the pool, not to the blacksmith tier.
-      expect(evaluate(selector, { [variable]: 'selfhosted' }, 'dependabot[bot]'), `${name} dependabot on selfhosted`).toBe(hosted)
+      expect(evaluate(selector, { [variable]: 'selfhosted' }, { login: 'dependabot[bot]' }), `${name} dependabot on selfhosted`).toBe(hosted)
       for (const mode of ['', 'hosted', 'unexpected']) {
         expect(evaluate(selector, { [variable]: mode }), `${name} default on ${mode}`).toBe(hosted)
       }
-      // A fork owns no in-house runners, so the unset default must land on a
-      // hosted image instead of queueing forever against a label nobody serves.
-      expect(evaluate(selector, {}, 'maintainer', true), `${name} default on a fork`).toBe(forkRunner)
+      // A repository that is itself a fork owns no in-house runners, so the
+      // unset default must land on a hosted image instead of queueing forever
+      // against a label nobody serves.
+      expect(evaluate(selector, {}, { baseFork: true }), `${name} default on a fork repository`).toBe(forkRunner)
+      expect(evaluate(selector, {}, { baseFork: true, headFork: true }), `${name} default on a fork repository, fork head`).toBe(forkRunner)
+      // The case that must NOT change: upstream, contributor PR from a fork.
+      // The base repository is not a fork and has the enterprise pools, so the
+      // head being a fork is irrelevant to where it runs.
+      expect(evaluate(selector, {}, { baseFork: false, headFork: true }), `${name} upstream with a fork head`).toBe(hosted)
       // An explicit blacksmith or selfhosted switch still wins on a fork: the
-      // operator asked for that pool, and the fork guard is a default only.
-      expect(evaluate(selector, { [variable]: 'blacksmith' }, 'maintainer', true), `${name} blacksmith on a fork`).toMatch(/^blacksmith-/)
+      // operator named a pool, and the fork guard is a default, not an override.
+      expect(evaluate(selector, { [variable]: 'blacksmith' }, { baseFork: true }), `${name} blacksmith on a fork`).toMatch(/^blacksmith-/)
+      expect(evaluate(selector, { [variable]: 'selfhosted' }, { baseFork: true }), `${name} selfhosted on a fork`).toEqual(pool)
     }
 
     // The run-gates aggregate lanes stop at the first blocking gate failure so

@@ -324,6 +324,14 @@
   .header {
     padding-inline: 12px;
   }
+
+  /* The corner's negative margin must stay inside the header's right padding,
+     or its control paints past the viewport. The base rule reaches 16px into a
+     24px padding, leaving an 8px inset; with the padding halved to 12px the
+     reach has to halve too, or a phone-width header overflows by 4px. */
+  .headerCorner {
+    margin-right: -4px;
+  }
 }
 
 .viewArea {

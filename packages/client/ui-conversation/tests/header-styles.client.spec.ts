@@ -42,4 +42,16 @@ describe('conversation header geometry', () => {
     expect(narrow).toContain('grid-column: 1 / -1')
     expect(narrow).toContain('grid-row: 2')
   })
+
+  it('keeps the corner control inside the phone header padding', () => {
+    // The corner overhangs the utilities by a negative right margin, reaching
+    // into the header's right padding. The phone query halves that padding to
+    // 12px, so the same -16px reach would paint 4px past the viewport; the
+    // narrow rule has to shrink with it.
+    const phone = /@media \(max-width: 600px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(phone).toContain('padding-inline: 12px')
+    const reach = Number(/-?[\d.]+px/.exec(phone.match(/\.headerCorner\s*\{([^}]*)\}/)?.[1] ?? '')?.[0].replace('px', ''))
+    expect(reach).toBe(-4)
+    expect(12 + reach).toBeGreaterThanOrEqual(0)
+  })
 })

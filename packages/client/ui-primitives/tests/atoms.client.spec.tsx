@@ -235,6 +235,20 @@ describe('Menu', () => {
     expect(onSelect).toHaveBeenCalledWith('a')
   })
 
+  it('keeps footer actions as plain menuitem rows in a radio menu', () => {
+    render(<Menu open anchor={<span>trigger</span>} items={[{ id: 'a', label: 'Alpha' }]} footer={[{ id: 'add', label: 'Add' }]}
+      selectedId="a" radio label="Pick one" onClose={() => {}} />)
+    expect(screen.getByRole('menuitemradio', { name: 'Alpha' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: 'Add' }).hasAttribute('aria-checked')).toBe(false)
+  })
+
+  it('leaves an empty searchable menu without a role or a name', () => {
+    render(<Menu open anchor={<span>trigger</span>} items={[]} radio label="Pick one"
+      search={{ label: 'Search', value: 'zz', onChange: () => {} }} onClose={() => {}} />)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.querySelector('[aria-label="Pick one"]')).toBeNull()
+  })
+
   it('walks component rows with the data rows and returns focus to the trigger after one is activated', async () => {
     const onAction = vi.fn()
     function Harness() {

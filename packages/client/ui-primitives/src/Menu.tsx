@@ -543,12 +543,12 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
 
   const itemColumns = menuIconColumns(items, contextual)
   const footerColumns = menuIconColumns(footer ?? [], contextual)
-  const renderEntry = (entry: MenuEntry, columns: ReadonlySet<MenuEntry>) => {
+  const renderEntry = (entry: MenuEntry, columns: ReadonlySet<MenuEntry>, choice = false) => {
     if ('type' in entry) return renderMenuDecoration(entry)
     const hasSub = entry.submenu !== undefined && entry.submenu.length > 0
     return <MenuRow key={entry.id} icon={entry.icon} reserveIcon={columns.has(entry)}
       disabled={entry.disabled} danger={entry.danger} shortcut={entry.shortcut}
-      selected={entry.id === selectedId || selectedIds?.includes(entry.id) === true} selection={selection} radio={radio}
+      selected={entry.id === selectedId || selectedIds?.includes(entry.id) === true} selection={selection} radio={choice}
       aria-haspopup={hasSub ? 'menu' : undefined}
       aria-expanded={hasSub ? submenu.entry?.id === entry.id && !submenu.hidden : undefined}
       wrapperProps={hasSub ? {
@@ -568,7 +568,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
 
   const rows = <>
     <div ref={viewportRef} className={css.viewport} role="presentation">
-      {items.map(entry => renderEntry(entry, itemColumns))}
+      {items.map(entry => renderEntry(entry, itemColumns, radio))}
       {children}
     </div>
     {footer !== undefined && footer.length > 0 && (
@@ -578,6 +578,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
     )}
   </>
   const visible = exiting === undefined && !submenu.page
+  const searchRowsMenu = visible && (items.length > 0 || children != null || !!footer?.length)
   const cardStyle: CSSProperties & { '--dsh-menu-visible-rows'?: number } = {
     positionAnchor: portal ? anchorName : undefined,
     ...(maxVisibleRows === undefined ? {} : { '--dsh-menu-visible-rows': maxVisibleRows }),
@@ -638,8 +639,8 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
         />
         {search.emptyMessage !== undefined && items.length === 0 && <div role="status" className={css.searchStatus}>{search.emptyMessage}</div>}
         <div ref={searchRowsRef} className={css.searchRows}
-          role={visible && (items.length > 0 || children != null || !!footer?.length) ? 'menu' : undefined}
-          aria-label={visible ? label : undefined}>{rows}</div>
+          role={searchRowsMenu ? 'menu' : undefined}
+          aria-label={searchRowsMenu ? label : undefined}>{rows}</div>
       </>}
     </MenuSurface>
   )

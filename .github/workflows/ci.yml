@@ -1002,7 +1002,9 @@ jobs:
 
   node-compat:
     needs: publisher-isolated
-    if: github.event_name == 'pull_request'
+    # The need only orders runner use; an abandoned publisher leg must not skip
+    # this job, while a failed one still fails the verdict.
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.publisher-isolated.result != 'failure' }}
     # Under the selfhosted leg this job admits only repository-owned PR code
     # to the persistent shared VM; the blacksmith branch targets ephemeral
     # runners and carries none of those predicates.
@@ -1120,6 +1122,9 @@ jobs:
   # master-only runtime targets live in ci-master.yml.
   # An explicit status function runs the verdict after failed/skipped needs
   # without keeping a cancelled workflow alive for an obsolete verdict.
+  # GitHub reports `abandoned` for a matrix with a leg that no runner acquired,
+  # which the scarce macOS publisher leg hits. The verdict reads each publisher
+  # leg: a leg without a runner warns, and a leg that ran must succeed.
   all-checks-passed:
     name: all checks passed
     # This bookkeeping-only verdict must not depend on custom-pool
@@ -1139,11 +1144,26 @@ jobs:
           || 'ubuntu-latest' }}
     needs: [publisher-isolated, node-24, node-24-coverage-report, node-24-lint, node-24-bench, node-24-build, node-24-consumers, node-24-web-snapshot, node-compat]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    permissions:
+      actions: read
     steps:
       - name: Fail if any needed job did not succeed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
           echo "::error::Needed job results: ${{ join(needs.*.result, ', ') }}"
           exit 1
+      - name: Classify abandoned publisher legs
+        if: needs.publisher-isolated.result == 'abandoned'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        with:
+          script: |
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+              ...context.repo, run_id: context.runId, attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT), per_page: 100,
+            })
+            for (const job of jobs.filter(job => job.name.startsWith('publisher-isolated ('))) {
+              if (job.conclusion === 'success') continue
+              if (job.runner_id) core.setFailed(`${job.name} ran and concluded ${job.conclusion}`)
+              else core.warning(`${job.name} never acquired a runner; re-run it when one is available`)
+            }
       - name: All checks passed
         run: echo "All needed jobs succeeded (${{ join(needs.*.result, ', ') }})"

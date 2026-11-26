@@ -307,6 +307,64 @@ describe('CI workflow', () => {
     expect(steps[preparation]).not.toHaveProperty('continue-on-error', true)
   })
 
+  it('separates publisher legs that never acquired a runner from publisher failures', async () => {
+    const ci = loadWorkflow('.github/workflows/ci.yml')
+    const compatibility = workflowJob(ci, 'node-compat')
+    const verdict = workflowJob(ci, 'all-checks-passed')
+    // node-compat orders runner use after the publisher smoke; only a publisher
+    // failure, which already fails the verdict, may skip it.
+    expect(compatibility.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && needs.publisher-isolated.result != 'failure' }}")
+    expect(verdict.permissions).toEqual({ actions: 'read' })
+    if (!Array.isArray(verdict.steps)) throw new TypeError('the verdict must define steps')
+    const steps = verdict.steps.filter(isRecord)
+    const blanket = steps.find(step => step.name === 'Fail if any needed job did not succeed')
+    expect(blanket?.if).not.toContain('abandoned')
+    const classify = steps.find(step => step.name === 'Classify abandoned publisher legs')
+    expect(classify?.if).toBe("needs.publisher-isolated.result == 'abandoned'")
+    expect(classify?.uses).toBe('actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3')
+    const script = isRecord(classify?.with) ? classify.with.script : undefined
+    if (typeof script !== 'string') throw new TypeError('the publisher classification step must run a script')
+
+    // Job lists follow GET /actions/runs/{id}/attempts/{n}/jobs for a run whose
+    // macOS leg GitHub abandoned with no runner and zero steps.
+    const classifyJobs = async (jobs: { name: string; conclusion: string; runner_id: number }[]) => {
+      const warnings: string[] = []
+      const failures: string[] = []
+      const requests: unknown[] = []
+      const listJobsForWorkflowRunAttempt = Symbol('listJobsForWorkflowRunAttempt')
+      await runInNewContext(`(async () => {\n${script}\n})()`, {
+        github: {
+          rest: { actions: { listJobsForWorkflowRunAttempt } },
+          paginate: async (route: unknown, parameters: unknown) => {
+            expect(route).toBe(listJobsForWorkflowRunAttempt)
+            requests.push(parameters)
+            return jobs
+          },
+        },
+        context: { repo: { owner: 'owner', repo: 'repo' }, runId: 7 },
+        core: { warning: (message: string) => warnings.push(message), setFailed: (message: string) => failures.push(message) },
+        process: { env: { GITHUB_RUN_ATTEMPT: '2' } },
+        Number,
+      }, { timeout: 1000 })
+      expect(requests).toEqual([{ owner: 'owner', repo: 'repo', run_id: 7, attempt_number: 2, per_page: 100 }])
+      return { warnings, failures }
+    }
+    const linux = { name: 'publisher-isolated (linux)', conclusion: 'success', runner_id: 1000001309 }
+    const unrelated = { name: 'node 24 / coverage 2/2', conclusion: 'failure', runner_id: 1000001308 }
+    expect(await classifyJobs([linux, unrelated, { name: 'publisher-isolated (macos)', conclusion: 'cancelled', runner_id: 0 }])).toEqual({
+      warnings: ['publisher-isolated (macos) never acquired a runner; re-run it when one is available'],
+      failures: [],
+    })
+    // A sibling leg that ran and failed stays a failure in the same abandoned matrix.
+    expect(await classifyJobs([
+      { ...linux, conclusion: 'failure' },
+      { name: 'publisher-isolated (macos)', conclusion: 'cancelled', runner_id: 0 },
+    ])).toEqual({
+      warnings: ['publisher-isolated (macos) never acquired a runner; re-run it when one is available'],
+      failures: ['publisher-isolated (linux) ran and concluded failure'],
+    })
+  })
+
   it.each(['ci.yml', 'ci-master.yml', 'e2e.yml', 'release.yml', 'release-vendor.yml'])(
     '%s cancels superseded validation runs without crossing workflow or ref boundaries', (name) => {
       const workflow = loadWorkflow('.github/workflows/' + name)

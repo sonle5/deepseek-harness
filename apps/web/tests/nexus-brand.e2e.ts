@@ -67,7 +67,9 @@ describe('Nexus Superharness in the default web profile', () => {
     expect(await page.locator('[data-nexus-aura]').evaluate(node => getComputedStyle(node).backgroundImage))
       .toContain('radial-gradient')
     expect(await page.locator('[data-nexus-glyph] [data-nexus-brand-mark]').count()).toBe(1)
-    expect(await page.locator('[data-nexus-attribution]').textContent()).toBe('Built on DeepSeek Harness')
+    // The page opens under ZH_BROWSER_LOCALE, so the attribution must be the
+    // Chinese dictionary entry rather than the English source string.
+    expect(await page.locator('[data-nexus-attribution]').textContent()).toBe('基于 DeepSeek Harness 构建')
     expect(await page.locator('[data-nexus-brand-mark]').count()).toBeGreaterThan(0)
     const mark = page.locator('[data-nexus-brand-mark]').first()
     expect(await mark.getAttribute('viewBox')).toBe('0 0 96 96')

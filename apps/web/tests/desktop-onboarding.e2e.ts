@@ -179,18 +179,18 @@ describe.skipIf(MODE === 'record')('web e2e: App-only desktop onboarding', () =>
         const headingFont = await page.locator('h1').evaluate(element => ({
           font: getComputedStyle(element).fontFamily, weight: getComputedStyle(element).fontWeight,
         }))
-        expect(headingFont.font).toContain('Montserrat')
+        expect(headingFont.font).toContain('Space Grotesk')
         expect(headingFont.weight).toBe('300')
         const brandWeights = await page.locator('h1 em').evaluateAll(elements => elements.map(element => getComputedStyle(element).fontWeight))
         expect(brandWeights.every(weight => weight === '500')).toBe(true)
-        expect(await page.evaluate(async () => (await document.fonts.load('500 28px Montserrat')).length)).toBeGreaterThan(0)
+        expect(await page.evaluate(async () => (await document.fonts.load('500 28px "Space Grotesk"')).length)).toBeGreaterThan(0)
         const copyFonts = await page.locator('[class*="heroDescription"], [class*="subtitle"], [class*="cardTitle"], [class*="cardDescription"]')
           .evaluateAll(elements => elements.map(element => getComputedStyle(element).fontFamily))
-        expect(copyFonts.every(font => font.includes('Montserrat'))).toBe(true)
+        expect(copyFonts.every(font => font.includes('Space Grotesk'))).toBe(true)
         const buttonFonts = await page.locator('[class*="navigation"] button').evaluateAll(elements =>
           elements.map(element => getComputedStyle(element).fontFamily))
-        expect(buttonFonts.every(font => font.includes('Montserrat'))).toBe(true)
-        expect(await page.evaluate(async () => (await document.fonts.load('300 28px Montserrat')).length)).toBeGreaterThan(0)
+        expect(buttonFonts.every(font => font.includes('Space Grotesk'))).toBe(true)
+        expect(await page.evaluate(async () => (await document.fonts.load('300 28px "Space Grotesk"')).length)).toBeGreaterThan(0)
       }
       if ((name === 'purpose' || name === 'process') && viewport.height > 760) {
         const card = await page.locator('[class*="cardTitle"]').first().locator('..').boundingBox()
@@ -278,7 +278,7 @@ describe.skipIf(MODE === 'record')('web e2e: App-only desktop onboarding', () =>
       fill: getComputedStyle(element).backgroundColor, overlay: getComputedStyle(element).backgroundImage,
     }))
     expect(laterHover.fill).toBe('rgb(255, 255, 255)')
-    expect(laterHover.overlay).toContain('rgba(38, 49, 72, 0.06)')
+    expect(laterHover.overlay).toContain('rgba(38, 49, 72, 0.09)')
     if (screenshots !== undefined) await page.screenshot({ path: join(screenshots, 'credit-later-hover.png') })
     const warningsBefore = tripwire.warnings.length
     const [balanceResponse] = await Promise.all([

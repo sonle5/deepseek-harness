@@ -1,6 +1,6 @@
-// Browser hit testing for the conversation view tabs: each tab accepts presses
-// beyond its label, and the selected tab's bar stays above the Trajectory
-// view's sticky toolbar where the two meet.
+// Browser hit testing for the conversation view tabs: each segment accepts
+// presses beyond its label, and the segmented pill stays inside the 64px
+// chrome row above the Trajectory view's sticky toolbar.
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -89,22 +89,26 @@ describe('web e2e: conversation view tabs', () => {
   it('takes presses above and beside the label', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-conversation-view-tabs-target'))
     const chat = await probeTab(page, 'Chat')
-    expect(chat.button.top).toBeLessThan(chat.label.top - 8)
-    expect(chat.button.left).toBeLessThan(chat.label.left - 8)
-    expect(chat.ownsAboveLabel).toBe(true)
+    // The rebrand turns the view control into a 28px segmented pill: the tab
+    // keeps a 4px/10px padding box around its label rather than the retired
+    // 35px target with a -10px top margin.
+    expect(chat.button.top).toBeLessThanOrEqual(chat.label.top)
+    expect(chat.button.left).toBeLessThanOrEqual(chat.label.left - 8)
     expect(chat.ownsBesideLabel).toBe(true)
     expect(tripwire.pageErrors).toEqual([])
   })
 
-  it('keeps the selected bar above the Trajectory toolbar', async () => {
+  it('keeps the selected segment inside the pill', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-conversation-view-tabs-trajectory'))
     await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
     const toolbar = page.getByRole('toolbar', { name: 'Trajectory toolbar' })
     await toolbar.waitFor({ timeout: 30_000 })
     const trajectory = await probeTab(page, 'Trajectory')
-    // The toolbar must start within the bar's overhang, or the probe cannot fail.
-    expect((await toolbar.boundingBox())!.y).toBeLessThanOrEqual(trajectory.button.bottom + 1)
-    expect(trajectory.ownsBarOverhang).toBe(true)
+    // The retired design overhung the header by a bar that met the toolbar; the
+    // pill is now contained in the 64px chrome row, so the toolbar starts at or
+    // below the header's edge and the tab's own box stays inside it.
+    expect((await toolbar.boundingBox())!.y).toBeGreaterThanOrEqual(trajectory.button.bottom)
+    expect(trajectory.ownsBesideLabel).toBe(true)
     expect(tripwire.pageErrors).toEqual([])
   })
 })

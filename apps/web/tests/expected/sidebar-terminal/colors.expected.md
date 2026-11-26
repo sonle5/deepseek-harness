@@ -1,11 +1,11 @@
 {
   "lightText": {
-    "foreground": "rgb(111, 111, 110)",
+    "foreground": "rgb(99, 99, 99)",
     "background": "rgba(0, 0, 0, 0)"
   },
   "customLight": {
     "ansi": {
-      "foreground": "rgb(0, 137, 0)",
+      "foreground": "rgb(0, 123, 0)",
       "background": "rgba(0, 0, 0, 0)"
     },
     "extended": {

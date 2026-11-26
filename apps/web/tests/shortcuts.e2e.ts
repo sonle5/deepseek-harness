@@ -120,7 +120,8 @@ describe('web e2e: shortcut reference', () => {
       expect(await recorder.evaluate(element => ({
         color: getComputedStyle(element).color, border: getComputedStyle(element).borderColor,
       })))
-        .toEqual({ color: 'rgb(97, 102, 107)', border: 'rgba(0, 0, 0, 0.16)' })
+        // label-secondary and border-l4 both moved to the Composer scale.
+        .toEqual({ color: 'rgb(90, 94, 103)', border: 'rgba(21, 23, 28, 0.36)' })
       expect(await recorder.evaluate(element => ({
         focused: element === document.activeElement,
         outline: getComputedStyle(element).outlineStyle, shadow: getComputedStyle(element).boxShadow,
@@ -168,7 +169,8 @@ describe('web e2e: shortcut reference', () => {
       await inline.waitFor({ state: 'hidden' })
       const unbound = row.getByText(locale === 'zh-CN' ? '暂无快捷键' : 'No shortcut', { exact: true })
       await unbound.waitFor()
-      expect(await unbound.evaluate(element => getComputedStyle(element).color)).toBe('rgb(129, 133, 140)')
+      // label-tertiary follows the Composer scale now.
+      expect(await unbound.evaluate(element => getComputedStyle(element).color)).toBe('rgb(98, 104, 114)')
       expect(await row.getByRole('button').count()).toBe(1)
       await editButton.click({ position: { x: 12, y: 12 } })
       await inline.waitFor()

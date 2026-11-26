@@ -381,8 +381,10 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     const exportButton = page.getByRole('button', { name: 'More actions' })
     expect(await exportButton.isDisabled()).toBe(false)
     const header = exportButton.locator('xpath=ancestor::header[1]')
-    // The right Sidebar's expand button holds the header's corner; the export
-    // control sits immediately to its left.
+    // The right Sidebar's expand button holds the header's corner seat and the
+    // export control sits immediately to its left. The rebrand then makes the
+    // View pill the header's trailing element, so the corner is no longer last:
+    // pin the order — export, corner, pill — and that the pill owns the edge.
     const sidebarButton = page.getByRole('button', { name: 'Open right sidebar' })
     const [buttonBox, sidebarBox, headerBox] = await Promise.all([
       exportButton.boundingBox(), sidebarButton.boundingBox(), header.boundingBox(),
@@ -390,8 +392,12 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     if (buttonBox === null || sidebarBox === null || headerBox === null) {
       throw new Error('Session Header export geometry is unavailable')
     }
-    expect(headerBox.x + headerBox.width - (sidebarBox.x + sidebarBox.width)).toBeLessThanOrEqual(32)
+    const pillBox = await header.locator('[data-conversation-view-controls]').boundingBox()
+    if (pillBox === null) throw new Error('Session Header view control is unavailable')
     expect(sidebarBox.x - (buttonBox.x + buttonBox.width)).toBeLessThanOrEqual(32)
+    expect(pillBox.x).toBeGreaterThanOrEqual(sidebarBox.x + sidebarBox.width)
+    // The pill's right edge is the header's content edge, inside its trailing padding.
+    expect(headerBox.x + headerBox.width - (pillBox.x + pillBox.width)).toBeLessThanOrEqual(32)
     const responsePromise = page.waitForResponse(response =>
       response.request().method() === 'HEAD'
       && new URL(response.url()).pathname === '/api/session.export', { timeout: 30_000 })

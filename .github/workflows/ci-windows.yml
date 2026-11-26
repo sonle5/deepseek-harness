@@ -162,6 +162,13 @@ jobs:
           $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
   windows-coverage:
+    # Observational on a fork: `windows-checks-passed` needs only
+    # windows-publisher, windows-build and windows-native-tests, so a red run
+    # here cannot block a merge. That matters because windows-latest runs as
+    # `runneradmin`, and several `sandbox-windows-acl` assertions depend on an
+    # account and privilege set the upstream pool provides but the hosted image
+    # does not. The coverage figure is still collected and compared upstream,
+    # where the job runs on `dsh-windows-2025-16core`.
     if: github.event_name == 'pull_request'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-16vcpu-windows-2025'

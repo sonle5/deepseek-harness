@@ -17,8 +17,12 @@ export class DesktopBrowserGuests {
   private readonly partitions = new Map<string, string>()
   private readonly leases = new Map<DesktopBrowserLeaseId, GuestLease>()
 
-  /** @param hostUrl - current authenticated DSH Host, which guests cannot request. */
-  constructor(private readonly hostUrl: () => string | undefined) {}
+  /**
+   * @param hostUrl - current authenticated DSH Host, which guests cannot request.
+   * @param applicationUrls - other loopback services the application owns, such as the Composer bridge.
+   */
+  constructor(private readonly hostUrl: () => string | undefined,
+    private readonly applicationUrls: () => readonly string[] = () => []) {}
 
   /**
    * Reserve one guest in a workspace's process-lifetime partition.
@@ -161,10 +165,11 @@ export class DesktopBrowserGuests {
   }
 
   private isApplicationHost(url: URL): boolean {
-    const value = this.hostUrl()
-    if (value === undefined) return false
-    const host = new URL(value)
-    return url.port === host.port
-      && (url.hostname === host.hostname || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    const hostUrl = this.hostUrl()
+    return [...hostUrl === undefined ? [] : [hostUrl], ...this.applicationUrls()].some((value) => {
+      const host = new URL(value)
+      return url.port === host.port
+        && (url.hostname === host.hostname || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    })
   }
 }

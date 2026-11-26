@@ -1,6 +1,6 @@
 [
   {
-    "label": "About DeepSeek Harness",
+    "label": "About Nexus Superharness",
     "role": "about"
   },
   {
@@ -18,6 +18,9 @@
     "label": "Check for Updates…"
   },
   {
+    "type": "separator"
+  },
+  {
     "label": "Manage dsh Command…"
   },
   {
@@ -32,7 +35,7 @@
   },
   {
     "role": "hide",
-    "label": "Hide DeepSeek Harness"
+    "label": "Hide Nexus Superharness"
   },
   {
     "role": "hideOthers",
@@ -47,6 +50,6 @@
   },
   {
     "role": "quit",
-    "label": "Quit DeepSeek Harness"
+    "label": "Quit Nexus Superharness"
   }
 ]

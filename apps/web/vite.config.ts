@@ -12,7 +12,7 @@ const src = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url)
 const STANDALONE_ERROR = 'apps/web is not a standalone application: bare Vite cannot inject window.__DSH_BOOT__. '
   + 'From a repository checkout, run `pnpm dsh web`; an installed package uses `dsh web`. '
   + 'For client-plugin HMR, run `pnpm run dev:web`, which starts `dsh web` and the rebuild watchers together.'
-const DEFAULT_CLIENT_TITLE = 'DSH Local Build'
+const DEFAULT_CLIENT_TITLE = 'Nexus Superharness'
 
 /** Escape build-time text before placing it in the HTML title element. */
 function escapeHtmlText(value: string): string {
@@ -30,16 +30,18 @@ function clientDocumentTitle(): Plugin {
   }
 }
 
-/** Keep the redistribution license beside the bundled brand font. */
+/** Keep every redistribution license beside the bundled brand fonts. */
 function brandFontLicense(): Plugin {
   return {
     name: 'dsh-brand-font-license',
     async generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'assets/fonts/Montserrat-OFL.txt',
-        source: await readFile(src('../../packages/client/ui-theme/src/styles/Montserrat-OFL.txt')),
-      })
+      for (const filename of ['Space-Grotesk-OFL.txt', 'IBM-Plex-Serif-OFL.txt']) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `assets/fonts/${filename}`,
+          source: await readFile(src(`../../packages/client/ui-theme/src/styles/${filename}`)),
+        })
+      }
     },
   }
 }

@@ -2,7 +2,7 @@
 import {
   IconNewChatOutlineRegular, IconPanelLeftOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the frame's shell.leading slot declaration.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { SidebarRootInjected } from './contract/slots.ts'
@@ -11,6 +11,7 @@ import css from './HeaderLeadingControls.module.css'
 /** Full props of the shell.leading occupant. */
 export type HeaderLeadingControlsProps =
   PropsRuntime<'shell.leading'>
+  & PropsRenderSlots<'sidebar.leading.product'>
   & InjectFace<SidebarRootInjected>
   & PropsLocale<'sidebar'>
 
@@ -19,10 +20,11 @@ export type HeaderLeadingControlsProps =
  * The frame mounts this seat for hidden sidebars and owns its placement.
  * Web shows only the sidebar opener; Desktop also retains New Session.
  * @param props - Injected sidebar actions, the global access Hook, and the sidebar locale seat.
- * @returns the sidebar toggle, plus New Session on Desktop while access allows `session/create`.
+ * @returns the sidebar toggle, plus New Session on Desktop while access allows `session/create`,
+ * followed by the optional `sidebar.leading.product` occupant.
  */
 export function HeaderLeadingControls({
-  toggleSidebar, startSession, trackEntryClick, useRemoteAccess, useShortcuts, t,
+  toggleSidebar, startSession, trackEntryClick, useRemoteAccess, useShortcuts, renderSlot, t,
 }: HeaderLeadingControlsProps) {
   // A page whose access snapshot excludes starting a Session keeps only the sidebar toggle here.
   const canStartSession = useRemoteAccess('session/create')
@@ -59,6 +61,7 @@ export function HeaderLeadingControls({
           </button>
         </Tooltip>
       )}
+      {renderSlot('sidebar.leading.product', {})}
     </div>
   )
 }

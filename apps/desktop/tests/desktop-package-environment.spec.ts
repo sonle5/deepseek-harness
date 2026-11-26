@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 import { resolveWindowsPackageSettings } from '../scripts/windows-package-settings.mjs'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
 const MACOS = { platform: 'darwin', arch: 'arm64' } as const
@@ -114,7 +115,7 @@ describe('Desktop local packaging configuration', () => {
     const local = localMacOSPackageEnvironment(parent)
     expect(local).toEqual({
       PATH: parent.PATH, HTTPS_PROXY: parent.HTTPS_PROXY, DSH_DESKTOP_NPM_REGISTRY: parent.DSH_DESKTOP_NPM_REGISTRY,
-      DSH_DESKTOP_APP_ID: 'com.deepseek.harness', DSH_DESKTOP_UNSIGNED: '1',
+      DSH_DESKTOP_APP_ID: PRODUCT_IDENTITY.appId, DSH_DESKTOP_UNSIGNED: '1',
     })
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
     expect(parent.DSH_DESKTOP_UNSIGNED).toBe('0')
@@ -203,9 +204,14 @@ describe('Desktop local packaging configuration', () => {
       await writeFile(file, settings.replace(`DOWNLOAD_TEST_RELEASE_ID='${RELEASE.DOWNLOAD_TEST_RELEASE_ID}'\n`, ''))
       const missing = loadDesktopPackageEnvironment(platform, parent, directory)
       expect(missing.DOWNLOAD_TEST_RELEASE_ID).toBeUndefined()
+      // This downstream build ships no updater, so the feed variables are inert:
+      // validation passes over their absence and reaches the credentials the
+      // platform really requires. Flip `updatesEnabled` and it must complain
+      // about the release ID instead.
+      expect(PRODUCT_IDENTITY.updatesEnabled).toBe(false)
       expect(() => {
         validateDesktopPackageEnvironment(missing, platform === 'win32' ? WINDOWS : MACOS)
-      }).toThrow(/DOWNLOAD_TEST_RELEASE_ID/u)
+      }).toThrow(platform === 'win32' ? /DSH_DESKTOP_WINDOWS_CER_FILE/u : /DSH_DESKTOP_MACOS_SIGNING_IDENTITY/u)
       expect(parent.DOWNLOAD_TEST_RELEASE_ID).toBe('a'.repeat(32))
     })
   })
@@ -235,16 +241,19 @@ describe('Desktop local packaging configuration', () => {
     })
   })
 
-  it('checks application and update configuration before Windows credentials while preserving unsigned and preparation modes', () => {
+  it('checks application configuration before Windows credentials while preserving unsigned and preparation modes', () => {
     expect(() => {
       validateDesktopPackageEnvironment({}, WINDOWS, { unsigned: true })
     }).toThrow(/DSH_DESKTOP_APP_ID/u)
     expect(() => {
       validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'invalid' }, WINDOWS)
     }).toThrow(/reverse-DNS/u)
+    // The update feed is only demanded when the product updates; this one does
+    // not, so validation reaches the signing credentials it does demand.
+    expect(PRODUCT_IDENTITY.updatesEnabled).toBe(false)
     expect(() => {
       validateDesktopPackageEnvironment({ ...POLICY, DSH_DESKTOP_APP_ID: RELEASE.DSH_DESKTOP_APP_ID }, WINDOWS)
-    }).toThrow(/DOWNLOAD_TEST_ORIGIN/u)
+    }).toThrow(/DSH_DESKTOP_WINDOWS_CER_FILE/u)
     expect(() => {
       validateDesktopPackageEnvironment(RELEASE, WINDOWS)
     }).toThrow(/DSH_DESKTOP_WINDOWS_CER_FILE/u)

@@ -18,7 +18,8 @@ const SIDEBAR = '@deepseek-ai/dsh-client-ui-sidebar'
 const PARALLEL_PROBE = '@deepseek-ai/dsh-client-test-parallel-probe'
 /** Declared by ui-sidebar, whose SlotMap merge is outside this package's compilation face. */
 const SIDEBAR_SETTINGS = 'sidebar.settings' as never
-const BRAND = '@deepseek-ai/dsh-client-ui-brand-official'
+/** The brand row the bundle ships; the rebrand replaced brand-official with brand-nexus. */
+const BRAND = '@deepseek-ai/dsh-client-ui-brand-nexus'
 const globals = globalThis as { ResizeObserver?: unknown; matchMedia?: typeof window.matchMedia }
 /** The whole roster's first boot pays the cold module transform of every plugin package. */
 const COLD_BOOT_TIMEOUT_MS = 60_000

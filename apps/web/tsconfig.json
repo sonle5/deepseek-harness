@@ -28,7 +28,7 @@
     "tests/pairing-recovery.e2e.ts",
     "tests/remote-connection.e2e.ts",
     "tests/remote-connection-fixture.ts",
-    "tests/home-whale.e2e.ts",
+    "tests/nexus-brand.e2e.ts",
     "tests/sidebar-drawer.e2e.ts",
     "tests/session-panel-layout.e2e.ts",
     "tests/creation-recommendations.e2e.ts",

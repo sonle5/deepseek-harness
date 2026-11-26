@@ -203,15 +203,20 @@ describe('web e2e: a git workspace turn ends with its changed files', () => {
     expect(await card.count()).toBe(0)
     const header = page.locator('header').filter({ has: page.locator('[data-conversation-header-leading]') })
     expect(await header.getByRole('tablist').count()).toBe(0)
+    // The rebrand unified the header into one constant 64px chrome row: the
+    // view control now shares the title's grid row instead of adding a tab
+    // strip below it, so revealing the tabs leaves the height unchanged. Pin
+    // the constant row and prove the control appears in place, which is what
+    // this test is really about — the turn card, not the header's growth.
     const compactHeight = await header.evaluate(element => element.getBoundingClientRect().height)
-    expect(compactHeight).toBeLessThan(60)
+    expect(compactHeight).toBe(64)
     await openSettings(page, 'zh')
     const settings = page.getByRole('dialog', { name: '设置' })
     await settings.getByRole('switch', { name: '显示代码工作视图' }).click()
     await expect.poll(() => settings.getByRole('switch', { name: '显示代码工作视图' }).getAttribute('aria-checked')).toBe('true')
     await settings.getByRole('button', { name: '关闭', exact: true }).click()
     await header.getByRole('tablist').waitFor({ state: 'visible' })
-    expect(await header.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(compactHeight)
+    expect(await header.evaluate(element => element.getBoundingClientRect().height)).toBe(compactHeight)
     await card.waitFor({ state: 'visible' })
     expect(await card.getByText('已编辑 4 个文件', { exact: true }).count()).toBe(1)
     expect(await card.getByRole('listitem').count()).toBe(4)

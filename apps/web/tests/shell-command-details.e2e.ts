@@ -75,7 +75,7 @@ it.each([
       const page = await newEnglishPage(browser)
       const tripwire = watchConsole(page)
       await page.goto(scaffold.authenticatedUrl)
-      await page.locator('[class*="frame"]').waitFor()
+      await page.locator('[data-slot="root"]').waitFor()
       const group = page.getByRole('treeitem').first()
       await group.waitFor()
       await group.click()

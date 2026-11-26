@@ -9,6 +9,7 @@ import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-prod
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { release as osRelease } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import {
   app,
@@ -71,6 +72,13 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { DesktopComposerSurface } from './composer-surface.ts'
+import { classifyComposerStandalone } from './composer-standalone.ts'
+import { DesktopComposerStandaloneNotice } from './composer-standalone-notice.ts'
+import { releaseComposerForQuit } from './composer-quit.ts'
+import { developmentComposerResources, packagedComposerResources } from './composer-view.ts'
+import { installComposerSwitcher } from './composer-switcher.ts'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -80,6 +88,14 @@ let shuttingDown = false
  * development restart command. The installer handoff has its own before-quit branch.
  */
 let skipQuitConfirmation = false
+app.setName(PRODUCT_IDENTITY.productName)
+if (app.isPackaged) {
+  const appData = app.getPath('appData')
+  if (typeof appData === 'string') {
+    // Keep the established Desktop settings and plugin-operation state across the product rename.
+    app.setPath('userData', join(appData, PRODUCT_IDENTITY.legacyUserDataDirectory))
+  }
+}
 let windowsLanguage: string | undefined = readDesktopLocaleCache(app.getPath('userData'))
 /**
  * Whether the backend has reached ready: false until the first ready, back to
@@ -489,7 +505,8 @@ async function main(): Promise<void> {
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
-  const browserGuests = new DesktopBrowserGuests(() => hostUrl)
+  let composerBridgeUrl: string | undefined
+  const browserGuests = new DesktopBrowserGuests(() => hostUrl, () => composerBridgeUrl === undefined ? [] : [composerBridgeUrl])
   let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
@@ -531,6 +548,101 @@ async function main(): Promise<void> {
   const platformView = new DesktopPlatformView(join(app.getAppPath(), 'lib', 'preload-platform-account.cjs'),
     () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin',
     owner => isMandatory() || updateOverlays.input(owner).blocked)
+  // Optional embedded Composer. Development opts in with DSH_DESKTOP_COMPOSER_DIR; a set but unusable
+  // directory fails startup loudly. Packaged builds embed it when the release lock pins this target.
+  const composerResources = development
+    ? developmentComposerResources(process.env.DSH_DESKTOP_COMPOSER_DIR)
+    : packagedComposerResources(process.resourcesPath)
+  let notifyComposerSwitcher = (): void => {}
+  // A separate, older Nexus Composer keeps the embedded one read-only. Superharness never signals it;
+  // it explains once per kind (handoff / outdated) and never again after acknowledgement.
+  const composerStandaloneNotice = composerResources === undefined ? undefined : new DesktopComposerStandaloneNotice({
+    markerPaths: {
+      handoff: join(app.getPath('userData'), 'composer-standalone-handoff-notified'),
+      outdated: join(app.getPath('userData'), 'composer-standalone-outdated-notified'),
+    },
+    messages: () => locale.messages,
+    // A sheet of the main window when one exists; otherwise its own top-level dialog.
+    show: (options) => {
+      const parent = currentMainWindow()
+      return parent === undefined ? dialog.showMessageBox(options) : ordinaryMessageBox(options, parent)
+    },
+    focus: () => { updateDialog.focus() },
+  })
+  const reportComposerStandalone = (): void => {
+    const state = classifyComposerStandalone(composer?.ready)
+    if (state !== undefined) composerStandaloneNotice?.report(state)
+  }
+  const composer = composerResources === undefined ? undefined : new DesktopComposerSurface({
+    resources: composerResources,
+    preload: join(app.getAppPath(), 'lib', 'preload-composer.cjs'),
+    // Development keeps an isolated profile; packaged builds share the standalone Composer's real home.
+    ...(development ? { home: join(app.getPath('userData'), 'composer-development-home') } : {}),
+    // The sidecar launches Codex and Claude helpers, so it needs the login-shell PATH Hosts get.
+    environment: async () => { await prepareHostEnvironment(); return hostEnvironment },
+    // Superharness has no usage-telemetry consent yet, so the embedded Composer sends none.
+    telemetryConsent: false,
+    // Composer failures stay inside the Composer surface; Superharness keeps running.
+    onError: (error) => {
+      console.error('nexus composer:', error.message)
+      void persistCrashReport(error, 'composer')
+    },
+    onBridgeUrl: (url) => { composerBridgeUrl = url },
+    // The switcher mirrors every lifecycle change into the application document. A ready or an ownership
+    // change may be the first sight of a separate standalone Composer.
+    onStatus: () => { notifyComposerSwitcher(); reportComposerStandalone() },
+    // The sidebar offers Composer's own views while Composer is the selected product, so a published
+    // navigation state has to reach the application document the same way a lifecycle change does.
+    onNavigation: () => { notifyComposerSwitcher() },
+    // Composer's file dialogs are sheets of the application window that hosts its view.
+    window: currentMainWindow,
+    // Copy the view shows when its own renderer crash-loops, from the shell's dictionaries.
+    viewMessages: () => ({
+      title: locale.messages.composerCrashTitle,
+      detail: locale.messages.composerCrashDetail,
+    }),
+  })
+  // Superharness | Composer: the application document asks for the native view; main owns the
+  // accelerators and keeps shell overlays above it.
+  const composerSwitcher = installComposerSwitcher({
+    configured: composer !== undefined,
+    osRelease: osRelease(),
+    window: currentMainWindow,
+    surface: () => composer,
+    blocked: owner => isMandatory() || updateOverlays.input(owner).blocked,
+    raiseOverlays: (owner) => {
+      updateOverlays.raise(owner)
+      platformView.raise()
+    },
+  })
+  // Status changes attach and detach the native view, not just the published state:
+  // a surface that starts, restarts, gives up or loses ownership moves between
+  // "has a document worth covering the column with" and "does not", and the
+  // application document draws its placeholder underneath either way.
+  notifyComposerSwitcher = () => { composerSwitcher.sync() }
+  if (composer !== undefined) {
+    composer.view.onInput = (event, input) => { composerSwitcher.forwardInput(event, input) }
+    // A crash loop detaches the view without a command; the client must learn it is no longer visible.
+    composer.view.onVisibility = () => { composerSwitcher.publish() }
+  }
+  // Overlays attach and release asynchronously (update prompt, mandatory update); the Composer view
+  // yields to them and comes back when they release.
+  const disposeComposerOverlaySync = updateOverlays.subscribe(() => { composerSwitcher.sync() })
+  // Start the embedded Composer at launch rather than on the first Composer view. Ownership is decided
+  // once and never retried, so a sidecar spawned only when the view opens would start too late to take
+  // over from a standalone Composer the user has already quit — every client would keep dialling a dead
+  // port until someone pressed the switcher. Starting here binds the clients' configured port as soon as
+  // the app is up. Against a standalone that still owns routing it stays read-only and shows its notice.
+  composerSwitcher.start()
+  // One release decision at a time; a second quit request joins the open one.
+  let composerRelease: Promise<boolean> | undefined
+  const releaseComposer = (): Promise<boolean> => composerRelease ??= releaseComposerForQuit({
+    target: () => composer?.releaseTarget(),
+    messages: () => locale.messages,
+    // No owner window, as the quit confirmation: hidden windows stay hidden.
+    show: options => dialog.showMessageBox(options),
+    onError: (error) => { console.error('nexus composer:', error.message) },
+  }).finally(() => { composerRelease = undefined })
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
@@ -733,6 +845,8 @@ async function main(): Promise<void> {
         const result = await updateDialog.show(parent, confirmation)
         if (result.response !== 0 || isMandatory()) return false
       }
+      // Composer routing goes first: a cancelled Codex decision leaves every task running.
+      if (!await releaseComposer()) return false
       // The update lock rejects new HTTP requests, including analytics intake.
       await track('desktop_upgrade_install_restart_click', {})
       if (backend.host !== host) throw new DesktopUpdatePreparationError('tasks-unavailable', locale.messages.updateTasksUnavailable)
@@ -745,7 +859,8 @@ async function main(): Promise<void> {
         await disposeFileDrag().catch((error: unknown) => { console.error(error) })
         requireCleanStop = true
         updateStopFailure = undefined
-        await Promise.all([backend.stop(), stopOperationReports()])
+        await Promise.all([backend.stop(), stopOperationReports(),
+          composer?.close().catch((error: unknown) => { console.error(error) })])
         updateStoppedHost = true
         // The backend's async cleanup callback can assign this after the reset above.
         const stopFailure = updateStopFailure as DesktopHostUncleanExitError | undefined
@@ -1164,11 +1279,11 @@ async function main(): Promise<void> {
   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: PRODUCT_IDENTITY.productName,
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
-    copyright: '',
+    copyright: PRODUCT_IDENTITY.copyright,
     iconPath: applicationIconPath,
   })
   // A custom application menu replaces Electron's default menu, so macOS needs
@@ -1198,47 +1313,67 @@ async function main(): Promise<void> {
     ] },
     { label: messages.speechMenu, submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }] },
   ] })
+  // Superharness | Composer switches products. The client owns the selected product; the menu and
+  // accelerators only ask it to switch.
+  const composerProductItems = (): MenuItemConstructorOptions[] => [
+    { label: currentDesktopLocale().messages.composerSwitcherSuperharness, accelerator: 'CmdOrCtrl+1',
+      click: () => { composerSwitcher.select('superharness') } },
+    { label: currentDesktopLocale().messages.composerSwitcherComposer, accelerator: 'CmdOrCtrl+2',
+      click: () => { composerSwitcher.select('composer') } },
+  ]
+  const viewMenu = (): MenuItemConstructorOptions[] => composerSwitcher.available
+    ? [{ label: currentDesktopLocale().messages.viewMenu, submenu: composerProductItems() }] : []
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), macEditMenu(currentDesktopLocale().messages), { role: 'windowMenu' }]
-    : [{ role: 'editMenu' }]
+    ? [shortcuts.fileMenu(currentDesktopLocale().messages), macEditMenu(currentDesktopLocale().messages),
+      ...viewMenu(), { role: 'windowMenu' }]
+    : [{ role: 'editMenu' }, ...viewMenu()]
   const hideCommands: MenuItemConstructorOptions[] = darwin
     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },
       { role: 'hideOthers', label: currentDesktopLocale().messages.hideOtherApplications },
       { role: 'unhide', label: currentDesktopLocale().messages.showAllApplications }, { type: 'separator' }]
     : []
-  const applicationItems = (): MenuItemConstructorOptions[] => [
-    // Windows has no system About panel; Electron's fallback is a plain
-    // message box, so the shell shows its own dimmed dialog instead.
-    process.platform === 'win32'
-      ? { label: currentDesktopLocale().messages.aboutMenu,
-        click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
-      : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
-    { type: 'separator' },
-    shortcuts.settingsMenuItem(currentDesktopLocale().messages.settingsMenu,
-      enteredWorkspace && !isMandatory(), () => { focusPrimaryWindow() }),
-    { type: 'separator' },
-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
-    ...process.platform === 'darwin' || process.platform === 'win32'
-      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
-    { type: 'separator' },
-    ...development ? [
-      { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
-      { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
-        if (quitting) return
-        app.relaunch()
-        quitWithoutConfirmation()
-      } },
-    ] : [],
-    { role: 'toggleDevTools', label: currentDesktopLocale().messages.toggleDevToolsMenu },
-    { type: 'separator' },
-    ...hideCommands,
-    { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
-      : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
-  ]
+  const applicationItems = (): MenuItemConstructorOptions[] => {
+    // Grouped so a platform without the CLI command does not leave a stray
+    // separator behind it.
+    const productActions: MenuItemConstructorOptions[] = process.platform === 'darwin' || process.platform === 'win32'
+      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }]
+      : []
+    return [
+      // Windows has no system About panel; Electron's fallback is a plain
+      // message box, so the shell shows its own dimmed dialog instead.
+      process.platform === 'win32'
+        ? { label: currentDesktopLocale().messages.aboutMenu,
+          click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
+        : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
+      { type: 'separator' },
+      shortcuts.settingsMenuItem(currentDesktopLocale().messages.settingsMenu,
+        enteredWorkspace && !isMandatory(), () => { focusPrimaryWindow() }),
+      { type: 'separator' },
+      { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
+      ...productActions.length === 0 ? [] : [{ type: 'separator' as const }, ...productActions],
+      { type: 'separator' },
+      ...development ? [
+        { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
+        { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
+          if (quitting) return
+          app.relaunch()
+          quitWithoutConfirmation()
+        } },
+      ] : [],
+      { role: 'toggleDevTools', label: currentDesktopLocale().messages.toggleDevToolsMenu },
+      { type: 'separator' },
+      ...hideCommands,
+      { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
+        : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
+    ]
+  }
   const devToolsF12Shortcut: MenuItemConstructorOptions = { role: 'toggleDevTools', visible: false, accelerator: 'F12' }
+  const windowsComposerShortcuts: MenuItemConstructorOptions[] = composerSwitcher.available
+    ? composerProductItems().map(item => ({ ...item, visible: false, acceleratorWorksWhenHidden: true })) : []
   const windowsDevToolsShortcuts: MenuItemConstructorOptions[] = [
     { role: 'toggleDevTools', visible: false },
     devToolsF12Shortcut,
+    ...windowsComposerShortcuts,
   ]
   const refreshApplicationMenu = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32'
@@ -1291,17 +1426,19 @@ async function main(): Promise<void> {
           shortcuts.sendEditingKey(keyCode, modifiers)
         },
       })
-      const items: MenuItemConstructorOptions[] = name === 'application' ? applicationItems() : [
-        editItem(currentDesktopLocale().messages.undo, 'Z', ['control'], 'Ctrl+Z'),
-        editItem(currentDesktopLocale().messages.redo, 'Y', ['control'], 'Ctrl+Y'),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.cut, 'X', ['control'], 'Ctrl+X'),
-        editItem(currentDesktopLocale().messages.copy, 'C', ['control'], 'Ctrl+C'),
-        editItem(currentDesktopLocale().messages.paste, 'V', ['control'], 'Ctrl+V'),
-        editItem(currentDesktopLocale().messages.delete, 'Delete', []),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.selectAll, 'A', ['control'], 'Ctrl+A'),
-      ]
+      const items: MenuItemConstructorOptions[] = name === 'application'
+        ? [...composerSwitcher.available ? [...composerProductItems(), { type: 'separator' as const }] : [], ...applicationItems()]
+        : [
+          editItem(currentDesktopLocale().messages.undo, 'Z', ['control'], 'Ctrl+Z'),
+          editItem(currentDesktopLocale().messages.redo, 'Y', ['control'], 'Ctrl+Y'),
+          { type: 'separator' },
+          editItem(currentDesktopLocale().messages.cut, 'X', ['control'], 'Ctrl+X'),
+          editItem(currentDesktopLocale().messages.copy, 'C', ['control'], 'Ctrl+C'),
+          editItem(currentDesktopLocale().messages.paste, 'V', ['control'], 'Ctrl+V'),
+          editItem(currentDesktopLocale().messages.delete, 'Delete', []),
+          { type: 'separator' },
+          editItem(currentDesktopLocale().messages.selectAll, 'A', ['control'], 'Ctrl+A'),
+        ]
       const zoom = mainWindow.webContents.getZoomFactor()
       return new Promise<void>((resolve) => {
         Menu.buildFromTemplate(items).popup({ window, x: Math.round(x * zoom), y: Math.round(y * zoom), callback: resolve })
@@ -1355,7 +1492,12 @@ async function main(): Promise<void> {
       window.on('focus', () => { sessionEnding = false })
       window.on('show', () => { sessionEnding = false })
     }
-    window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
+    window.on('closed', () => {
+      if (mainWindow !== window) return
+      mainWindow = undefined
+      composer?.view.release(window)
+      notifyComposerSwitcher()
+    })
     window.webContents.on('console-message', (details) => {
       if (details.level !== 'error') return
       rendererConsole.push(`${details.sourceId}:${String(details.lineNumber)} ${details.message}`)
@@ -1374,6 +1516,8 @@ async function main(): Promise<void> {
         reportFatal(new Error(`Desktop renderer exited: ${details.reason}`), 'renderer')
       }
     })
+    // A recreated window replaces the owner; reattach Composer if the client had it selected.
+    composerSwitcher.sync()
     return window
   }
   const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
@@ -1496,10 +1640,18 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') {
+    app.setAsDefaultProtocolClient(PRODUCT_IDENTITY.protocol)
+    // Existing sign-in and launch links still use dsh://open.
+    app.setAsDefaultProtocolClient('dsh')
+  }
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    const parsed = URL.parse(url)
+    if (parsed !== null
+      && (parsed.protocol === `${PRODUCT_IDENTITY.protocol}:` || parsed.protocol === 'dsh:')
+      && parsed.hostname === 'open'
+      && (parsed.pathname === '' || parsed.pathname === '/')) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -1515,7 +1667,10 @@ async function main(): Promise<void> {
     updateJournal?.action('quit-requested')
     quitConfirmation.dispose()
     backgroundNotice?.dispose()
+    composerStandaloneNotice?.dispose()
     tray?.dispose()
+    composerSwitcher.dispose()
+    disposeComposerOverlaySync()
     stopAccount?.()
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.hide()
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
@@ -1528,6 +1683,7 @@ async function main(): Promise<void> {
         throw error
       }),
       platformView.dispose(),
+      composer?.close() ?? Promise.resolve(),
       disposeFileDrag(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
       .then(() => { app.quit() })
@@ -1537,6 +1693,7 @@ async function main(): Promise<void> {
       shuttingDown = true
       quitConfirmation.dispose()
       backgroundNotice?.dispose()
+      composerStandaloneNotice?.dispose()
       updateJournal?.action('quit-requested')
       tray?.dispose()
       updateDialog.dispose()
@@ -1547,13 +1704,16 @@ async function main(): Promise<void> {
     }
     if (quitting) return
     event.preventDefault()
+    // Paths that must not ask leave Composer to the sidecar's bounded, non-interactive shutdown release.
     if (skipQuitConfirmation || sessionEnding) { finishQuit(); return }
-    void quitConfirmation.confirm().then((approved) => {
-      if (quitting || shellInstallerOwnsQuit) return
-      if (approved) { finishQuit(); return }
-      // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
-      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
-    }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
+    void quitConfirmation.confirm()
+      .then(async approved => approved && await releaseComposer())
+      .then((approved) => {
+        if (quitting || shellInstallerOwnsQuit) return
+        if (approved) { finishQuit(); return }
+        // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
+        if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 
   mainWindow = createMainWindow()
@@ -1581,6 +1741,8 @@ async function main(): Promise<void> {
         for (const controller of ordinaryDialogs) controller.abort()
         if (!wasBlocking) updateDialog.cancel()
       }
+      // Composer yields to the blocking overlay before the overlay paints.
+      composerSwitcher.sync()
       mandatoryUI?.sync()
       if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })
       if (state.blocking !== wasBlocking) {

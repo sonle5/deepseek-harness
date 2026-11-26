@@ -380,15 +380,21 @@
     - id: ui-chat
       name: '@deepseek-ai/dsh-client-ui-chat'
 
-    # Official occupants for the sidebar brand slots and the home whale frame layer.
-    - id: ui-brand-official
-      name: '@deepseek-ai/dsh-client-ui-brand-official'
+    # Nexus Superharness occupants for the sidebar and blank-session hero brand slots.
+    - id: ui-brand-nexus
+      name: '@deepseek-ai/dsh-client-ui-brand-nexus'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
 
     - id: ui-file-drag
       name: '@deepseek-ai/dsh-client-ui-file-drag'
+
+    # Superharness | Composer switcher; only the Desktop build exposes the
+    # `dshComposer` bridge, and the plugin itself registers nothing without it.
+    - id: ui-product-switcher
+      name: '@deepseek-ai/dsh-client-ui-product-switcher'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     # Tool call tree, generic fallback, and keyed business Tool views.
     - id: ui-tool

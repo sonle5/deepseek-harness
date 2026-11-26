@@ -34,73 +34,78 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="6e5e38f3"
-                data-icon="dsw-icon-new-chat-outline-regular"
-                height="16"
-                width="16"
-              />
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="6e5e38f3"
+                  data-icon="dsw-icon-new-chat-outline-regular"
+                  height="16"
+                  width="16"
+                />
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -120,37 +125,38 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="New session"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -165,7 +171,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"
@@ -175,8 +181,8 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               </span>
             </div>
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -194,79 +200,84 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                New Session
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  New Session
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -325,73 +336,78 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="6e5e38f3"
-                data-icon="dsw-icon-new-chat-outline-regular"
-                height="18"
-                width="18"
-              />
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="6e5e38f3"
+                  data-icon="dsw-icon-new-chat-outline-regular"
+                  height="18"
+                  width="18"
+                />
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -411,37 +427,38 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="New session"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -456,7 +473,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"
@@ -466,8 +483,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               </span>
             </div>
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -485,79 +502,84 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="New session"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                New Session
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="New session"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  New Session
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -577,37 +599,38 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       class="logoRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="新建会话"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="brandMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
           <span
-            class="brandMark"
+            class="copyVersion"
+            data-copy-version="true"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="16.186528497409327"
+              viewBox="0 0 23.16 17.04"
+              width="22"
+            />
           </span>
+        </div>
+      </span>
+      <div
+        data-slot="sidebar.product"
+        style="display: contents;"
+      >
+        <button
+          aria-label="新建会话"
+          class="brand wide"
+          type="button"
+        >
           <span
             class="brandName"
           >
@@ -622,7 +645,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                 <span
                   class="localBuildTitle"
                 >
-                  DSH 本地构建
+                  Nexus Superharness
                 </span>
                 <span
                   class="buildVersion"
@@ -632,8 +655,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               </span>
             </div>
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
       <button
         aria-label="收起侧边栏"
         class="iconButton toggle"
@@ -651,79 +674,84 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       </button>
     </div>
     <div
-      class="newSessionRow"
+      data-slot="sidebar.navigation"
+      style="display: contents;"
     >
       <div
-        data-slot="sidebar.session.action"
-        style="display: contents;"
-      >
-        <button
-          aria-label="新建会话"
-          class="newSession"
-          type="button"
-        >
-          <span
-            class="newSessionLabelMask"
-          >
-            <span
-              class="newSessionContent"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="532cf99a"
-                data-icon="dsw-icon-new-chat-outline-medium"
-                height="14"
-                width="14"
-              />
-              <span
-                class="newSessionLabel wide"
-              >
-                新会话
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-    <div
-      class="scrollRegion"
-    >
-      <div
-        class="scrollArea"
-        data-sidebar-scrollport=""
+        class="newSessionRow"
       >
         <div
-          class="regionArea"
+          data-slot="sidebar.session.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="新建会话"
+            class="newSession"
+            type="button"
+          >
+            <span
+              class="newSessionLabelMask"
+            >
+              <span
+                class="newSessionContent"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="532cf99a"
+                  data-icon="dsw-icon-new-chat-outline-medium"
+                  height="14"
+                  width="14"
+                />
+                <span
+                  class="newSessionLabel wide"
+                >
+                  新会话
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="scrollRegion"
+      >
+        <div
+          class="scrollArea"
+          data-sidebar-scrollport=""
         >
           <div
-            data-slot="sidebar.workspaces"
+            class="regionArea"
+          >
+            <div
+              data-slot="sidebar.workspaces"
+              style="display: contents;"
+            />
+          </div>
+        </div>
+        <span
+          aria-hidden="true"
+          class="scrollFade"
+        />
+      </div>
+      <div
+        class="footArea"
+      >
+        <div
+          class="footerActions"
+        >
+          <div
+            data-slot="sidebar.footer.action"
             style="display: contents;"
           />
         </div>
-      </div>
-      <span
-        aria-hidden="true"
-        class="scrollFade"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="footerActions"
-      >
         <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
+          class="settingsArea"
+        >
+          <div
+            data-slot="sidebar.settings"
+            style="display: contents;"
+          />
+        </div>
       </div>
     </div>
   </div>

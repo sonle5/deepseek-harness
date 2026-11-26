@@ -1,6 +1,6 @@
 [
   {
-    "label": "关于 DeepSeek Harness",
+    "label": "关于 Nexus Superharness",
     "role": "about"
   },
   {
@@ -18,6 +18,9 @@
     "label": "检查更新…"
   },
   {
+    "type": "separator"
+  },
+  {
     "label": "管理 dsh 命令…"
   },
   {
@@ -32,7 +35,7 @@
   },
   {
     "role": "hide",
-    "label": "隐藏 DeepSeek Harness"
+    "label": "隐藏 Nexus Superharness"
   },
   {
     "role": "hideOthers",
@@ -47,6 +50,6 @@
   },
   {
     "role": "quit",
-    "label": "退出 DeepSeek Harness"
+    "label": "退出 Nexus Superharness"
   }
 ]

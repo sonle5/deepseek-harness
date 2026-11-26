@@ -1,0 +1,77 @@
+/* Composer is a main panel: it occupies the frame's center column and draws no
+ * chrome of its own. The rectangle reported to main is exactly this box, so the
+ * native view sits where the Conversation would — beside the sidebar and under
+ * the frame's shared drag rows, not over them. A covering layer here would
+ * repaint the whole window and hide the sidebar the product switcher lives in. */
+.surface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.message {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.retry.retry {
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 58px;
+  padding: 0 12px;
+  --dsh-button-outline-color: var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.bannerTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.bannerDetail {
+  max-width: 420px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}

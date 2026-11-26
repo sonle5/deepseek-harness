@@ -89,8 +89,17 @@ export function createSlotRenderer(): SlotRenderer {
 type ErasedRegister = (options: object, component: unknown) => () => void
 
 /** Per-view render options; the caller owns the explicitly supplied Session reference. */
+/**
+ * Options accepted by {@link SlotTestRuntime.renderSlot}: the production
+ * render options plus the borrowed Session reference and, for hoc keys, the
+ * content the slot's layers wrap. `children` is typed here rather than on
+ * {@link RenderOpts} because only a hoc render site supplies it, and the same
+ * bag is passed for every kind.
+ */
 export interface SlotTestRenderOptions extends RenderOpts {
   readonly session?: SessionReference | undefined
+  /** Innermost content a hoc slot's layers wrap; ignored by other kinds. */
+  readonly children?: ReactNode
 }
 
 /**
@@ -372,7 +381,7 @@ export class SlotTestRuntime {
     for (const key of Object.keys(children)) this.autoDeclared.add(key)
     const cell = this.ownerCell
     const AutoFrame = (props: {
-      renderSlot: (key: string, owner: object, opts?: RenderOpts) => ReactNode
+      renderSlot: (key: string, owner: object, opts?: SlotTestRenderOptions) => ReactNode
       SessionProvider: SessionProviderComponent
     }) => {
       useSyncExternalStore(cell.subscribe, cell.getVersion)

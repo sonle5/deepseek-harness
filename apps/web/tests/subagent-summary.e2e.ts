@@ -90,7 +90,7 @@ describe.skipIf(MODE === 'record')('web e2e: subagent task summary', () => {
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-    await page.locator('[class*="frame"]').waitFor()
+    await page.locator('[data-slot="root"]').waitFor()
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
     const connected = scaffold.ctx.agents.list()[0]
     if (connected === undefined) throw new Error('Subagent summary fixture has no connected Agent')

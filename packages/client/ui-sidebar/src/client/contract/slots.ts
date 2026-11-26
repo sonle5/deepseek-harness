@@ -98,6 +98,28 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * Declared by this package's 'sidebar' entry.
      */
     'sidebar.session.action': { kind: 'hoc'; scope: 'root'; owner: SidebarSessionActionOwnerProps }
+    /**
+     * Optional product control beside the brand in the expanded logo row.
+     * Declared by this package's 'sidebar' entry outside the brand identity,
+     * which is aria-hidden and may be a button; the occupant owns its width.
+     */
+    'sidebar.product': { kind: 'single'; scope: 'root'; owner: SidebarProductOwnerProps }
+    /**
+     * Optional product control after the window-chrome controls while the
+     * sidebar is hidden. Declared by this package's 'shell.leading' entry.
+     */
+    'sidebar.leading.product': { kind: 'single'; scope: 'root'; owner: SidebarProductOwnerProps }
+    /**
+     * HOC layer around the sidebar's browsing region — the New-session row and
+     * everything from the global panel list through the workspace browser. A
+     * build that embeds a second product whose own views the sidebar should
+     * mirror returns its navigation here instead of `children`, so the column
+     * keeps its geometry and chrome while the rows change with the product. An
+     * occupant that has nothing to replace returns `children` unchanged, which
+     * is also the no-occupant outcome. Declared by this package's 'sidebar'
+     * entry.
+     */
+    'sidebar.navigation': { kind: 'hoc'; scope: 'root'; owner: SidebarNavigationOwnerProps }
   }
 }
 
@@ -222,6 +244,22 @@ export interface SidebarFooterActionOwnerProps {
   wide: boolean
 }
 
+/** Empty owner share for the product control seats; the occupant owns its content. */
+export interface SidebarProductOwnerProps {
+  /** Marker field: the occupant owns its own content and width. */
+  children?: never
+}
+
+/**
+ * Owner share of the browsing-region HOC layer. The shell passes whether the
+ * column is wide, so a replacement navigation renders the same row shape in
+ * both the expanded column and the rail.
+ */
+export interface SidebarNavigationOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+}
+
 /** Owner share of the New-session row's HOC layer. */
 export interface SidebarSessionActionOwnerProps {
   /** Whether the sidebar renders wide content (false = 56px rail). */
@@ -278,5 +316,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.settings'
     | 'sidebar.footer.action'
     | 'sidebar.session.action'
+    | 'sidebar.product'
+    | 'sidebar.navigation'
   >
   & PropsRenderFactories & InjectFace<SidebarRootInjected> & PropsLocale<'sidebar'>

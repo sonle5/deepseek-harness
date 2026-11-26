@@ -13,6 +13,26 @@ import {
   assertMacOSRuntimeSignatureDetails,
   assertMacOSSignatureDetails,
 } from '../scripts/verify-macos-signature.mjs'
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
+
+const staged = vi.hoisted(() => ({ composer: undefined as string | undefined }))
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  // Simulates a staged Composer without writing into the real build tree. A
+  // developer's build tree may already hold one from `prepare:composer`, so the
+  // staged manifest answers from `staged.composer` alone rather than falling
+  // through: a test that does not stage it must not see the real file.
+  // Compare on forward slashes: `path.join` yields backslashes on Windows, where
+  // the spec still runs, and a POSIX-only match would hide the staged manifest
+  // from `electron-builder.config.mjs` and collapse the Composer resource.
+  const isComposerManifest = (path: Parameters<typeof actual.existsSync>[0]): boolean =>
+    portablePath(String(path)).endsWith('/composer/manifest.json')
+  const existsSync = (path: Parameters<typeof actual.existsSync>[0]): boolean => {
+    if (isComposerManifest(path)) return staged.composer !== undefined && String(path) === staged.composer
+    return actual.existsSync(path)
+  }
+  return { ...actual, default: { ...actual, existsSync }, existsSync }
+})
 
 const require = createRequire(import.meta.url)
 const { validateConfiguration } = require('app-builder-lib/out/util/config/config.js') as {
@@ -49,7 +69,7 @@ describe('desktop macOS release signature', () => {
   it('loads release identifiers from the environment and requires code signing', async () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
-    expect(config.protocols).toEqual([{ name: 'DeepSeek Harness', schemes: ['dsh'] }])
+    expect(config.protocols).toEqual([{ name: PRODUCT_IDENTITY.productName, schemes: [PRODUCT_IDENTITY.protocol, 'dsh'] }])
     expect(portablePath(config.directories.output)).toContain('/.desktop-build/targets/mac-arm64/artifacts')
     expect(config.mac.extendInfo.NSMicrophoneUsageDescription).toContain('microphone')
     expect(config.mac.extendInfo.CFBundleLocalizations).toEqual(SHIPPED_LOCALE_IDS.map(id => id === 'zh' ? 'zh_CN' : id))
@@ -62,6 +82,7 @@ describe('desktop macOS release signature', () => {
     expect(config.extraResources).toHaveLength(2)
     expect(config.extraResources[0]?.to).toBe('runtime')
     expect(portablePath(config.extraResources[0]?.from ?? '')).toContain('/.desktop-build/targets/mac-arm64/runtime')
+    expect(config.extraResources.map(resource => resource.to)).not.toContain('composer')
     const [dshFiles, dshNodeModules] = config.files.slice(-2)
     if (!dshFiles || !dshNodeModules || typeof dshFiles === 'string' || typeof dshNodeModules === 'string') {
       throw new Error('desktop DSH resources must use electron-builder file mappings')
@@ -88,11 +109,7 @@ describe('desktop macOS release signature', () => {
         sign: true,
         writeUpdateInfo: false,
       },
-      publish: [{
-        provider: 'generic',
-        url: 'https://desktop-updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-arm64/',
-        channel: 'nightly',
-      }],
+      publish: null,
     })
     expect(typeof config.artifactBuildCompleted).toBe('function')
   })
@@ -123,10 +140,29 @@ describe('desktop macOS release signature', () => {
     expect(ignored('/App.app/Contents/Resources/runtime/primary-runtime/dependencies/pnpm/addon.node')).toBe(true)
     for (const path of [
       '/App.app/Contents/Resources/runtime/node/node',
+      '/App.app/Contents/Resources/composer/bin/nexus-composer',
       '/App.app/Contents/Frameworks/Electron.framework/Versions/A/library.dylib',
       '/App.app/Contents/Frameworks/Electron.framework',
       '/App.app',
     ]) expect(ignored(path)).toBe(false)
+  })
+
+  it('ships a staged Composer as its own resource outside the verified dsh and runtime trees', async () => {
+    const { desktopTargetBuildPaths } = await import('../scripts/desktop-build-paths.mjs')
+    const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+    const paths = desktopTargetBuildPaths('mac-arm64', RELEASE_ENVIRONMENT)
+    staged.composer = (await import('node:path')).join(paths.composer, 'manifest.json')
+    try {
+      const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
+      expect(config.extraResources).toContainEqual({ from: paths.composer, to: 'composer' })
+      expect(config.extraResources).toHaveLength(3)
+      // Normalize before the prefix test: on Windows these paths are separated by
+      // backslashes, so a bare `${tree}/` would match nothing and the assertion
+      // would pass without proving the Composer sits outside either tree.
+      for (const tree of [paths.dsh, paths.runtime]) {
+        expect(portablePath(paths.composer).startsWith(`${portablePath(tree)}/`)).toBe(false)
+      }
+    } finally { staged.composer = undefined }
   })
 
   it('validates Windows signing without requiring macOS identifiers for a Windows target', async () => {
@@ -163,7 +199,7 @@ describe('desktop macOS release signature', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'darwin', arch)
     expect(portablePath(config.directories.output)).toContain(`/targets/mac-${arch}/unsigned-artifacts`)
-    expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.artifactName).toBe(`${PRODUCT_IDENTITY.artifactPrefix}-\${version}-\${os}-\${arch}-unsigned.\${ext}`)
     expect(config.mac).toMatchObject({ identity: '-', forceCodeSigning: false, notarize: false, target: ['dmg'] })
     expect(config.dmg).toMatchObject({ sign: false, writeUpdateInfo: false })
     expect(config.publish).toBeNull()

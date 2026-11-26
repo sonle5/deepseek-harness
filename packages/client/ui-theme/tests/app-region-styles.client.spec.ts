@@ -61,6 +61,11 @@ interface ChromeRow {
   readonly markup: string
   /** Height declaration to read, as `[property, value]` exactly as authored; omitted for content-sized rows. */
   readonly height?: readonly [property: string, value: string]
+  /** Platform-specific height selectors owned by the same marked element. */
+  readonly conditionalHeights?: readonly {
+    readonly selector: string
+    readonly height: readonly [property: string, value: string]
+  }[]
   /** Top inset that belongs to the row's own box, as `[property, value]`. */
   readonly inset?: readonly [property: string, value: string]
 }
@@ -74,21 +79,16 @@ const CHROME_ROWS: readonly ChromeRow[] = [
   },
   {
     file: SIDEBAR,
-    selector: '.topStrip',
-    markup: 'client/ui-sidebar/src/client/SidebarRoot.tsx',
-    height: ['height', '52px'],
-  },
-  {
-    file: SIDEBAR,
     selector: '.logoRow',
     markup: 'client/ui-sidebar/src/client/SidebarRoot.tsx',
     height: ['height', '60px'],
+    conditionalHeights: [{ selector: '.darwinLogoRow', height: ['height', '72px'] }],
   },
   {
     file: CONVERSATION,
     selector: '.header',
     markup: 'client/ui-conversation/src/client/skeleton/ConversationHeader.tsx',
-    height: ['min-height', '76px'],
+    height: ['min-height', '64px'],
   },
   {
     file: DOCKKIT,
@@ -257,6 +257,10 @@ describe('window drag-region ownership', () => {
       if (row.inset !== undefined) {
         expect(declaredValue(row.file, row.selector, row.inset[0]), `${row.selector} ${row.inset[0]}`)
           .toBe(row.inset[1])
+      }
+      for (const variant of row.conditionalHeights ?? []) {
+        expect(declaredValue(row.file, variant.selector, variant.height[0]), `${variant.selector} ${variant.height[0]}`)
+          .toBe(variant.height[1])
       }
     }
   })

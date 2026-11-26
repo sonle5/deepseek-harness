@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
 import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
+import { COMPOSER_SWITCHER_IPC } from '../src/composer-ipc.ts'
 
 const electron = vi.hoisted(() => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
@@ -310,4 +311,63 @@ it('exposes channel choices and scoped subscriptions without exposing updater ob
   expect(listener).toHaveBeenCalledWith(state)
   dispose()
   expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.updatesChannelChanged, handler)
+})
+
+it('exposes the Composer switcher on the application main frame only', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  electron.ipcRenderer.invoke.mockResolvedValueOnce({ available: true, status: 'idle', visible: false })
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshComposer')?.[1] as {
+    protocolVersion: number
+    state(): Promise<unknown>
+    subscribe(listener: (state: unknown) => void): () => void
+    show(bounds: unknown): Promise<void>
+    setBounds(bounds: unknown): Promise<void>
+    hide(): Promise<void>
+    retry(): Promise<void>
+    onSelect(listener: (product: unknown) => void): () => void
+  }
+  expect(api.protocolVersion).toBe(1)
+  await expect(api.state()).resolves.toEqual({ available: true, status: 'idle', visible: false })
+  const bounds = { x: 0, y: 48, width: 800, height: 600 }
+  await api.show(bounds)
+  await api.setBounds(bounds)
+  await api.hide()
+  await api.retry()
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    [COMPOSER_SWITCHER_IPC.state],
+    [COMPOSER_SWITCHER_IPC.show, bounds],
+    [COMPOSER_SWITCHER_IPC.bounds, bounds],
+    [COMPOSER_SWITCHER_IPC.hide],
+    [COMPOSER_SWITCHER_IPC.retry],
+  ])
+  const states = vi.fn()
+  const offState = api.subscribe(states)
+  const changed = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === COMPOSER_SWITCHER_IPC.changed)![1] as
+    (event: unknown, state: unknown) => void
+  changed({}, { available: true, status: 'ready', visible: true })
+  expect(states).toHaveBeenCalledWith({ available: true, status: 'ready', visible: true })
+  offState()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.changed, changed)
+  const selected = vi.fn()
+  const offSelect = api.onSelect(selected)
+  const select = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === COMPOSER_SWITCHER_IPC.select)![1] as
+    (event: unknown, product: unknown) => void
+  select({}, 'composer')
+  expect(selected).toHaveBeenCalledWith('composer')
+  offSelect()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(COMPOSER_SWITCHER_IPC.select, select)
+})
+
+it.each(['dsh-app://shell/plugin-manager.html', 'https://example.com/'])('exposes no Composer switcher to %s', async (url) => {
+  vi.stubGlobal('location', new URL(url))
+  await import('../src/preload-app.ts')
+  expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === 'dshComposer')).toBe(false)
+})
+
+it('exposes no Composer switcher to a same-origin child frame', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  vi.stubGlobal('process', { ...process, isMainFrame: false })
+  await import('../src/preload-app.ts')
+  expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === 'dshComposer')).toBe(false)
 })

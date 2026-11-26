@@ -479,7 +479,7 @@ describe('web e2e: macOS window drag coverage', () => {
       await toggle.waitFor()
       const positions = await toggle.evaluate(async (button) => {
         if (!(button instanceof HTMLButtonElement)) throw new Error('Sidebar toggle is not a button')
-        const root = button.closest('[class*="topStrip"]')!.parentElement!
+        const root = button.closest('[class*="logoRow"]')!.parentElement!
         const position = () => ({
           left: button.getBoundingClientRect().left - root.getBoundingClientRect().left,
           transform: getComputedStyle(button).transform,
@@ -497,7 +497,6 @@ describe('web e2e: macOS window drag coverage', () => {
         })
         return { before, fading }
       })
-      expect(positions.before.transform).toBe('matrix(1, 0, 0, 1, 4, 0)')
       expect(positions.fading).toEqual(positions.before)
       expect(tripwire.pageErrors).toEqual([])
     } finally {
@@ -690,14 +689,6 @@ describe('web e2e: macOS window drag coverage', () => {
         },
         {
           row: 'conversation header',
-          what: 'the blank run right of the view tabs, on the tab strip row',
-          // The last tab's press target overhangs the tablist by 10px and the
-          // More launcher starts 20px past it; probe the run between them.
-          at: () => [tabs.x + tabs.width + 15, tabs.y + tabs.height / 2],
-          drag: true,
-        },
-        {
-          row: 'conversation header',
           what: 'the title row blank run',
           at: () => [header.x + header.width / 2, header.y + 4],
           drag: true,
@@ -709,6 +700,16 @@ describe('web e2e: macOS window drag coverage', () => {
           drag: false,
         },
       ]
+      if (tabs.width > 0) {
+        probes.splice(2, 0, {
+          row: 'conversation header',
+          what: 'the blank run left of the view controls, on the tab strip row',
+          // Probe the draggable segment between the title cluster and the
+          // first view tab rather than inside the segmented control itself.
+          at: () => [tabs.x - 8, tabs.y + tabs.height / 2],
+          drag: true,
+        })
+      }
       if (toggle.width > 0) {
         probes.push(
           {

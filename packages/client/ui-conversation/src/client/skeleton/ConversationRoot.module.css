@@ -4,7 +4,17 @@
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsw-alias-bg-layer-1);
+  /* The header's layout modes key off the width of the column this root fills,
+     not the viewport. An open right panel narrows the column while the viewport
+     stays wide, so a media query would keep the wide single-row header in space
+     too small for it and starve the title row below the preset label's own
+     breakpoint. Inline-size containment measures the column and leaves block
+     sizing alone. Every floating surface inside this subtree (Menu, Tooltip,
+     HoverCard, the image lightbox, ContextMeter) portals to document.body, so
+     the stacking context this creates holds no unportaled popover that AppFrame
+     chrome needs to float above. */
+  container-type: inline-size;
 }
 
 /* `conversation.hero.frame` contract on the home: layer decorations at negative z-index paint above this
@@ -14,33 +24,31 @@
   isolation: isolate;
 }
 
-/* 76px with its rule: the height of the Sidebar's tab strip and header row
-   (ui-dockkit `.tabStrip` 38px + the pane header's 38px), so the two rules
-   meet at the column edge. The rows add up to it — 10px top inset, the 30px
-   title row, the tab strip's 10px margin, and a 25px view row. When the views
-   and the More launcher do not fit on one row, the row wraps and the header
-   grows past 76px. */
+/* One 64px chrome row matching Composer: the title cluster owns the leading
+   content and conversation views read as a compact segmented control at the
+   trailing edge. Narrow windows move the control below without changing its
+   hierarchy. */
 .header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 20px;
   flex: none;
   box-sizing: border-box;
-  min-height: 76px;
-  padding: 10px 28px 0 20px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  min-height: 64px;
+  padding: 0 24px 0 20px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
 }
 
 .header:where(:not(:has(.tabs))) {
-  min-height: 0;
-  padding-bottom: 10px;
+  min-height: 64px;
 }
 
 /* Blank Sessions retain navigation controls without conversation title or tabs.
-   The same 40px row (10px inset + 30px title row) applies before a Session
-   exists, so the Hero centers below one header height in both states. */
+   The same 64px chrome applies before a Session exists. */
 .headerBlank {
-  min-height: 0;
-  padding-bottom: 0;
+  min-height: 64px;
   border-bottom: none;
 }
 
@@ -64,6 +72,7 @@
 
 .titleRow {
   grid-column: 2;
+  grid-row: 1;
   /* Anonymous inline-size container (CSS modules hash container-names per
      module, so occupants match the nearest container): header occupants such
      as the preset label and slot actions shed their text at row-width
@@ -73,7 +82,7 @@
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 30px;
+  min-height: 36px;
   /* Clears the frame's window-chrome band (traffic lights + shell.leading
      controls, ui-layout AppFrame) when it is published; the header already
      pads 20px of it. Zero everywhere else (the fallback makes the max
@@ -221,90 +230,72 @@
   display: none;
 }
 
-/* The tab row sits above the header paint so the active bar covers its rule. */
+/* Conversation views form one quiet segmented control on the trailing edge,
+   matching Composer's compact top-level mode picker. */
 .tabs {
-  grid-column: 1 / -1;
-  position: relative;
+  grid-column: 3;
+  grid-row: 1;
   z-index: 1;
   display: flex;
-  gap: 16px 20px;
-  width: 100%;
+  gap: 2px;
+  width: auto;
+  max-width: min(420px, 42vw);
   min-width: 0;
   box-sizing: border-box;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-left: 8px;
-}
-
-@media (max-width: 767px) {
-  :global(html:not([data-platform])) .tabs {
-    padding-left: 0;
-  }
+  align-items: center;
+  justify-self: end;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 3px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-module-platform);
 }
 
 .viewTabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 32px;
+  flex-wrap: nowrap;
+  gap: 2px;
   min-width: 0;
-  min-height: 25px;
+  min-height: 28px;
+  overflow: hidden;
 }
 
-/* The 16px text line retains 9px below it. The press target extends 10px
-   above the text into the strip's top margin and 10px to each side, matching
-   the inline padding of the Sidebar tab chips (ui-dockkit `.tab`); negative
-   margins keep the layout box at its 25px row and text width. The active bar
-   spans the text and reaches 1px past the tab box to sit over the header
-   rule. */
 .tab {
-  --dsh-tab-hit-inline: 10px;
-
   position: relative;
+  flex: none;
   box-sizing: border-box;
-  min-height: 35px;
-  margin: -10px calc(-1 * var(--dsh-tab-hit-inline)) 0;
-  padding: 10px var(--dsh-tab-hit-inline) 9px;
+  min-height: 28px;
+  margin: 0;
+  padding: 4px 10px;
   border: none;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   font-size: 13px;
-  line-height: 16px;
+  line-height: 18px;
   font-weight: 500;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
 }
 
 .tab::after {
-  content: '';
-  position: absolute;
-  right: var(--dsh-tab-hit-inline);
-  bottom: -1px;
-  left: var(--dsh-tab-hit-inline);
-  height: 2px;
-  border-radius: 2px;
-  background: transparent;
+  display: none;
 }
 
-/* Selected tab is blue, not ink: brand-primary resolves to neutral black in
-   this token sheet, so the selected state rides the business blue — the
-   nearest semantic token that stays blue in both themes. */
 .tabActive {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-card-fill);
+  box-shadow: var(--dsw-elevation-soft);
 }
 
-.tabActive::after {
-  background: var(--dsw-alias-state-business-primary);
-}
-
-/* The More launcher centers its 22px box on the tab's 16px text line. */
 .viewsMoreAnchor {
   flex: none;
 }
 
 .viewsMore {
-  width: 22px;
-  height: 22px;
-  margin-top: -3px;
+  width: 28px;
+  height: 28px;
+  margin: 0;
   padding: 0;
   color: var(--dsw-alias-label-secondary);
 }
@@ -320,6 +311,43 @@
 .viewsMoreMenu {
   width: 288px;
   max-width: calc(100vw - 24px);
+}
+
+/* The narrow layout moves the view control onto its own row. It keys off this
+   column's width (the container on `.root`), not the viewport: an open right
+   panel narrows the column while the viewport stays wide, and a media query
+   would keep the three-column row in space too small for it — leaving the title
+   row under the preset label's own 540px breakpoint, so the header stops naming
+   what the session runs. */
+@container (max-width: 900px) {
+  .header {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: minmax(52px, auto) auto;
+    column-gap: 16px;
+    padding-bottom: 8px;
+  }
+
+  .tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    max-width: none;
+    align-self: end;
+  }
+}
+
+@media (max-width: 600px) {
+  .header {
+    padding-inline: 12px;
+  }
+
+  /* The corner's negative margin must stay inside the header's right padding,
+     or its control paints past the viewport. The base rule reaches 16px into a
+     24px padding, leaving an 8px inset; with the padding halved to 12px the
+     reach has to halve too, or a phone-width header overflows by 4px. */
+  .headerCorner {
+    margin-right: -4px;
+  }
 }
 
 .viewArea {
@@ -413,6 +441,17 @@
 /* Views that elect a composer overlay (trajectory etc.) own their full-bleed
    scrollers; the strips would sit over their content and steal clicks. */
 .root:has([data-conversation-composer-overlay]) .widthHandle {
+  display: none;
+}
+
+/* The floating Session panel overlays the transcript's right gutter. Its
+   controls take precedence over the resize strip underneath it. */
+/* css-selector-gate: the panel renders from ui-session-panel inside the chat
+   aside, while this handle is a sibling of the hero frame; neither subtree can
+   name the other's state, and the two packages share no runtime fact. A custom
+   property is set by an ancestor, which the panel is not, so the presentation
+   is only observable as an ancestor of this rule's subject. */
+.root:has([data-session-panel='overlay']) .widthHandle[data-side='right'] {
   display: none;
 }
 

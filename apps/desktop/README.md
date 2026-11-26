@@ -2,7 +2,7 @@
 description: "Desktop runs the Harness workspace in a native application. This reference covers application behavior, development and integration; the packaging, Windows signing and publication guides own build and release operations."
 ---
 
-# DeepSeek Harness Desktop
+# Nexus Superharness Desktop
 
 English | [中文](README.zh.md)
 
@@ -14,6 +14,7 @@ Desktop runs the Harness workspace in a native application. This reference cover
 
 - [Application overview](#application-overview)
 - [Terminal command](#terminal-command)
+- [Embedded Composer](#embedded-composer)
 - [Closing the window and quitting](#closing-the-window-and-quitting)
 - [Key technical decisions](#key-technical-decisions)
 - [Bundled command runtime](#bundled-command-runtime)
@@ -43,7 +44,7 @@ Electron generates a fresh random credential for each owned Host process. After 
 
 Desktop binds `127.0.0.1`, the address Electron dials for the ready URL and the WebSocket credential filter. WebSocket streams use `ws:` or `wss:` according to the Host listener; credentials require matching authority and scheme.
 
-The first application-menu command, **About DeepSeek Harness**, opens Electron's native About panel with the application icon, product name, and installed release version. The menu follows the Desktop shell locale. On macOS, Hide, Hide Others, Show All, and Quit use localized labels; Hide and Quit include the DeepSeek Harness product name. These commands retain their native actions and shortcuts. macOS reads the icon from its application bundle, so an unpackaged development launch displays Electron's icon; Windows receives the packaged PNG.
+The first application-menu command, **About Nexus Superharness**, opens Electron's native About panel with the application icon, product name, and installed release version. The menu follows the Desktop shell locale. On macOS, Hide, Hide Others, Show All, and Quit use localized labels; Hide and Quit include the Nexus Superharness product name. These commands retain their native actions and shortcuts. macOS reads the icon from its application bundle, so an unpackaged development launch displays Electron's icon; Windows receives the packaged PNG.
 
 Desktop’s local native directory flow opens an Electron folder dialog attached to the application window, restoring, showing, and focusing that window first. Concurrent requests share one dialog; cancellation returns no path and failures remain retryable. Ordinary Web uses the Host chooser. Browse mode lists Host directories. On Linux without zenity or kdialog, automatic selection uses browse instead of the Electron dialog.
 
@@ -69,15 +70,29 @@ On macOS, installation creates `/usr/local/bin/dsh` and requests administrator a
 
 Command registration is optional after installing Desktop. Windows manual uninstall removes CLI registration owned by that installation; on macOS, use **Manage dsh Command… → Remove** before uninstalling Desktop. Finish CLI commands before updating or uninstalling Desktop. The CLI runtime version follows the installed Desktop release. See [bundled command runtime](#bundled-command-runtime) for Desktop plugin commands and runtime limitations.
 
+<a id="embedded-composer"></a>
+
+## Embedded Composer
+
+Desktop embeds Nexus Composer as a second product rather than requiring a separately installed application. A product switcher in the sidebar's logo row moves between **Superharness** and **Composer**; ⌘1 and ⌘2 (Ctrl+1, Ctrl+2 on Windows) reach the same selection from the View menu, and the choice is remembered for the next launch.
+
+Composer is a `main` panel of the shared frame, not a window-covering overlay. The sidebar, the drag rows and the window chrome stay mounted while it runs, so both products share one shell and no bar is redrawn.
+
+A supervised sidecar owns Composer's routing. It starts at launch, ahead of the first window, so the clients' configured port is bound before any traffic arrives; ownership is decided once and never retried, which is what lets it take over from a standalone Composer the user has already quit. Development keeps an isolated profile under `userData/composer-development-home`; packaged builds share the standalone Composer's real home, `~/.nexus-composer`. The sidecar is pinned to a schema-33 build through [scripts/composer/lock.json](scripts/composer/lock.json).
+
+The native view covers the center column and reports that column's rectangle, not the window's, through the switcher IPC. Because a native view paints above the document, it is attached only while Composer is actually serving: a starting, restarting or failed surface leaves the column to the application document, which draws its own placeholder and **Retry** action there. While a standalone Composer owns routing the surface is read-only and the document explains why.
+
+Quitting or installing an update releases routing first, so a later standalone Composer or Codex run is not left dialling a dead port. Composer failures stay inside the Composer surface: they are reported to crash diagnostics and never stop Superharness.
+
 <a id="closing-the-window-and-quitting"></a>
 
 ## Closing the window and quitting
 
 Closing the main window (macOS close button and ⌘W; Windows ×, Alt+F4, and the taskbar Close window command) hides it; Windows asks for acknowledgement before the first hide. The page and the Host keep running, tasks continue, and the next show presents the same document with its session, drafts, and scroll position; a fullscreen macOS window leaves fullscreen before hiding. The window returns through the Dock icon, a second launch, or `dsh://open` on macOS, and through the tray on Windows. Minimize is unchanged. Closing the welcome window before the workspace opens quits on Windows and, on macOS, keeps the application in the Dock without a window.
 
-Windows keeps a tray icon for the whole run. Its tooltip is the product name, a single click shows and focuses the window, and the context menu offers Open DeepSeek Harness and Quit DeepSeek Harness in the shell locale. Before the first hide, the shared update-dialog overlay explains that running tasks continue and the window can be reopened from the system tray. Confirm hides the window and writes `background-close-confirmed` under Electron userData; Escape, dismissal, or dialog failure keeps the window visible and does not record acknowledgement. Repeated close requests focus the existing shell dialog. In-place updates retain the marker and uninstall removes it. The old `background-notice-shown` marker does not suppress this confirmation. Closing the window sends no system notification. The tray bitmaps are `resources/tray-windows.ico`, rendered from `resources/icon-windows.svg` at 16, 20, 24, 32, 40, 48, and 64 pixels by `pnpm run render:tray-icon`, and packaged as `resources/tray.ico`. macOS ships no menu bar icon.
+Windows keeps a tray icon for the whole run. Its tooltip is the product name, a single click shows and focuses the window, and the context menu offers Open Nexus Superharness and Quit Nexus Superharness in the shell locale. Before the first hide, the shared update-dialog overlay explains that running tasks continue and the window can be reopened from the system tray. Confirm hides the window and writes `background-close-confirmed` under Electron userData; Escape, dismissal, or dialog failure keeps the window visible and does not record acknowledgement. Repeated close requests focus the existing shell dialog. In-place updates retain the marker and uninstall removes it. The old `background-notice-shown` marker does not suppress this confirmation. Closing the window sends no system notification. The tray bitmaps are `resources/tray-windows.ico`, rendered from `resources/icon-windows.svg` at 16, 20, 24, 32, 40, 48, and 64 pixels by `pnpm run render:tray-icon`, and packaged as `resources/tray.ico`. macOS ships no menu bar icon.
 
-Every ordinary quit entry — ⌘Q, the application menu, the Dock menu, the Windows tray and caption Application menu, and the quit caused by closing the welcome window — asks the Host what it would interrupt. The Host answers over the private IPC channel with two facts: active tasks under the same rule as the update restart check (running agents including subagents and approval waits, queued messages, running or stopping jobs), and armed scheduled reminders reported by the `schedule` family of `workspace/session-activity` for the sessions loaded during this run. Neither fact, the quit proceeds silently. Otherwise a native message box without an owner window — hidden windows stay hidden — shows **Quit DeepSeek Harness?** with one of three localized explanations: running tasks will be interrupted, scheduled tasks will not run while the application is closed, or both. Quit is the default button and Cancel answers Esc; macOS places Cancel left of Quit, Windows places Quit left of Cancel, and the Windows task dialog shows the application icon and stays light regardless of the application theme. A Host that has not reached ready or has failed cannot run tasks, so the quit proceeds without asking. An inspection failure or a Host that misses the two-second deadline is treated as running tasks. While the box is open, another quit request joins it instead of stacking a second one (macOS also raises it; Electron exposes no handle to the Windows task dialog), the explanation does not change when work starts or ends, Quit stops the application without re-inspecting, and Cancel changes nothing. Cancelling a quit that closing the welcome window started shows the welcome window again.
+Every ordinary quit entry — ⌘Q, the application menu, the Dock menu, the Windows tray and caption Application menu, and the quit caused by closing the welcome window — asks the Host what it would interrupt. The Host answers over the private IPC channel with two facts: active tasks under the same rule as the update restart check (running agents including subagents and approval waits, queued messages, running or stopping jobs), and armed scheduled reminders reported by the `schedule` family of `workspace/session-activity` for the sessions loaded during this run. Neither fact, the quit proceeds silently. Otherwise a native message box without an owner window — hidden windows stay hidden — shows **Quit Nexus Superharness?** with one of three localized explanations: running tasks will be interrupted, scheduled tasks will not run while the application is closed, or both. Quit is the default button and Cancel answers Esc; macOS places Cancel left of Quit, Windows places Quit left of Cancel, and the Windows task dialog shows the application icon and stays light regardless of the application theme. A Host that has not reached ready or has failed cannot run tasks, so the quit proceeds without asking. An inspection failure or a Host that misses the two-second deadline is treated as running tasks. While the box is open, another quit request joins it instead of stacking a second one (macOS also raises it; Electron exposes no handle to the Windows task dialog), the explanation does not change when work starts or ends, Quit stops the application without re-inspecting, and Cancel changes nothing. Cancelling a quit that closing the welcome window started shows the welcome window again.
 
 The mandatory update confirmation includes the installation wait notice on Windows; macOS uses the shorter restart explanation.
 

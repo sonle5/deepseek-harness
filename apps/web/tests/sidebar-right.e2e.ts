@@ -1441,7 +1441,7 @@ describe('web e2e: shipped right Sidebar', () => {
         const fileEntry = guide.locator('[data-sidebar-right-guide-entry="files"]')
         const terminalEntry = guide.locator('[data-sidebar-right-guide-entry="terminal"]')
         for (const entry of [fileEntry, terminalEntry]) {
-          expect(await entry.evaluate(node => getComputedStyle(node).borderRadius)).toBe('20px')
+          expect(await entry.evaluate(node => getComputedStyle(node).borderRadius)).toBe('16px')
         }
         expect(await terminalEntry.evaluate(node => getComputedStyle(node).overflow)).toBe('hidden')
         const terminalActions = terminalEntry.getByRole('button')

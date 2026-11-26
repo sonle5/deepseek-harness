@@ -275,78 +275,11 @@ export function SidebarRoot({
     </Tooltip>
   )
 
-  return (
-    <div
-      ref={column}
-      onFocusCapture={(event) => { sidebarFocus.current = event.target }}
-      role={drawer ? 'dialog' : undefined}
-      data-shortcut-modal={drawer ? 'sidebar' : undefined}
-      aria-modal={drawer && !collapsed ? true : undefined}
-      aria-label={drawer ? t('navigation.label') : undefined}
-      tabIndex={drawer ? -1 : undefined}
-      className={clsx(
-        css.root, !wide && css.collapsed, !wide && animateRail.current && css.railIn,
-        !drawer && collapsed && wide && css.fading, !pointerInside && css.quietBars,
-      )}
-      style={wide ? { width: !drawer && collapsed ? lastWideWidth.current : width } : undefined}
-      onPointerEnter={trackPointer}
-      onPointerMove={trackPointer}
-      onPointerLeave={() => { setPointerInside(false) }}
-    >
-      {/* macOS hiddenInset titlebar: the strip shares the row with the
-          traffic lights and keeps the toggle at the sidebar's top-right. */}
-      {darwinDesktop && <div className={css.topStrip} data-window-drag>{toggle}</div>}
-      <div className={css.logoRow} data-window-drag>
-        {/* Expanded, the brand doubles as a New Session shortcut while the
-            access snapshot allows `session/create` — except on
-            macOS, where it stays part of the logo row's window-drag surface
-            (the drag-row controls rule would subtract a button);
-            the collapsed rail's logo is the expand toggle below instead.
-            Mouse clicks on the local-build fallbacks copy the version instead. */}
-        {wide && (() => {
-          const identity = (
-            <span className={css.brandIdentity} aria-hidden="true">
-              <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, {
-                  fallback: buildVersion === undefined
-                    ? <FishLogo size={24} />
-                    : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={24} /></span>,
-                })}
-              </span>
-              <span className={css.brandName}>
-                {renderSlot('sidebar.brand.name', {}, {
-                  fallback: buildVersion === undefined
-                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
-                    : (
-                      <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                        <span className={css.buildVersion}>{buildVersion}</span>
-                      </span>
-                    ),
-                })}
-              </span>
-            </span>
-          )
-          return darwinDesktop || !canStartSession
-            ? <span className={clsx(css.brand, css.wide)}>{identity}</span>
-            : (
-              <button
-                type="button"
-                className={clsx(css.brand, css.wide)}
-                aria-label={t('session.new.label')}
-                aria-keyshortcuts={newShortcut?.aria}
-                onClick={(event) => {
-                  if ((event.target as Element).closest('[data-copy-version]') !== null) return
-                  openNewSession()
-                }}
-              >
-                {identity}
-              </button>
-            )
-        })()}
-        {!darwinDesktop && toggle}
-      </div>
-
+  // The browsing region below the logo row, built once and offered to the
+  // `sidebar.navigation` layer. The layer returns it unchanged when no product
+  // mirrors its own navigation here, so the shell's own rows are the default.
+  const browsing = (
+    <>
       {/* The label fades before the hover/focus shortcut, including on translucent backgrounds. */}
       {canStartSession && (
         <div className={css.newSessionRow}>
@@ -442,6 +375,102 @@ export function SidebarRoot({
           {renderSlot('sidebar.settings', { wide })}
         </div>
       </div>
+    </>
+  )
+
+  return (
+    <div
+      ref={column}
+      onFocusCapture={(event) => { sidebarFocus.current = event.target }}
+      role={drawer ? 'dialog' : undefined}
+      data-shortcut-modal={drawer ? 'sidebar' : undefined}
+      aria-modal={drawer && !collapsed ? true : undefined}
+      aria-label={drawer ? t('navigation.label') : undefined}
+      tabIndex={drawer ? -1 : undefined}
+      className={clsx(
+        css.root, !wide && css.collapsed, !wide && animateRail.current && css.railIn,
+        !drawer && collapsed && wide && css.fading, !pointerInside && css.quietBars,
+      )}
+      style={wide ? { width: !drawer && collapsed ? lastWideWidth.current : width } : undefined}
+      onPointerEnter={trackPointer}
+      onPointerMove={trackPointer}
+      onPointerLeave={() => { setPointerInside(false) }}
+    >
+      {/* macOS hiddenInset titlebar: one drag row carries both the brand and
+          the toggle, with the Darwin inset clearing the traffic lights. */}
+      <div className={clsx(css.logoRow, darwinDesktop && css.darwinLogoRow)} data-window-drag>
+        {/* The row's leading seat is the mark plus one label. A build that
+            embeds a second product fills the label with that product's
+            switcher — the name with a chevron opening a menu — which is the
+            shape Codex Desktop uses for Codex ⇄ ChatGPT. The mark itself stays
+            the brand mark slot's, so there is one source for the identity.
+
+            Plain documents fall back to the brand name below. Expanded, that
+            fallback doubles as a New Session shortcut while the access
+            snapshot allows `session/create` — except on macOS, where it stays
+            part of the logo row's window-drag surface (the drag-row controls
+            rule would subtract a button); the collapsed rail's logo is the
+            expand toggle below instead. Mouse clicks on the local-build
+            fallbacks copy the version instead. */}
+        {wide && (() => {
+          const mark = (
+            <span className={css.brandMark} aria-hidden="true">
+              {renderSlot('sidebar.brand.mark', { size: 22 }, {
+                fallback: buildVersion === undefined
+                  ? <FishLogo size={22} />
+                  : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={22} /></span>,
+              })}
+            </span>
+          )
+          const name = (
+            <span className={css.brandName}>
+              {renderSlot('sidebar.brand.name', {}, {
+                fallback: buildVersion === undefined
+                  ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                  : (
+                    <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
+                      <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                      <span className={css.buildVersion}>{buildVersion}</span>
+                    </span>
+                  ),
+              })}
+            </span>
+          )
+          const brandLabel = darwinDesktop || !canStartSession
+            ? <span className={clsx(css.brand, css.wide)} aria-hidden="true">{name}</span>
+            : (
+              <button
+                type="button"
+                className={clsx(css.brand, css.wide)}
+                aria-label={t('session.new.label')}
+                aria-keyshortcuts={newShortcut?.aria}
+                onClick={(event) => {
+                  if ((event.target as Element).closest('[data-copy-version]') !== null) return
+                  openNewSession()
+                }}
+              >
+                {name}
+              </button>
+            )
+          return (
+            <>
+              {mark}
+              {/* One occupant owns the label: the product switcher when one is
+                  registered, else the brand name above. */}
+              {renderSlot('sidebar.product', {}, { fallback: brandLabel })}
+            </>
+          )
+        })()}
+        {toggle}
+      </div>
+
+      {/* Everything below the logo row is the browsing region: the New-session
+          row, the global panel rows, the workspace browser and the foot. A
+          build that mirrors a second product's navigation hands that whole
+          region to the `sidebar.navigation` layer, which returns its own rows
+          instead of `children`; the column keeps its geometry and the logo row
+          keeps the product switcher either way. */}
+      {renderSlot('sidebar.navigation', { wide }, { children: browsing })}
     </div>
   )
 }

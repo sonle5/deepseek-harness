@@ -77,6 +77,8 @@ describe('ui-sidebar apply', () => {
     expect(b.slots.spec('sidebar.footer.action')).toEqual({ kind: 'list', scope: 'root' })
     expect(b.slots.spec('sidebar.session.action')).toEqual({ kind: 'hoc', scope: 'root' })
     expect(b.slots.spec('sidebar.panellist')).toEqual({ kind: 'list', scope: 'root' })
+    expect(b.slots.spec('sidebar.product')).toEqual({ kind: 'single', scope: 'root' })
+    expect(b.slots.spec('sidebar.leading.product')).toEqual({ kind: 'single', scope: 'root' })
     // Copy rides the standard locale seat, not the inject face.
     expect(b.slots.entries('sidebar')[0]!.locale).toBe('sidebar')
     // The window-chrome occupant reuses the shell's inject face and locale.

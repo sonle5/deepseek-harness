@@ -1,0 +1,205 @@
+/* The product switcher trigger. In the sidebar it carries the brand mark and
+ * the product name, so it must survive the 280px logo row: the name ellipsizes
+ * rather than pushing the panel toggle out of the row. The menu itself is the
+ * shared Menu primitive — no material is declared here. */
+.trigger {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+@media (hover: hover) {
+  .trigger:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.trigger:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+/* The sidebar brand form: the logo row's label seat. It fills that seat the
+   way the brand name did, so the name ellipsizes instead of pushing the panel
+   toggle out of the row. The mark before it belongs to `sidebar.brand.mark`
+   and is drawn by the sidebar, not here — one identity source. */
+.brand {
+  flex: 1 1 auto;
+  height: 20px;
+  gap: 4px;
+  padding: 0;
+  color: var(--dsw-alias-label-primary);
+  justify-content: flex-start;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.02em;
+}
+
+/* The seat itself. `Menu` wraps its anchor in a shrink-to-fit span, so the
+   button's own `flex: 1 1 auto` would never reach the row: the logo row's own
+   `flex-end` would then pack the mark and the name against the panel toggle,
+   leaving the nav-icon column empty above every row beneath. Growing the
+   wrapper is what keeps the product name flush left, aligned with those
+   icons, the way Codex Desktop draws it. */
+.seat {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The trigger stays content-sized inside the grown seat: the seat absorbs the
+   row's free space, while the hover and focus rings hug the name and chevron
+   instead of painting a bar across the whole label column. */
+.seat > button {
+  flex: 0 1 auto;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Window-chrome form: the leading seat lays out 28px controls. */
+.compact {
+  height: 22px;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.compact .name {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+}
+
+/* Composer's navigation in the sidebar's browsing region. It stands in for the
+ * shell's own rows, so it takes the same column geometry: a scrolling column
+ * whose rows carry the shell's 3px paint inset, 12px row padding and 32px
+ * height, which is what makes a Composer row indistinguishable from a sidebar
+ * row beside it. */
+.navigation {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 0;
+  margin: 0 calc(var(--dsh-sidebar-paint-inset, 3px) * -1);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.navEntry {
+  display: flex;
+  border-inline: var(--dsh-sidebar-paint-inset, 3px) solid transparent;
+  border-radius: var(--dsw-radius-md);
+  background-clip: padding-box;
+}
+
+.navEntryWide > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.navEntryActive {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.navRow {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-sidebar-label-gap, 6px);
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px calc(var(--dsh-sidebar-row-padding, 12px) - var(--dsh-sidebar-paint-inset, 3px));
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Same box as the shell's `.panelGlyph`: fixed, centred, never compressed by a
+ * long label, so a Composer row's icon sits on the same axis as its neighbours. */
+.navGlyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (hover: hover) {
+  .navRow:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.navRow:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+.navTitle {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rail geometry, mirroring the shell's `.collapsed .panelRow`: a 36x36 control
+   box centred in the 56px rail, 12px apart, with no paint inset. Without this
+   a Composer row would stay a full-width 32px bar and overhang the rail. */
+.navigationRail {
+  gap: 12px;
+  padding-top: 0;
+  margin: 0;
+  overflow: visible;
+}
+
+.navigationRail .navEntry {
+  border-inline: 0;
+  background-clip: border-box;
+}
+
+.navigationRail .navRow {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--dsw-radius-md);
+}

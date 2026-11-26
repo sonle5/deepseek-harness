@@ -285,6 +285,10 @@
       "@deepseek-ai/dsh-client-ui-slots": ["./packages/client/ui-slots/src"],
       "@deepseek-ai/dsh-client-ui-file-drag": ["./packages/client/ui-file-drag/src"],
       "@deepseek-ai/dsh-client-ui-file-drag/client": ["./packages/client/ui-file-drag/src/client/index.ts"],
+      // The package carries the client-ui- prefix while its directory keeps the
+      // shorter ui- name every client UI package uses, so this alias is hand-written.
+      "@deepseek-ai/dsh-client-ui-product-switcher": ["./packages/client/ui-product-switcher/src"],
+      "@deepseek-ai/dsh-client-ui-product-switcher/client": ["./packages/client/ui-product-switcher/src/client/index.ts"],
       "@deepseek-ai/dsh-client-ui-attachment": ["./packages/client/ui-attachment/src"],
       "@deepseek-ai/dsh-client-ui-primitives": ["./packages/client/ui-primitives/src"],
       "@deepseek-ai/dsh-client-ui-dockkit": ["./packages/client/ui-dockkit/src"],
@@ -338,6 +342,7 @@
       "@deepseek-ai/dsh-client-ui-layout": ["./packages/client/ui-layout/src"],
       "@deepseek-ai/dsh-client-ui-sidebar": ["./packages/client/ui-sidebar/src"],
       "@deepseek-ai/dsh-client-ui-brand-official": ["./packages/client/ui-brand-official/src"],
+      "@deepseek-ai/dsh-client-ui-brand-nexus": ["./packages/client/ui-brand-nexus/src"],
       "@deepseek-ai/dsh-client-ui-approval": ["./packages/client/ui-approval/src"],
       "@deepseek-ai/dsh-client-ui-approval/client": ["./packages/client/ui-approval/src/client/index.ts"],
       "@deepseek-ai/dsh-client-ui-chat": ["./packages/client/ui-chat/src"],

@@ -187,6 +187,15 @@ export class DesktopPlatformView {
     if (generation === this.generation && this.view === view) view.setVisible(true)
   }
 
+  /** Move the open document above native views attached after it. */
+  raise(): void {
+    const view = this.view
+    const owner = this.owner
+    if (view === undefined || owner === undefined || owner.isDestroyed()) return
+    // Re-adding a child view makes it the topmost one.
+    owner.contentView.addChildView(view)
+  }
+
   /** @param bounds - current application viewport rectangle. */
   setBounds(bounds: PlatformBounds): void { this.view?.setBounds(bounds) }
 

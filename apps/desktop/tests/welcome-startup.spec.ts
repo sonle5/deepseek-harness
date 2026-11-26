@@ -61,6 +61,7 @@ vi.mock('electron', () => ({
     getVersion: () => '1.0.0',
     setAboutPanelOptions: vi.fn(),
     getAppPath: () => '/development-app',
+    setName: vi.fn(),
     getPath: (name: string) => name === 'userData' ? '/desktop-user-data' : `/development-${name}`,
     setAppLogsPath: vi.fn(),
     getPreferredSystemLanguages: () => ['en-US'],

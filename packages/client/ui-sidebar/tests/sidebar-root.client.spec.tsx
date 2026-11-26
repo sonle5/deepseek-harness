@@ -9,9 +9,8 @@ import { allowAllAccess, makeTranslate } from '@deepseek-ai/dsh-client-test-runt
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type {
-  SidebarFooterActionOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarSectionHookContext, SidebarSectionOwnerProps,
-  SidebarSessionActionOwnerProps,
-  SidebarSettingsOwnerProps,
+  SidebarFooterActionOwnerProps, SidebarNavigationOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarSectionHookContext,
+  SidebarSectionOwnerProps, SidebarSessionActionOwnerProps, SidebarSettingsOwnerProps,
 } from '../src/client/contract/slots.ts'
 import { HeaderLeadingControls, type HeaderLeadingControlsProps } from '../src/client/HeaderLeadingControls.tsx'
 import { SidebarRoot } from '../src/client/SidebarRoot.tsx'
@@ -48,16 +47,19 @@ function makeHeaderProps(): HeaderLeadingControlsProps {
     useEntryPins: selector => selector([]), useEntryActions: selector => selector(false),
     selectPanel: vi.fn(), setPinned: vi.fn(), toggleSidebar: vi.fn(),
     startSession: vi.fn(), trackEntryClick: vi.fn(), t,
+    renderSlot: (() => null) as HeaderLeadingControlsProps['renderSlot'],
   }
 }
 
-function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content }: {
+function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content, productSeat }: {
   collapsed?: boolean
   width?: number
   drawer?: boolean
   shortcuts?: readonly ShortcutCatalogEntry[]
   panels?: readonly SidebarPanelMetadata[]
   content?: ReactNode
+  /** Occupant of the logo row's label seat; absent renders the owner's brand fallback. */
+  productSeat?: ReactNode
 } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
@@ -68,6 +70,7 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
   let sessionActionOwner: SidebarSessionActionOwnerProps | undefined
   let sessionActionChildren: ReactNode
+  let navigationOwner: SidebarNavigationOwnerProps | undefined
   const brandMark = <span data-testid="custom-brand-mark">M</span>
   const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
   let current = { collapsed, width, drawer }
@@ -86,11 +89,14 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       renderSlot={((
         key: string,
         owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSessionActionOwnerProps | SidebarSettingsOwnerProps,
-        opts?: { hookContext?: SidebarSectionHookContext; children?: ReactNode },
+        opts?: { hookContext?: SidebarSectionHookContext; children?: ReactNode; fallback?: ReactNode },
       ) => {
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.toggle.badge') return null
+        // The logo row's label seat: a case that registers a switcher passes
+        // one, otherwise the owner's brand fallback renders in its place.
+        if (key === 'sidebar.product') return productSeat ?? opts?.fallback ?? null
         if (key === 'sidebar.panellist') return <span aria-hidden="true">P</span>
         if (key === 'sidebar.settings') {
           settingsOwner = owner
@@ -104,6 +110,12 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
           sessionActionOwner = owner
           sessionActionChildren = opts?.children
           return <>{opts?.children}<div data-testid="session-action-seat" data-wide={owner.wide} /></>
+        }
+        // The browsing-region layer. No occupant here means the shell's own
+        // rows pass through unchanged, which is the layer's contract.
+        if (key === 'sidebar.navigation') {
+          navigationOwner = owner
+          return <>{opts?.children}</>
         }
         regionOwner = owner as SidebarSectionOwnerProps
         regionContext = opts?.hookContext
@@ -137,6 +149,10 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       return sessionActionOwner
     },
     sessionActionChildren: () => sessionActionChildren,
+    navigationOwner: () => {
+      if (navigationOwner === undefined) throw new Error('navigation layer not rendered')
+      return navigationOwner
+    },
     rerender(next: Partial<typeof current>) {
       current = { ...current, ...next }
       view.rerender(root())
@@ -187,6 +203,7 @@ describe('SidebarRoot shell', () => {
     cleanup()
     document.documentElement.dataset.platform = 'darwin'
     render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      renderSlot={() => null}
       usePanelInfo={neverHook} useSessions={neverHook} useSessionStatus={neverHook}
       useSessionRetainInfo={neverHook} useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
@@ -219,6 +236,35 @@ describe('SidebarRoot shell', () => {
     expect(b.trackEntryClick).toHaveBeenCalledTimes(2)
   })
 
+  it('hands the logo row label seat to a registered product switcher instead of the brand name', () => {
+    // A build that embeds a second product fills `sidebar.product`; the seat
+    // then replaces the brand name, while the mark stays the brand slot's.
+    const b = mountShell({ productSeat: <button type="button">Switcher</button> })
+    expect(screen.getByRole('button', { name: 'Switcher' })).toBeTruthy()
+    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    // The wordmark's New Session shortcut goes with it; the capsule remains.
+    const starters = screen.getAllByRole('button', { name: 'New session' })
+    expect(starters).toHaveLength(1)
+    fireEvent.click(starters[0]!)
+    expect(b.startSession).toHaveBeenCalledOnce()
+    expect(b.trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'sidebar' })
+  })
+
+  it('keeps the macOS brand and collapse control in one titlebar row', () => {
+    document.documentElement.dataset.platform = 'darwin'
+    const b = mountShell()
+    const dragRows = [...document.querySelectorAll<HTMLElement>('[data-window-drag]')]
+
+    expect(dragRows).toHaveLength(1)
+    expect(dragRows[0]?.contains(screen.getByTestId('custom-brand-name'))).toBe(true)
+
+    const toggle = screen.getByRole('button', { name: 'Collapse sidebar' })
+    expect(dragRows[0]?.contains(toggle)).toBe(true)
+    fireEvent.click(toggle)
+    expect(b.toggleSidebar).toHaveBeenCalledOnce()
+  })
+
   it('reports the collapsed rail New Session as a sidebar click outside the Windows caption', () => {
     const b = mountShell({ collapsed: true, width: 56 })
     fireEvent.click(screen.getByRole('button', { name: 'New session' }))
@@ -241,10 +287,11 @@ describe('SidebarRoot shell', () => {
       useRemoteAccess={useRemoteAccess}
       startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((key: string) => {
+      renderSlot={((key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) => {
         if (key === 'sidebar.brand.mark') return <span data-testid="brand-mark">M</span>
         if (key === 'sidebar.brand.name') return <span data-testid="brand-name">Brand</span>
-        return null
+        // The label seat is empty in this build, so the owner's brand fallback renders.
+        return options?.children ?? options?.fallback ?? null
       }) as SidebarRootComponentProps['renderSlot']}
     />)
 
@@ -273,11 +320,13 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('Nexus Superharness')).toBeTruthy()
     expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
     expect(container.querySelector('svg')).not.toBeNull()
   })
@@ -298,11 +347,13 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('Nexus Superharness')).toBeTruthy()
     expect(screen.getByText(expected)).toBeTruthy()
   })
 
@@ -327,17 +378,19 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={startSession} toggleSidebar={vi.fn()} trackEntryClick={trackEntryClick} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
     vi.useFakeTimers()
 
     const copiedToasts = () => screen.queryAllByRole('alert').map(toast => toast.textContent)
-    await act(async () => { fireEvent.click(screen.getByText('DSH Local Build')) })
+    await act(async () => { fireEvent.click(screen.getByText('Nexus Superharness')) })
     expect(writeText).toHaveBeenLastCalledWith('1.2.3-abcdef0')
     expect(copiedToasts()).toEqual(['Version copied'])
     // The brand itself keeps its title and version.
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('Nexus Superharness')).toBeTruthy()
     expect(screen.getByText('1.2.3-abcdef0')).toBeTruthy()
     act(() => { vi.advanceTimersByTime(4000) })
     expect(copiedToasts()).toEqual([])
@@ -349,7 +402,7 @@ describe('SidebarRoot shell', () => {
     // The fallback mark copies too, and its click still reaches document.
     const documentClick = vi.fn()
     document.addEventListener('click', documentClick)
-    const mark = screen.getByText('DSH Local Build').closest('[aria-hidden]')!.querySelector('svg')!
+    const mark = document.querySelector<HTMLElement>('[data-window-drag] > [aria-hidden="true"] svg')!
     await act(async () => { fireEvent.click(mark) })
     document.removeEventListener('click', documentClick)
     expect(documentClick).toHaveBeenCalledOnce()
@@ -379,11 +432,13 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
       renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
+        // HOC layers hand the shell's own content in as `children`; a vacancy
+        // elsewhere falls back to the owner's placeholder.
+        options?.children ?? options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('Nexus Superharness')).toBeTruthy()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
@@ -509,6 +564,15 @@ it('wires the shell.leading controls to the shared sidebar actions', () => {
   render(<HeaderLeadingControls {...props} useRemoteAccess={action => action !== 'session/create'} />)
   expect(screen.getByRole('button', { name: en['toggle.open'] })).toBeTruthy()
   expect(screen.queryByRole('button', { name: en['session.new.label'] })).toBeNull()
+})
+
+it('renders the leading product seat after the window-chrome controls', () => {
+  document.documentElement.dataset.platform = 'darwin'
+  const renderSlot = vi.fn(((key: string) => <div data-testid={key} />) as HeaderLeadingControlsProps['renderSlot'])
+  const { container } = render(<HeaderLeadingControls {...makeHeaderProps()} renderSlot={renderSlot} />)
+  expect(renderSlot).toHaveBeenCalledWith('sidebar.leading.product', {})
+  const controls = container.firstElementChild!
+  expect(controls.lastElementChild!.getAttribute('data-testid')).toBe('sidebar.leading.product')
 })
 
 it.each([undefined, 'darwin', 'win32'] as const)('shows the collapsed-header New Session control only on Desktop (%s)', (platform) => {

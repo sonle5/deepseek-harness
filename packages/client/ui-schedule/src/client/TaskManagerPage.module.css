@@ -836,6 +836,12 @@
   justify-content: space-between;
   gap: 12px;
   min-height: 48px;
+  /* The label never shrinks and the weekday group cannot go below one pill, so
+     in a narrow pane the two do not fit on one line. Let the row wrap: the
+     label keeps its line and the days move under it. Without this the row's
+     content box overflows the scroller, which Linux glyph metrics widen past
+     the pane in French. */
+  flex-wrap: wrap;
 }
 
 .ruleRows > :last-child {

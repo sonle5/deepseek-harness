@@ -67,7 +67,14 @@ it.each(['light', 'dark'] as const)('keeps the macOS drawer opaque and excludes 
       await drawer.waitFor({ state: 'hidden' })
       await page.setViewportSize({ width: 1200, height: 800 })
       const sidebar = page.locator('[data-slot="sidebar"]').locator('..')
-      await expect.poll(() => sidebar.evaluate(el => getComputedStyle(el).backgroundImage)).not.toBe('none')
+      // The wide sidebar stays opaque: the rebrand paints it as one flat slate
+      // fill rather than the retired gradient wash, so opacity — not a gradient
+      // — is what separates it from the translucent drawer.
+      await expect.poll(() => sidebar.evaluate((el) => {
+        const color = getComputedStyle(el).backgroundColor
+        const match = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(color)
+        return match !== null
+      })).toBe(true)
       const activeDragRows = page.locator('[data-window-drag]:not([inert] [data-window-drag])')
       expect(await activeDragRows.count()).toBeGreaterThan(0)
       expect(await activeDragRows.evaluateAll(rows => rows.every(row => getComputedStyle(row).getPropertyValue('app-region') === 'drag')))
@@ -298,7 +305,9 @@ it('overlays the conversation and closes after navigation without losing its sid
         label.selectNodeContents(tab)
         return label.getBoundingClientRect().left - tab.closest('header')!.getBoundingClientRect().left
       })
-      expect(await tabInset()).toBeCloseTo(20, 1)
+      // The label sits at the header gutter plus the pill's own box: 12 + 3px
+      // padding + 0.5px hairline + 10px tab padding at this sub-600px width.
+      expect(await tabInset()).toBeCloseTo(26, 1)
       // Restore CSS-probe markers in the same synchronous task, before rendering.
       const desktopInsets = await chatTab.evaluate((tab) => {
         const root = document.documentElement
@@ -313,10 +322,14 @@ it('overlays the conversation and closes after navigation without losing its sid
           delete root.dataset.platform
         }
       })
-      for (const inset of desktopInsets) expect(inset).toBeCloseTo(28, 1)
+      // The rebrand dropped the platform-gated tab inset: on every platform the
+      // label now reads the same gutter as the shell, so the probe markers must
+      // not move it.
+      for (const inset of desktopInsets) expect(inset).toBeCloseTo(26, 1)
       await page.setViewportSize({ width: 768, height: 844 })
       await frame.waitFor({ state: 'detached' })
-      expect(await tabInset()).toBeCloseTo(28, 1)
+      // Past 600px the header gutter widens 12 → 20px, so the inset grows by 8.
+      expect(await tabInset()).toBeCloseTo(34, 1)
       await page.setViewportSize({ width: 390, height: 844 })
       await frame.waitFor()
       await opener.click()

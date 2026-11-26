@@ -1,9 +1,10 @@
 /**
- * Operate the develop parity loop for one pull request: route review to the agent,
- * and hand the merge to GitHub once the branch's protection is satisfied.
+ * Operate the develop parity loop for one pull request: route review to a
+ * reviewer agent other than the author, and hand the merge to GitHub once the
+ * branch's protection is satisfied.
  *
  * Reads on every relevant event, writes only what the read justifies:
- *  - `request-review`  a review request for the reviewer when none is outstanding
+ *  - `request-review`  a review request for the routed reviewer when none is outstanding
  *  - `auto-merge`      GitHub's auto-merge, enabled on a mergeable PR into a protected base
  *
  * The loop never calls the merge endpoint. GitHub applies the branch's
@@ -24,7 +25,7 @@ import {
   baseBranchError,
   latestVerdicts,
   needsReviewRequest,
-  REVIEWER,
+  reviewerFor,
 } from './policy.mjs'
 
 /** Upper bound on a mergeability read that GitHub has not finished computing. */
@@ -215,35 +216,40 @@ function branchIsProtected(repository, base) {
   }
 }
 
-/** Request the reviewer when the pull request has none outstanding. */
+/** Request the routed reviewer when the pull request has none outstanding. */
 function requestReview(repository, number, author) {
+  const reviewer = reviewerFor(author)
+  // GitHub rejects a review request to the author with 422, so a pool with no
+  // one besides the author has nobody to ask.
+  if (reviewer === null) {
+    process.stdout.write(`::warning::#${number} is authored by @${author} and no other reviewer is configured; review must be requested by hand.\n`)
+    return
+  }
   const reviews = api(`repos/${repository}/pulls/${number}/reviews?per_page=100`)
-  const verdicts = latestVerdicts(reviews)
+  const verdicts = latestVerdicts(reviews, reviewer)
   // Read the outstanding requests rather than trusting the event payload, which
   // is a snapshot: a `synchronize` event still carries the reviewers as they
   // were, and asking again is a no-op only by luck.
   const outstanding = api(`repos/${repository}/pulls/${number}/requested_reviewers`)
   const requested = [...(outstanding.users ?? []), ...(outstanding.teams ?? [])].map(user => user.login ?? user.slug)
   if (!needsReviewRequest({
+    reviewer,
     requested,
     reviewed: verdicts.reviewed,
     latestDismissed: verdicts.latestDismissed,
-    authoredByReviewer: author === REVIEWER,
   })) {
-    process.stdout.write(author === REVIEWER
-      ? `#${number} is authored by @${REVIEWER}; leaving review to a human.\n`
-      : 'Review already routed to the reviewer.\n')
+    process.stdout.write(`Review already routed to @${reviewer}.\n`)
     return
   }
   // A reviewer GitHub will not request is a configuration problem the auto-merge
   // gate will surface; do not fail the run here.
   const created = apiOrNull(`repos/${repository}/pulls/${number}/requested_reviewers`, {
     method: 'POST',
-    body: { reviewers: [REVIEWER] },
+    body: { reviewers: [reviewer] },
   })
   process.stdout.write(created === null
-    ? `::warning::Requesting review from @${REVIEWER} failed; auto-merge stays blocked.\n`
-    : `Requested review from @${REVIEWER}.\n`)
+    ? `::warning::Requesting review from @${reviewer} failed; auto-merge stays blocked.\n`
+    : `Requested review from @${reviewer}.\n`)
 }
 
 /** Enable GitHub's auto-merge when the pure decision finds nothing blocking. */

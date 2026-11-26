@@ -25,7 +25,7 @@ visual review on this Mac ──► parity Issue (+ parity, area/*, p*)
         │                              │
         │                              ▼
         │                     fixing PR into develop
-        │                     (Fixes #N, kind/*, area/*, review @onenexus-superagent)
+        │                     (Fixes #N, kind/*, area/*, review by a peer agent)
         │                              │
         │                              ▼
         │              one approving review from someone other than the author
@@ -69,13 +69,18 @@ The Issue body is the brief. A fixing PR:
 - says `Fixes #N`, so merging closes the Issue and the lifecycle workflow moves
   it to Done,
 - carries exactly one `kind/*` and at least one `area/*`,
-- requests review from `@onenexus-superagent`.
+- is routed for review by the Parity loop, which requests it automatically.
 
-`@onenexus-superagent` cannot approve a pull request it authored — GitHub
-excludes authors from approving their own PRs, and there is no CODEOWNERS file
-here to make the agent a required approver — so an agent-authored PR needs one
-other person to approve it. The protection asks for one non-author approval; it
-does not require that the approver be the agent.
+The loop picks the reviewer from `REVIEWERS` in
+[`parity-loop/policy.mjs`](parity-loop/policy.mjs), a list of reviewer agents,
+most senior first. A PR opened by someone outside the list goes to the first
+entry, `@onenexus-superagent`. A PR opened by an agent in the list goes to the
+most senior other agent, because GitHub rejects a review request to the author
+and excludes authors from approving their own PRs. With only one agent in the
+list, the loop reports that it has no peer and leaves the request to be made by
+hand. Adding an agent to the list extends peer routing with no other change.
+The protection asks for one non-author approval; it does not require that the
+approver be the routed agent.
 
 PR kinds and their meanings are the ones the policy already knows:
 

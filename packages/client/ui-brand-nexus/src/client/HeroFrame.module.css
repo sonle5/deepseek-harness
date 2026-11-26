@@ -1,9 +1,13 @@
+/* Layout-neutral in every phase: no stacking context, no isolation. The hero
+   decorations paint at -1 against Conversation's own hero-phase isolation (see
+   ConversationRoot's `conversation.hero.frame` contract), so the wrapped
+   transcript keeps competing in the body's stacking context with the width
+   handles — a wide table must still outrank its gutter strip. */
 .frame {
   position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
-  isolation: isolate;
   min-height: 0;
 }
 

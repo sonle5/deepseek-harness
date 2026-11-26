@@ -3,6 +3,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject, SyntheticEvent } from 'react'
 import type { MenuEntry, MenuItem } from './Menu.tsx'
 import { submenuNeedsPage } from './menu-submenu-position.ts'
+import { MENU_ROW_SELECTOR } from './MenuRow.tsx'
 import { usePointerGrace } from './pointer-grace.ts'
 import { menuPopupSelector } from './useModalLayer.ts'
 
@@ -160,7 +161,7 @@ export function useMenuSubmenu(options: {
 
   const collapseFrom = (event: SyntheticEvent<HTMLDivElement>): void => {
     // React DOM normalizes text-node event targets to their parent element.
-    const row = (event.target as Element).closest('button[role="menuitem"]')
+    const row = (event.target as Element).closest(MENU_ROW_SELECTOR)
     if (row === null || row.getAttribute('aria-haspopup') === 'menu') return
     const rootRows = searchRowsRef.current ?? listRef.current
     if (rootRows !== null && row.closest(menuPopupSelector) === rootRows) collapse()

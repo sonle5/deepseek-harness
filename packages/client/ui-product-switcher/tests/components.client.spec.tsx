@@ -48,15 +48,20 @@ describe('ProductControl', () => {
     expect(trigger.textContent).toContain('Composer')
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(trigger.hasAttribute('aria-controls')).toBe(false)
     // Closed: no rows are in the document at all.
     expect(screen.queryByRole('menu')).toBeNull()
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
-    const rows = screen.getAllByRole('menuitem')
-    expect(rows.map(row => row.textContent)).toEqual(['Superharness', 'Composer'])
-    // The current product carries the selection marker, the other does not.
-    // The marker is the shared MenuRow check icon, which is also what a
-    // screen-reader user hears as the row's checked state.
+    const menu = screen.getByRole('menu', { name: 'Switch product' })
+    expect(trigger.getAttribute('aria-controls')).toBe(menu.id)
+    expect(screen.queryAllByRole('menuitem')).toEqual([])
+    const rows = screen.getAllByRole('menuitemradio')
+    expect(rows.map(row => [row.textContent, row.getAttribute('aria-checked')])).toEqual([
+      ['Superharness', 'false'],
+      ['Composer', 'true'],
+    ])
+    // The visible check agrees with the announced state.
     expect(rows[1]!.querySelector('svg[data-icon="dsw-icon-check-outline-regular"]')).toBeTruthy()
     expect(rows[0]!.querySelector('svg[data-icon="dsw-icon-check-outline-regular"]')).toBeNull()
     fireEvent.click(rows[0]!)
@@ -71,7 +76,7 @@ describe('ProductControl', () => {
     const onChange = vi.fn()
     render(<ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={onChange} />)
     fireEvent.click(screen.getByRole('button', { name: 'Switch product' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Superharness' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Superharness' }))
     expect(onChange).toHaveBeenCalledWith('superharness')
   })
 
@@ -82,7 +87,22 @@ describe('ProductControl', () => {
     fireEvent.click(trigger)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
+    expect(trigger.hasAttribute('aria-controls')).toBe(false)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('walks the radio rows with the arrow keys and returns focus to the trigger on Escape', () => {
+    render(<ProductControl value="superharness" label="Switch product" superharness="Superharness" composer="Composer" onChange={vi.fn()} />)
+    const trigger = screen.getByRole('button', { name: 'Switch product' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Superharness' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Composer' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 
   it('renders the compact form for the window-chrome seat', () => {

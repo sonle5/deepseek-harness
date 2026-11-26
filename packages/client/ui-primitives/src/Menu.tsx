@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useMenuSubmenu, menuHoverAllowed } from './useMenuSubmenu.ts'
-import { MenuRow, menuIconColumns, renderMenuDecoration } from './MenuRow.tsx'
+import { MENU_ROW_SELECTOR, MenuRow, menuIconColumns, renderMenuDecoration } from './MenuRow.tsx'
 import { SubmenuPanel } from './SubmenuPanel.tsx'
 import { usePointerGrace } from './pointer-grace.ts'
 import { isBehindModal } from './useModalLayer.ts'
@@ -162,13 +162,19 @@ function menuButtons(container: HTMLElement | null): HTMLButtonElement[] {
  * (`'check'`, default — figma .Menu_cell) or the hover fill held on the row
  * with no check (`'fill'`, for icon-labelled rows where a trailing glyph
  * crowds the cell).
+ * @param props.radio - expose the `items` rows as a single-choice group:
+ * each is `role="menuitemradio"` with `aria-checked` following `selectedId`.
+ * The visual marker still follows `selection`; default false keeps `role="menuitem"`.
+ * @param props.label - localized accessible name of the `role="menu"` list.
+ * @param props.listId - id of the menu card, for the trigger's `aria-controls`
+ * while open; omitted, only contextual menus carry a generated id.
  * @param props.className - extra class on the anchor wrapper span.
  * @param props.listClassName - extra class on the dropdown card itself; the
  * only style hook that reaches a portaled list, which renders under
  * document.body outside the owner's DOM subtree.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items = [], children, submenuBackLabel, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', anchorRef, anchorPoint, minWidthFromAnchor = false, footer, search, maxVisibleRows, className, listClassName, contextual = false, exiting, returnFocus, isExternalTrigger }: {
+export function Menu({ open, anchor, items = [], children, submenuBackLabel, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', radio = false, label, listId, anchorRef, anchorPoint, minWidthFromAnchor = false, footer, search, maxVisibleRows, className, listClassName, contextual = false, exiting, returnFocus, isExternalTrigger }: {
   open: boolean
   /** Pointer-positioned popup: cursor clearance, grouped icons, and context gestures. */
   contextual?: boolean
@@ -207,6 +213,9 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
   dense?: boolean
   compact?: boolean
   selection?: 'check' | 'fill'
+  radio?: boolean
+  label?: string | undefined
+  listId?: string | undefined
   anchorRef?: RefObject<HTMLElement | null> | undefined
   /** Client coordinates captured for this opening; Safari offsets are applied once. */
   anchorPoint?: { readonly x: number; readonly y: number } | undefined
@@ -224,7 +233,8 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
   const hasSearchClear = search?.clearLabel !== undefined
   const skipAutoFocusOnTouch = search?.skipAutoFocusOnTouch === true
   const openedByTouch = useRef(false)
-  const menuId = useId()
+  const generatedId = useId()
+  const menuId = listId ?? generatedId
   const pointX = anchorPoint?.x
   const pointY = anchorPoint?.y
   const point = useMemo(() => {
@@ -298,7 +308,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
   submenuEvents.current = submenu
   const close = useRef(onClose)
   close.current = onClose
-  const anchorName = `--dsh-menu-trigger-${menuId.replaceAll(':', '')}`
+  const anchorName = `--dsh-menu-trigger-${generatedId.replaceAll(':', '')}`
   const [externalAnchor, setExternalAnchor] = useState<HTMLElement | null>(null)
   const positioned = !portal || anchorRef === undefined || externalAnchor !== null
   // External refs can attach after this component or replace their element
@@ -405,7 +415,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
       if (inSearch && e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (!e.repeat) menuButtons(viewportRef.current).find(button =>
-          button.getAttribute('role') === 'menuitem' && button.getAttribute('aria-disabled') !== 'true')?.click()
+          button.matches(MENU_ROW_SELECTOR) && button.getAttribute('aria-disabled') !== 'true')?.click()
         return
       }
       if (e.key === 'Escape' && !e.shiftKey) {
@@ -445,7 +455,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
         // Tab settles a focused row. Other controls inside the list keep
         // native traversal unless they belong to the search field.
         if (insideList && !inSearch && !onClearSearch) {
-          if (focused instanceof Element && focused.getAttribute('role') === 'menuitem') {
+          if (focused instanceof Element && focused.matches(MENU_ROW_SELECTOR)) {
             e.preventDefault()
             if (focused.getAttribute('aria-disabled') === 'true') {
               onClose()
@@ -533,12 +543,12 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
 
   const itemColumns = menuIconColumns(items, contextual)
   const footerColumns = menuIconColumns(footer ?? [], contextual)
-  const renderEntry = (entry: MenuEntry, columns: ReadonlySet<MenuEntry>) => {
+  const renderEntry = (entry: MenuEntry, columns: ReadonlySet<MenuEntry>, choice = false) => {
     if ('type' in entry) return renderMenuDecoration(entry)
     const hasSub = entry.submenu !== undefined && entry.submenu.length > 0
     return <MenuRow key={entry.id} icon={entry.icon} reserveIcon={columns.has(entry)}
       disabled={entry.disabled} danger={entry.danger} shortcut={entry.shortcut}
-      selected={entry.id === selectedId || selectedIds?.includes(entry.id) === true} selection={selection}
+      selected={entry.id === selectedId || selectedIds?.includes(entry.id) === true} selection={selection} radio={choice}
       aria-haspopup={hasSub ? 'menu' : undefined}
       aria-expanded={hasSub ? submenu.entry?.id === entry.id && !submenu.hidden : undefined}
       wrapperProps={hasSub ? {
@@ -558,7 +568,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
 
   const rows = <>
     <div ref={viewportRef} className={css.viewport} role="presentation">
-      {items.map(entry => renderEntry(entry, itemColumns))}
+      {items.map(entry => renderEntry(entry, itemColumns, radio))}
       {children}
     </div>
     {footer !== undefined && footer.length > 0 && (
@@ -568,6 +578,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
     )}
   </>
   const visible = exiting === undefined && !submenu.page
+  const searchRowsMenu = visible && (items.length > 0 || children != null || !!footer?.length)
   const cardStyle: CSSProperties & { '--dsh-menu-visible-rows'?: number } = {
     positionAnchor: portal ? anchorName : undefined,
     ...(maxVisibleRows === undefined ? {} : { '--dsh-menu-visible-rows': maxVisibleRows }),
@@ -578,7 +589,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
   }
 
   const list = open && positioned && (
-    <MenuSurface compact={compact} id={contextual ? menuId : undefined}
+    <MenuSurface compact={compact} id={contextual || listId !== undefined ? menuId : undefined}
       ref={listRef}
       className={clsx(css.list, listClassName, dense && css.denseList, compact && css.compactList, css.scrollable, submenu.page && css.parentPage, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       style={cardStyle}
@@ -587,6 +598,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
       data-match-anchor-width={portal && minWidthFromAnchor ? '' : undefined}
       data-menu-popup={visible && hasSearch ? '' : undefined}
       role={visible && !hasSearch ? 'menu' : undefined}
+      aria-label={visible && !hasSearch ? label : undefined}
       aria-hidden={visible ? undefined : true}
       data-context-menu={contextual ? '' : undefined}
       phase={contextual ? exiting ?? 'enter' : undefined}
@@ -598,7 +610,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
       // own handler ran; a submenu parent only opened its card.
       onClick={(e) => {
         e.stopPropagation()
-        const row = e.target instanceof Element ? e.target.closest('button[role="menuitem"]') : null
+        const row = e.target instanceof Element ? e.target.closest(MENU_ROW_SELECTOR) : null
         if (row !== null && row.getAttribute('aria-haspopup') !== 'menu') refocusAfterSelection()
       }}
       onContextMenu={contextual ? (event) => {
@@ -627,7 +639,8 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
         />
         {search.emptyMessage !== undefined && items.length === 0 && <div role="status" className={css.searchStatus}>{search.emptyMessage}</div>}
         <div ref={searchRowsRef} className={css.searchRows}
-          role={visible && (items.length > 0 || children != null || !!footer?.length) ? 'menu' : undefined}>{rows}</div>
+          role={searchRowsMenu ? 'menu' : undefined}
+          aria-label={searchRowsMenu ? label : undefined}>{rows}</div>
       </>}
     </MenuSurface>
   )

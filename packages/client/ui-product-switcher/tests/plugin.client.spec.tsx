@@ -207,7 +207,7 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   fireEvent.click(trigger)
   // The menu portals out of the sidebar's clipped logo row, so it is found on
   // the document rather than inside the seat's container.
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Composer' }))
   // Choosing closed the menu and selected the panel.
   expect(screen.queryByRole('menu')).toBeNull()
   expect(layout.selectPanel).toHaveBeenCalledWith('composer')
@@ -225,7 +225,7 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   // Switching back from the sidebar's control (still mounted beside the panel)
   // returns to the Conversation and detaches the view.
   fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Superharness' }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Superharness' }))
   await act(async () => {})
   expect(layout.selectPanel).toHaveBeenCalledWith(null)
   expect(fake.bridge.hide).toHaveBeenCalledTimes(1)
@@ -259,7 +259,7 @@ it('mirrors Composer navigation in the sidebar only while Composer is the produc
   // Composer is the product and has published: its rows replace the shell's.
   const sidebar = runtime.renderSlot('sidebar.product', {})
   fireEvent.click(sidebar.view.getByRole('button', { name: 'Switch product' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Composer' }))
   const nav = seat.view.getByRole('navigation', { name: 'Composer navigation' })
   expect(seat.view.queryByTestId('shell-rows')).toBeNull()
   expect(nav.textContent).toContain('Providers')
@@ -361,7 +361,7 @@ it('draws the compact switcher in the window-chrome seat, following main', async
   // A press routes through the same select action as the sidebar's copy, which
   // is what selects the panel — the seat draws no view of its own.
   fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Composer' }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Composer' }))
   expect(layout.selectPanel).toHaveBeenCalledWith('composer')
   // And it renames itself from main's push, like every other surface.
   fake.selectFromMain('composer')

@@ -20,6 +20,8 @@ type MenuRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>
     selected?: boolean
     /** Selection marker: a trailing check, or the row fill. */
     selection?: 'check' | 'fill'
+    /** Expose the row as one option of a single-choice group, with `selected` as its checked state. */
+    radio?: boolean
     /** Keep an empty icon column so grouped rows stay aligned. */
     reserveIcon?: boolean
     /** Hide the icon from assistive technology; component rows keep it exposed. */
@@ -33,14 +35,15 @@ type MenuRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>
  * @returns one menu item; explained disabled rows remain focusable but never activate.
  */
 export function MenuRow({ children, icon, shortcut, current, disabled = false, disabledReason, danger,
-  separatorBefore, selected, selection = 'check', reserveIcon, decorativeIcon = true, wrapperProps, ...button }: MenuRowProps) {
+  separatorBefore, selected, selection = 'check', radio = false, reserveIcon, decorativeIcon = true, wrapperProps, ...button }: MenuRowProps) {
   const reasonId = useId()
   const explained = disabled && disabledReason !== undefined
   // Tooltip remains mounted when the explanation changes, preserving button focus.
   return <div {...wrapperProps} className={css.itemWrap}>
     {separatorBefore && <div className={css.separator} role="separator" />}
     <Tooltip label={disabledReason ?? ''} disabled={!explained} side="bottom" delayMs={500} maxWidth={300} portal>
-      <button {...button} type="button" role="menuitem"
+      <button {...button} type="button" role={radio ? 'menuitemradio' : 'menuitem'}
+        aria-checked={radio ? selected === true : undefined}
         className={clsx(css.item, selected && (selection === 'fill' ? css.selectedFill : css.selected), danger && css.danger)}
         disabled={disabled && !explained} aria-disabled={explained || undefined}
         aria-describedby={explained ? reasonId : undefined} aria-keyshortcuts={shortcut?.aria}
@@ -55,6 +58,9 @@ export function MenuRow({ children, icon, shortcut, current, disabled = false, d
     {explained && <span id={reasonId} hidden>{disabledReason}</span>}
   </div>
 }
+
+/** Selects the activatable rows of any menu list, whether plain or radio. */
+export const MENU_ROW_SELECTOR = 'button[role="menuitem"], button[role="menuitemradio"]'
 
 /** Mark icon columns within each separator-delimited data group.
  * @param entries - entries in one menu area.

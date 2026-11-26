@@ -1789,6 +1789,11 @@ describe('Issue lifecycle workflow', () => {
 
     expect(lifecycle.on).toHaveProperty('pull_request')
     expect(lifecycle.on).toHaveProperty('pull_request_review')
+    // The lifecycle writes Project state through the upstream organization's
+    // App, which a fork does not have — and unlike issue-policy it mutates the
+    // board, so running it against another repository is wrong, not merely
+    // useless. Both gates name the same repository.
+    expect(lifecycleJob.if).toContain("github.repository == 'deepseek-harness/deepseek-harness'")
     expect(lifecycleJob.if).toContain("github.event.review.state == 'changes_requested'")
     expect(lifecycleJob.if).toContain('github.event.changes.body != null')
     // Keep the subscription-type gates: issue-lifecycle does not re-subscribe

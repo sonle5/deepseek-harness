@@ -33,7 +33,14 @@ concurrency:
 jobs:
   lifecycle:
     name: Issue lifecycle
+    # The lifecycle is driven by the upstream organization's Project board:
+    # config.json hardcodes one organization and one project number, and the App
+    # token below is scoped to the same identities. A fork has neither, so the
+    # job can only ever 404 there — and it is not a read-only check like
+    # issue-policy, it *writes* board state, so it must not run against a
+    # different repository at all. Same reasoning as the gate on issue-policy.
     if: >-
+      github.repository == 'deepseek-harness/deepseek-harness' &&
       (github.event_name != 'pull_request_review' || github.event.review.state == 'changes_requested') &&
       (github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.body != null)
     runs-on: ubuntu-latest

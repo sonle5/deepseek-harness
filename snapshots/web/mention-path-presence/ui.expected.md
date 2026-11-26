@@ -1,6 +1,5 @@
 - banner:
   - navigation "Session hierarchy": "@ceshi @随便写点文字 @LICENSE @doc"
-  - text: Standard mode
   - button "Session panel"
   - button "More actions"
   - tablist:

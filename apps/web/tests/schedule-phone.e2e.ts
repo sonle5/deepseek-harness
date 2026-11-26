@@ -271,7 +271,18 @@ it.each([
           await editor.getByRole('button', { name: copy.repeat }).click()
           await page.getByRole('menuitem', { name: frequency, exact: true }).click()
           await expectEditorAlignment(title)
-          await expect.poll(() => editor.locator('[class*="_detailScroll"]').evaluate(node => node.scrollWidth - node.clientWidth)).toBe(0)
+          // Space Grotesk's wider French glyphs leave the wrapping weekday row
+          // 0.28px past its box at 800px, which scrollWidth's integer rounding
+          // reports as 1. Nothing is unreachable: the row wraps, so prove the
+          // pane cannot scroll rather than demanding a whole-pixel fit.
+          await expect.poll(() => editor.locator('[class*="_detailScroll"]').evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
+          expect(await editor.locator('[class*="_detailScroll"]').evaluate((node) => {
+            const before = node.scrollLeft
+            node.scrollLeft = Number.MAX_SAFE_INTEGER
+            const reachable = node.scrollLeft
+            node.scrollLeft = before
+            return reachable
+          })).toBe(0)
           expect(await editor.locator('input, textarea, button').evaluateAll(nodes => nodes.every((node) => {
             const box = node.getBoundingClientRect()
             const pane = node.closest('aside')!.getBoundingClientRect()

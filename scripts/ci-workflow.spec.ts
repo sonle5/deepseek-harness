@@ -356,6 +356,7 @@ describe('CI workflow', () => {
     const matrix = isRecord(publisher.strategy) && isRecord(publisher.strategy.matrix) ? publisher.strategy.matrix.os : undefined
     if (!Array.isArray(matrix)) throw new TypeError('the publisher matrix must list operating systems')
     const [linuxName, macosName] = matrix.map(os => `publisher-isolated (${String(os)})`)
+    if (linuxName === undefined || macosName === undefined) throw new TypeError('the publisher matrix must list two operating systems')
     expect([linuxName, macosName]).toEqual(['publisher-isolated (linux)', 'publisher-isolated (macos)'])
     const linux = { name: linuxName, conclusion: 'success', runner_id: 1000001309 }
     const abandonedMacos = { name: macosName, conclusion: 'cancelled', runner_id: 0 }

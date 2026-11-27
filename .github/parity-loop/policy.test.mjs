@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
+  autoMergeNotNeeded,
   baseBranchError,
   EVIDENCE_HEADING,
   latestVerdicts,
@@ -180,6 +181,23 @@ test('an already-enabled auto-merge is told apart from a real failure', () => {
   ), false)
   assert.equal(autoMergeAlreadyEnabled(
     'Head branch was modified. Review and try the merge again.',
+  ), false)
+})
+
+test('a pull request that can merge now is told apart from a real failure', () => {
+  // GitHub refuses auto-merge when nothing is pending; only failing optional
+  // checks leave the merge state `unstable`.
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in unstable status (enablePullRequestAutoMerge)'),
+  ), true)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in clean status (enablePullRequestAutoMerge)'),
+  ), true)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in dirty status (enablePullRequestAutoMerge)'),
+  ), false)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request AutoMerge is already enabled (enablePullRequestAutoMerge)'),
   ), false)
 })
 

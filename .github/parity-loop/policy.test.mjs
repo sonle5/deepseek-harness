@@ -5,10 +5,14 @@ import {
   autoMergeBlockers,
   autoMergeNotNeeded,
   baseBranchError,
+  CLOSE_WINDOW_MS,
   EVIDENCE_HEADING,
+  issuesToClose,
   latestVerdicts,
+  LOOP_MERGER,
   missingEvidenceWarning,
   needsReviewRequest,
+  reviewedPullNumber,
   reviewerFor,
   REVIEWERS,
   TARGET_BASE,
@@ -241,4 +245,69 @@ test('the pull request template carries the evidence heading the check reads', (
   const template = readFileSync(new URL('../pull_request_template.md', import.meta.url), 'utf8')
   assert.ok(template.split('\n').includes(EVIDENCE_HEADING))
   assert.match(template, /N\/A — no user-visible change: <reason>/u)
+})
+
+const REPOSITORY = 'sonle5/deepseek-harness'
+const MERGED_AT = '2026-11-26T19:13:09Z'
+const AFTER_MERGE = Date.parse(MERGED_AT) + 60_000
+const openIssue = (number, overrides = {}) => ({
+  number, repository: REPOSITORY, state: 'OPEN', lastStateChangeAt: null, ...overrides,
+})
+const close = (pull, now = AFTER_MERGE) => issuesToClose({
+  repository: REPOSITORY,
+  pull: { mergedBy: LOOP_MERGER, mergedAt: MERGED_AT, issues: [], ...pull },
+  now,
+})
+
+test('a loop merge closes every open issue in its closing references', () => {
+  assert.deepEqual(close({ issues: [openIssue(8), openIssue(9)] }), [8, 9])
+})
+
+test('only closing references are candidates, so a bare or Refs mention closes nothing', () => {
+  // `Refs #N` and a bare `#N` never enter `closingIssuesReferences`; a pull
+  // request whose body only mentions issues reaches the sweep with none.
+  assert.deepEqual(close({ issues: [] }), [])
+})
+
+test('a merge GitHub already applied closing keywords to is left to GitHub', () => {
+  // A person's merge closes its issues itself, as #21 closed #19.
+  assert.deepEqual(close({ mergedBy: 'sonle5', issues: [openIssue(19)] }), [])
+  assert.deepEqual(close({ mergedBy: null, issues: [openIssue(19)] }), [])
+})
+
+test('an issue already closed, by hand or by GitHub, is not touched again', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(8, { state: 'CLOSED', lastStateChangeAt: '2026-11-26T19:16:17Z' })],
+  }), [])
+})
+
+test('an issue reopened after the merge stays open on every later sweep', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(8, { lastStateChangeAt: '2026-11-26T20:00:00Z' })],
+  }), [])
+  // A reopen from before the merge does not count: the merge still fixes it.
+  assert.deepEqual(close({
+    issues: [openIssue(8, { lastStateChangeAt: '2026-11-25T10:00:00Z' })],
+  }), [8])
+})
+
+test('an issue in another repository is not closed with this token', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(5, { repository: 'deepseek-ai/deepseek-harness' }), openIssue(8)],
+  }), [8])
+})
+
+test('merges older than the sweep window are history and are left alone', () => {
+  const issues = [openIssue(20)]
+  assert.deepEqual(close({ issues }, Date.parse(MERGED_AT) + CLOSE_WINDOW_MS), [20])
+  assert.deepEqual(close({ issues }, Date.parse(MERGED_AT) + CLOSE_WINDOW_MS + 1), [])
+})
+
+test('the reviewed pull request is read only from a review-event run name', () => {
+  const run = displayTitle => ({ workflow_run: { display_title: displayTitle } })
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:26')), 26)
+  assert.equal(reviewedPullNumber(run('weighted-approval')), null)
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:0')), null)
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:26 extra')), null)
+  assert.equal(reviewedPullNumber({ pull_request: { number: 26 } }), null)
 })

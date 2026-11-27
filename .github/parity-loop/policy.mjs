@@ -177,6 +177,61 @@ function evidenceSection(body) {
 }
 
 /**
+ * GraphQL `mergedBy` login of a merge that GitHub's auto-merge made for the
+ * loop. Auto-merge merges as the identity that enabled it, here the workflow
+ * `GITHUB_TOKEN`, and GitHub does not apply closing keywords to those merges.
+ */
+export const LOOP_MERGER = 'github-actions'
+
+/**
+ * How long after its merge a loop-merged pull request still has its issues
+ * closed. It bounds the sweep to recent merges and leaves older history alone.
+ */
+export const CLOSE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Choose the issues to close for one merged pull request, in place of the
+ * closing-keyword close that GitHub skips for loop merges.
+ *
+ * Only the pull request's `closingIssuesReferences` qualify, so a bare `#N` or
+ * `Refs #N` closes nothing. An issue is left alone once anyone has closed or
+ * reopened it at or after the merge — GitHub itself, a person, or an earlier
+ * run of this sweep — so a repeat run never closes or comments twice and a
+ * deliberate reopen stands.
+ * @param {object} input Merged pull request and the time of the sweep.
+ * @param {string} input.repository `owner/name` the token can close issues in.
+ * @param {object} input.pull Merged pull request.
+ * @param {string|null} input.pull.mergedBy GraphQL login of the merger.
+ * @param {string} input.pull.mergedAt ISO time of the merge.
+ * @param {readonly {number: number, repository: string, state: string, lastStateChangeAt: string|null}[]} input.pull.issues
+ *   Closing references, each with the time of its latest close or reopen.
+ * @param {number} input.now Sweep time in epoch milliseconds.
+ * @returns {number[]} Numbers of the issues to close.
+ */
+export function issuesToClose({ repository, pull, now }) {
+  if (pull.mergedBy !== LOOP_MERGER) return []
+  const mergedAt = Date.parse(pull.mergedAt)
+  if (now - mergedAt > CLOSE_WINDOW_MS) return []
+  return pull.issues
+    .filter(issue => issue.repository === repository
+      && issue.state === 'OPEN'
+      && (issue.lastStateChangeAt === null || Date.parse(issue.lastStateChangeAt) < mergedAt))
+    .map(issue => issue.number)
+}
+
+/**
+ * Read the reviewed pull request's number from a `workflow_run` event of the
+ * `weighted-approval-review-event` workflow, whose run name is
+ * `weighted-approval-review-event:<number>`.
+ * @param {any} event Workflow event payload.
+ * @returns {number|null} The pull-request number, or null for any other event.
+ */
+export function reviewedPullNumber(event) {
+  const match = /^weighted-approval-review-event:([1-9][0-9]*)$/u.exec(event?.workflow_run?.display_title ?? '')
+  return match === null ? null : Number(match[1])
+}
+
+/**
  * Whether a failed auto-merge mutation only means this pull request already has
  * auto-merge on, which every re-run after a push will hit.
  * @param {unknown} error Failure from the mutation.

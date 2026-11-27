@@ -8,6 +8,10 @@
  *  - `request-review`  a review request for the routed reviewer when none is outstanding
  *  - `evidence`        a warning annotation, never a failure, for a desktop or client PR without an evidence image
  *  - `auto-merge`      GitHub's auto-merge, enabled on a mergeable PR into a protected base
+ *  - `close-issues`    (`run.mjs close-issues`) the open closing references of
+ *                      recent loop merges, closed as completed with a comment
+ *                      linking the merge, because GitHub applies no closing
+ *                      keyword to a merge made by the workflow token
  *
  * The loop never calls the merge endpoint. GitHub applies the branch's
  * protection — one approving review from someone other than the author,
@@ -26,10 +30,13 @@ import {
   autoMergeBlockers,
   autoMergeNotNeeded,
   baseBranchError,
+  issuesToClose,
   latestVerdicts,
   missingEvidenceWarning,
   needsReviewRequest,
+  reviewedPullNumber,
   reviewerFor,
+  TARGET_BASE,
 } from './policy.mjs'
 
 /** Upper bound on a mergeability read that GitHub has not finished computing. */
@@ -321,7 +328,115 @@ async function enableAutoMerge(repository, number) {
   process.stdout.write(`Auto-merge enabled on #${number}; GitHub merges when review and checks allow.\n`)
 }
 
+/**
+ * Recently merged pull requests into the integration branch, with each closing
+ * reference's latest close or reopen.
+ */
+const MERGED_PULLS_QUERY = `
+query($owner: String!, $name: String!, $base: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(baseRefName: $base, states: MERGED, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+        number
+        mergedAt
+        mergedBy { login }
+        mergeCommit { oid }
+        closingIssuesReferences(first: 20) {
+          nodes {
+            id
+            number
+            state
+            repository { nameWithOwner }
+            timelineItems(itemTypes: [CLOSED_EVENT, REOPENED_EVENT], last: 1) {
+              nodes {
+                ... on ClosedEvent { createdAt }
+                ... on ReopenedEvent { createdAt }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
+/** Close one issue as completed. */
+const CLOSE_ISSUE = `
+mutation($issueId: ID!) {
+  closeIssue(input: {issueId: $issueId, stateReason: COMPLETED}) {
+    issue { number state }
+  }
+}`
+
+/** Upper bound on waiting for a just-approved pull request's auto-merge to land. */
+const MERGE_WAIT_ATTEMPTS = 6
+
+/**
+ * Wait while the reviewed pull request is still open with auto-merge enabled,
+ * so the sweep that follows its approval sees the merge the approval released.
+ * @param {string} repository `owner/name`.
+ * @param {number} number Pull-request number.
+ * @returns {Promise<void>} Settles once the pull request is no longer pending a merge, or after the last attempt.
+ */
+async function awaitPendingMerge(repository, number) {
+  for (let attempt = 1; attempt <= MERGE_WAIT_ATTEMPTS; attempt += 1) {
+    const pull = api(`repos/${repository}/pulls/${number}`)
+    if (pull.state !== 'open' || pull.auto_merge === null) return
+    await new Promise(resolve => { setTimeout(resolve, attempt * 5000) })
+  }
+}
+
+/**
+ * Close the issues that loop-merged pull requests name in
+ * `closingIssuesReferences`, which GitHub leaves open when the workflow token's
+ * auto-merge made the merge.
+ * @param {string} repository `owner/name`.
+ */
+function closeMergedIssues(repository) {
+  const [owner, name] = repository.split('/')
+  const pulls = graphql(MERGED_PULLS_QUERY, { owner, name, base: TARGET_BASE }).repository.pullRequests.nodes
+  const now = Date.now()
+  // An issue several merged pull requests fix is closed, and commented on, once.
+  const closedIds = new Set()
+  for (const pull of pulls) {
+    const issues = pull.closingIssuesReferences.nodes
+    const numbers = issuesToClose({
+      repository,
+      pull: { mergedBy: pull.mergedBy?.login ?? null, mergedAt: pull.mergedAt, issues: issues.map(issue => ({
+        number: issue.number,
+        repository: issue.repository.nameWithOwner,
+        state: issue.state,
+        lastStateChangeAt: issue.timelineItems.nodes[0]?.createdAt ?? null,
+      })) },
+      now,
+    })
+    for (const number of numbers) {
+      const issue = issues.find(item => item.number === number)
+      if (closedIds.has(issue.id)) continue
+      graphql(CLOSE_ISSUE, { issueId: issue.id })
+      closedIds.add(issue.id)
+      // The comment carries the link to the merge that GitHub's own close would
+      // have shown. Closing first keeps a re-run from commenting again: a closed
+      // issue is never selected.
+      const commented = apiOrNull(`repos/${repository}/issues/${number}/comments`, {
+        method: 'POST',
+        body: { body: `Closed by #${pull.number}, merged as ${pull.mergeCommit.oid}.` },
+      })
+      if (commented === null) process.stdout.write(`::warning::Closed #${number} but could not comment the link to #${pull.number}.\n`)
+      process.stdout.write(`Closed #${number}, fixed by #${pull.number}.\n`)
+    }
+  }
+  process.stdout.write(`${closedIds.size} issue(s) closed for loop-merged pull requests.\n`)
+}
+
 async function main() {
+  if (process.argv[2] === 'close-issues') {
+    const repository = process.env.GITHUB_REPOSITORY
+    const reviewed = reviewedPullNumber(JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')))
+    if (reviewed !== null) await awaitPendingMerge(repository, reviewed)
+    closeMergedIssues(repository)
+    return
+  }
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
   const pull = event.pull_request
   const repository = event.repository?.full_name ?? process.env.GITHUB_REPOSITORY

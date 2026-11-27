@@ -148,9 +148,11 @@ function partialOutput(
     : fallback.slice(fallbackStart + marker.start.length).replace(/^\r?\n/, '')
   const fallbackEnd = afterStart.lastIndexOf(marker.end)
   const beforeEnd = fallbackEnd < 0 ? afterStart : afterStart.slice(0, fallbackEnd)
+  // A start marker absent from untruncated per-send output was never printed,
+  // so only a dropped send-output prefix is reported as lost.
   return {
     text: trimTrailingNewline(beforeEnd.replaceAll(wrapper, '')),
-    incomplete: fallbackTruncated || fallbackStart < 0,
+    incomplete: fallbackTruncated,
   }
 }
 
@@ -388,9 +390,8 @@ async function executeCommand(
         ctx, shells, owner, id, result.sessionStatus, marker, wrapped, fallback, fallbackTruncated, config,
       )
     }
-    // The shell reads stdin again (its prompt, or a foreground child's own
-    // read) without having printed the end marker — an interrupt, a replaced
-    // shell, or an interactive child. Return what was captured instead of
+    // The shell reached its prompt without having printed the end marker — an
+    // interrupt or a replaced shell. Return what was captured instead of
     // spinning until the command deadline.
     if (result.waitReason === 'stdin_read') {
       const snapshot = retainedScrollback(ctx, owner, id, latest)

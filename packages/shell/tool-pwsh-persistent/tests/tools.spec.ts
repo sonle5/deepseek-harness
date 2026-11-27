@@ -590,6 +590,17 @@ describe('tool-pwsh-persistent', () => {
     expect(result).not.toContain('DSH_PERSISTENT_PWSH_START')
   })
 
+  it('does not report a lost prefix when the start marker was never printed', async () => {
+    const { ctx, owner, stub } = await setup({ backendType: 'stub', maxOutputChars: 1_000 })
+    await call(ctx, owner, 'warm up')
+    const session = stub.sessions[0]!
+    session.mode = 'prompt-only'
+    session.scrollback = ''
+    const result = text(await call(ctx, owner, 'bad {'))
+    expect(result).toBe('pwsh: syntax error\nstub> ')
+    expect(result).not.toContain('<response clipped>')
+  })
+
   it('does not attribute old scrollback truncation to a complete current command', async () => {
     const { ctx, owner, stub } = await setup({ backendType: 'stub', maxOutputChars: 1_000 })
     await call(ctx, owner, 'warm up')

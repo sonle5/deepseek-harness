@@ -49,6 +49,14 @@ describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
 
   beforeAll(() => {
     scratchRoot = mkdtempSync(join(tmpdir(), 'dsh-acl-runner-'))
+    // Under a TEMP whose DACL lacks SE_DACL_AUTO_INHERITED (the GitHub-hosted runner
+    // profile), a grant's propagation turns an existing child's inherited ACEs into
+    // explicit ones ahead of the inherited deny. The reset gives the scratch root an
+    // auto-inherited DACL.
+    const reset = spawnSync('icacls', [scratchRoot, '/reset'], { encoding: 'utf8' })
+    if (reset.status !== 0) {
+      throw new Error(`icacls reset failed: ${reset.stdout}\n${reset.stderr}`)
+    }
     writableDir = join(scratchRoot, 'writable')
     mkdirSync(writableDir)
     isolatedTemp = mkdtempSync(join(tmpdir(), 'dsh-acl-runner-temp-'))

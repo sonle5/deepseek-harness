@@ -1,10 +1,12 @@
 /**
  * Operate the develop parity loop for one pull request: route review to a
- * reviewer agent other than the author, and hand the merge to GitHub once the
- * branch's protection is satisfied.
+ * reviewer agent other than the author, warn when user-visible evidence is
+ * missing, and hand the merge to GitHub once the branch's protection is
+ * satisfied.
  *
  * Reads on every relevant event, writes only what the read justifies:
  *  - `request-review`  a review request for the routed reviewer when none is outstanding
+ *  - `evidence`        a warning annotation, never a failure, for a desktop or client PR without an evidence image
  *  - `auto-merge`      GitHub's auto-merge, enabled on a mergeable PR into a protected base
  *
  * The loop never calls the merge endpoint. GitHub applies the branch's
@@ -25,6 +27,7 @@ import {
   autoMergeNotNeeded,
   baseBranchError,
   latestVerdicts,
+  missingEvidenceWarning,
   needsReviewRequest,
   reviewerFor,
 } from './policy.mjs'
@@ -253,6 +256,26 @@ function requestReview(repository, number, author) {
     : `Requested review from @${reviewer}.\n`)
 }
 
+/**
+ * Warn when a desktop or client pull request has no packaged-build image.
+ *
+ * Report-only: the annotation never fails the run, and the run is not a
+ * required check. The labels and body come from a fresh read because the event
+ * payload of an `opened` event predates labels added afterwards.
+ * @param {string} repository `owner/name`.
+ * @param {number} number Pull-request number.
+ */
+function reportEvidence(repository, number) {
+  const pull = api(`repos/${repository}/pulls/${number}`)
+  const warning = missingEvidenceWarning({
+    labels: (pull.labels ?? []).map(label => label.name),
+    body: pull.body,
+  })
+  process.stdout.write(warning === null
+    ? 'User-visible evidence: nothing to flag.\n'
+    : `::warning title=User-visible evidence::${warning}\n`)
+}
+
 /** Enable GitHub's auto-merge when the pure decision finds nothing blocking. */
 async function enableAutoMerge(repository, number) {
   const pull = await freshPull(repository, number)
@@ -320,6 +343,7 @@ async function main() {
     return
   }
   requestReview(repository, number, pull.user?.login)
+  reportEvidence(repository, number)
   await enableAutoMerge(repository, number)
 }
 

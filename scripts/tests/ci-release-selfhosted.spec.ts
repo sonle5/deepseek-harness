@@ -103,16 +103,17 @@ for (const [file, jobIds] of [['release.yml', ['dependencies', 'pack']], ['relea
     const release = workflow(file)
     it('preserves the logical jobs, rehearsal events and read-only permission', () => {
       expect(Object.keys(release.jobs)).toEqual(jobIds)
-      expect(release.on).toEqual({ pull_request: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'] }, push: { branches: ['master'] }, workflow_dispatch: null })
+      expect(release.on).toEqual({ pull_request: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'] }, push: { branches: ['master', 'develop'] }, workflow_dispatch: null })
       expect(release.permissions).toEqual({ contents: 'read' })
       expect(release.concurrency).toEqual({ group: '${{ github.workflow }}-${{ github.ref }}', 'cancel-in-progress': true })
     })
     for (const jobId of jobIds) {
       describe(jobId, () => {
         const job = release.jobs[jobId]!
-        it('routes trusted PRs and master pushes onto the existing Linux pool', () => {
+        it('routes trusted PRs and master or develop pushes onto the existing Linux pool', () => {
           expect(evaluate(job['runs-on'], trustedPr)).toEqual(selfhosted)
           expect(evaluate(job['runs-on'], trustedPush)).toEqual(selfhosted)
+          expect(evaluate(job['runs-on'], { ...trustedPush, 'github.ref': 'refs/heads/develop' })).toEqual(selfhosted)
           expect(evaluate(job['runs-on'], { ...trustedPush, 'vars.DSH_CI_FAILOVER_LINUX': '' })).toBe(hosted)
         })
         it.each(fallbackCases)('keeps %s hosted', (_name, context) => {

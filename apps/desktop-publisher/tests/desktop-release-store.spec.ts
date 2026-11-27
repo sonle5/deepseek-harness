@@ -74,6 +74,11 @@ it('retains test branch identity while rejecting production branch manifests', a
   const { root, file, source } = await fixture()
   source.sourceRef = 'feature/desktop-update'
   await expect(retainDesktopRelease(root, { ...source, preset: 'production' }, [file])).rejects.toThrow(/Production source/u)
+  for (const [runId, sourceRef] of [['201', 'master'], ['202', 'develop']] as const) {
+    const production = { ...source, runId, sourceRef, preset: 'production' as const }
+    await retainDesktopRelease(root, production, [file])
+    expect((await verifyRetainedDesktopRelease(root, production.runId, production.attempt)).source.sourceRef).toBe(sourceRef)
+  }
   const directory = await retainDesktopRelease(root, source, [file])
   expect((await verifyRetainedDesktopRelease(root, source.runId, source.attempt)).source.sourceRef).toBe(source.sourceRef)
   const path = join(directory, 'manifest.json')

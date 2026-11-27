@@ -27,8 +27,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [linux, macos]
+    # DSH_CI_MACOS=selfhosted routes the macOS leg to the self-hosted Mac for
+    # same-repository, non-Dependabot PRs; any other value keeps macos-latest.
+    # The head-repository match is the fork exclusion: head.repo.fork is true
+    # for every PR when this repository is itself a fork.
     runs-on: >-
-      ${{ matrix.os == 'macos' && 'macos-latest'
+      ${{ matrix.os == 'macos' && (vars.DSH_CI_MACOS == 'selfhosted'
+            && github.event.pull_request.head.repo.full_name == github.repository
+            && github.event.pull_request.user.login != 'dependabot[bot]'
+            && github.actor != 'dependabot[bot]'
+            && fromJSON('["self-hosted", "macOS", "ARM64"]')
+            || 'macos-latest')
           || vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-4vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'

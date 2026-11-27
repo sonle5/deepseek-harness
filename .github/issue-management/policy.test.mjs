@@ -217,12 +217,15 @@ test('keeps the pull request template aligned with the dsh-pr-description skill'
   const source = readFileSync(new URL('../pull_request_template.md', import.meta.url), 'utf8')
   const skillPath = '.agents/skills/dsh-pr-description/SKILL.md'
   const skill = readFileSync(new URL(`../../${skillPath}`, import.meta.url), 'utf8')
-  assert.ok(source.startsWith(`<!-- 本 PR 正文按 ${skillPath} 填写。 -->\n`), 'the template points to the skill')
+  assert.ok(source.startsWith(`<!-- Fill this description as ${skillPath} describes. -->\n`), 'the template points to the skill')
+  assert.doesNotMatch(source, /\p{Script=Han}/u, 'the template is written in English')
   assert.deepEqual(source.match(/^## .+$/gm), [
     '## Motivation',
     '## Changes',
     '## Testing',
+    '## User-visible evidence',
   ])
+  assert.match(skill, /`## User-visible evidence`/, 'the skill defines the evidence section')
   assert.doesNotMatch(source, /^### /m)
   assert.match(source, /^## Motivation\n\n<!-- [^\n]*Fixes #N[^\n]* -->$/m, 'the template prompts for an Issue reference')
   assert.match(source, /- <!-- [^\n]+ -->\n\n  <details>\n  <summary>Proof<\/summary>/)

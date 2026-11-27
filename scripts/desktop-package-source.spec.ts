@@ -38,6 +38,8 @@ it.each(['macos', 'windows'])('%s packaging accepts test branches but preserves 
       return result
     }
     for (const preset of ['test', 'production']) expect(run(preset, 'master').status).toBe(0)
+    git('checkout', '-b', 'develop')
+    for (const preset of ['test', 'production']) expect(run(preset, 'develop').status).toBe(0)
     git('checkout', '-b', 'feature/desktop-update')
     expect(run('test', 'feature/desktop-update').status).toBe(0)
     expect(run('production', 'feature/desktop-update').status).not.toBe(0)

@@ -358,6 +358,7 @@ describe('CI workflow', () => {
     const [linuxName, macosName] = matrix.map(os => `publisher-isolated (${String(os)})`)
     if (linuxName === undefined || macosName === undefined) throw new TypeError('the publisher matrix must list two operating systems')
     expect([linuxName, macosName]).toEqual(['publisher-isolated (linux)', 'publisher-isolated (macos)'])
+    if (linuxName === undefined || macosName === undefined) throw new TypeError('the publisher matrix must list two operating systems')
     const linux = { name: linuxName, conclusion: 'success', runner_id: 1000001309 }
     const abandonedMacos = { name: macosName, conclusion: 'cancelled', runner_id: 0 }
     const unrelated = { name: 'node 24 / coverage 2/2', conclusion: 'failure', runner_id: 1000001308 }
@@ -705,8 +706,8 @@ describe('CI workflow', () => {
     expect(report?.run).toContain('::warning::')
     expect(report?.run).toContain('Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append')
 
-    // serial-windows: master-only standby, self-hosted, non-blocking, lives in ci-master.
-    expect(serialWindows.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+    // serial-windows: post-merge standby, self-hosted, non-blocking, lives in ci-master.
+    expectStandbyPushes(serialWindows.if, 'DSH_CI_FAILOVER_WINDOWS')
     expect(serialWindows['runs-on']).toEqual(['self-hosted', 'dsh-win-ci', 'windows'])
     expect(serialWindows.name).toBe('serial / windows (self-hosted standby)')
     // Its store must share the ReFS workspace volume for clone; the install
@@ -865,6 +866,41 @@ describe('CI workflow', () => {
       run: 'pnpm run check:ci:unit',
       env: { DSH_COVERAGE_TEST_TIMEOUT_MS: coverage.env.DSH_COVERAGE_TEST_TIMEOUT_MS },
     })
+  })
+
+  it('routes macOS CI jobs to the self-hosted Mac only under DSH_CI_MACOS and trusted events', () => {
+    const mac = ['self-hosted', 'macOS', 'ARM64']
+    const repository = 'owner/repo'
+    const pullRequest = (login: string, head: string) => ({ user: { login }, head: { repo: { full_name: head, fork: true } } })
+    const route = (selector: unknown, value: string, github: Record<string, unknown>) => evaluateRunsOn(selector, {
+      fromJSON: JSON.parse, matrix: { os: 'macos' }, vars: { DSH_CI_MACOS: value, DSH_CI_FAILOVER_LINUX: '' },
+      github: { repository, actor: 'maintainer', ...github },
+    })
+    // A fork repository reports head.repo.fork for its own branches, so the
+    // same-repository head is what admits a PR.
+    const trustedPr = { event_name: 'pull_request', event: { pull_request: pullRequest('maintainer', repository) } }
+    const publisher = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'publisher-isolated')['runs-on']
+    expect(route(publisher, 'selfhosted', trustedPr)).toEqual(mac)
+    for (const value of ['', 'hosted', 'true']) expect(route(publisher, value, trustedPr)).toBe('macos-latest')
+    for (const github of [
+      { event_name: 'pull_request', event: { pull_request: pullRequest('outsider', 'outsider/repo') } },
+      { event_name: 'pull_request', event: { pull_request: pullRequest('dependabot[bot]', repository) } },
+      { ...trustedPr, actor: 'dependabot[bot]' },
+    ]) expect(route(publisher, 'selfhosted', github)).toBe('macos-latest')
+    expect(evaluateRunsOn(publisher, {
+      fromJSON: JSON.parse, matrix: { os: 'linux' }, vars: { DSH_CI_MACOS: 'selfhosted', DSH_CI_FAILOVER_LINUX: '' },
+      github: { repository, actor: 'maintainer', ...trustedPr },
+    })).toBe('ubuntu-latest')
+
+    const pushJobs = [
+      workflowJob(loadWorkflow('.github/workflows/sandbox.yml'), 'unit-darwin')['runs-on'],
+      workflowJob(loadWorkflow('.github/workflows/ci-master.yml'), 'serial-macos')['runs-on'],
+    ]
+    for (const selector of pushJobs) {
+      expect(route(selector, 'selfhosted', { event_name: 'push', event: {} })).toEqual(mac)
+      expect(route(selector, '', { event_name: 'push', event: {} })).toBe('macos-latest')
+      expect(route(selector, 'selfhosted', { event_name: 'push', event: {}, actor: 'dependabot[bot]' })).toBe('macos-latest')
+    }
   })
 
   it('gates standalone keyless blacksmith jobs and benchmark tiers on the failover variables', () => {
@@ -1043,6 +1079,7 @@ describe('CI workflow', () => {
     if (typeof wine.if !== 'string') throw new TypeError('Wine must define a trigger condition')
     for (const [event, ref, suite, expected] of [
       ['push', 'refs/heads/master', '', true],
+      ['push', 'refs/heads/develop', '', true],
       ['push', 'refs/heads/topic', '', false],
       ['pull_request', 'refs/pull/42/merge', 'wine', false],
       ['workflow_dispatch', 'refs/heads/topic', 'wine', true],
@@ -1101,12 +1138,12 @@ describe('CI workflow', () => {
     expect(pythonWorkflow.env).toEqual(prWorkflow.env)
 
     // Drills share the parent run’s supersession policy.
-    for (const name of ['serial-linux-selfhosted', 'serial-windows']) {
+    for (const [name, variable] of [['serial-linux-selfhosted', 'DSH_CI_FAILOVER_LINUX'], ['serial-windows', 'DSH_CI_FAILOVER_WINDOWS']] as const) {
       const job = workflow.jobs[name]
       if (!isRecord(job)) throw new TypeError(`${name} must be defined`)
       expect(job.concurrency).toBeUndefined()
       // Standby drills remain post-merge work, but share run cancellation.
-      expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+      expectStandbyPushes(job.if, variable)
     }
 
     // Pin the post-merge runtime, Wine, and standby inventory.
@@ -2068,6 +2105,24 @@ describe('Git hooks', () => {
     }
   })
 })
+
+// A develop push reaches a self-hosted standby only when its failover variable
+// selects that pool, so a repository without the pool never queues the drill.
+function expectStandbyPushes(condition: unknown, variable: string): void {
+  if (typeof condition !== 'string') throw new TypeError('Standby drills must define a trigger condition')
+  for (const [event, ref, value, expected] of [
+    ['push', 'refs/heads/master', '', true],
+    ['push', 'refs/heads/master', 'selfhosted', true],
+    ['push', 'refs/heads/develop', '', false],
+    ['push', 'refs/heads/develop', 'blacksmith', false],
+    ['push', 'refs/heads/develop', 'selfhosted', true],
+    ['push', 'refs/heads/topic', 'selfhosted', false],
+    ['workflow_dispatch', 'refs/heads/develop', 'selfhosted', false],
+  ] as const) {
+    expect(runInNewContext(condition, { github: { event_name: event, ref }, vars: { [variable]: value } }, { timeout: 1000 }),
+      `${event} ${ref} ${variable}=${value}`).toBe(expected)
+  }
+}
 
 function loadWorkflow(path: string): Record<string, unknown> {
   const workflow: unknown = yaml.load(readFileSync(resolve(root, path), 'utf8'))

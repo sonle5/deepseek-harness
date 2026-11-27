@@ -313,7 +313,7 @@ async function enableAutoMerge(repository, number) {
     // that can merge now waits for a human merge or the next push, because no
     // event re-runs this loop when the state changes.
     if (autoMergeNotNeeded(error)) {
-      process.stdout.write(`::notice::#${number} is already mergeable, so GitHub will not enable auto-merge; merge it by hand.\n`)
+      process.stdout.write(`::notice::#${number} is already mergeable, so GitHub will not enable auto-merge; squash-merge it by hand.\n`)
       return
     }
     throw error

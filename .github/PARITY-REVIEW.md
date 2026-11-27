@@ -155,16 +155,22 @@ warning.
 
 ## Merging
 
-Nobody merges by hand, and no workflow merges on its own. `develop` is protected:
-it requires one approving review from someone other than the author, dismisses
-stale approvals when the branch moves, requires an approval of the last push, and
-requires every review conversation to be resolved. The Parity loop therefore only
-asks GitHub to auto-merge the pull request, and GitHub applies those rules to the
-commit it is about to merge — so an approval cannot carry over to a commit it did
-not see.
+No workflow merges on its own. `develop` is protected: it requires one approving
+review from someone other than the author, dismisses stale approvals when the
+branch moves, requires an approval of the last push, and requires every review
+conversation to be resolved. The Parity loop asks GitHub to auto-merge the pull
+request, and GitHub applies those rules to the commit it is about to merge — so an
+approval cannot carry over to a commit it did not see.
 
-Squash to one commit per Issue so `develop` reads as a list of gaps closed. The
-first release after a merge is what the next review measures.
+GitHub enables auto-merge only while a requirement is still pending. When the loop
+runs on a pull request that can already merge, GitHub refuses auto-merge and the
+run posts a notice; merge that pull request by hand. Because `develop` requires no
+status checks (below), every approved pull request reaches this state, so an
+approved pull request without auto-merge is waiting for a hand merge.
+
+Squash every merge, by hand or automatic, to one commit per Issue so `develop`
+reads as a list of gaps closed. The first release after a merge is what the next
+review measures.
 
 `develop` currently has no required status checks: the fork's CI workflows still
 reference upstream organisation secrets and do not run here. Protection enforces

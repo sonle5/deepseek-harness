@@ -44,6 +44,10 @@ jobs:
       - name: Omit the internal Composer release this repository cannot download
         run: |
           node -e "const f='apps/desktop/scripts/composer/lock.json';const fs=require('fs');const l=JSON.parse(fs.readFileSync(f,'utf8'));l.targets['darwin-arm64']={available:false};fs.writeFileSync(f,JSON.stringify(l,null,2)+'\n')"
+      - name: Work around develop's ci-workflow.spec.ts type error (unrelated to the identity change)
+        run: |
+          sed -i '' 's/const \[linuxName, macosName\] = matrix/const [linuxName = "", macosName = ""] = matrix/' scripts/ci-workflow.spec.ts
+          grep -n 'linuxName = ""' scripts/ci-workflow.spec.ts
       - name: Package unsigned arm64 DMG
         run: pnpm run package:desktop:mac:arm64:unsigned
       - name: Collect evidence

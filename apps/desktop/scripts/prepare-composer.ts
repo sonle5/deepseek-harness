@@ -14,7 +14,7 @@ export const COMPOSER_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win
 export type ComposerTarget = typeof COMPOSER_TARGETS[number]
 
 /** Composer artifact each Desktop release target embeds. */
-const DESKTOP_COMPOSER_TARGETS = {
+export const DESKTOP_COMPOSER_TARGETS = {
   'mac-arm64': 'darwin-arm64',
   'mac-x64': 'darwin-x64',
   'win-x64': 'win32-x64',
@@ -45,8 +45,16 @@ export interface StagedComposerManifest {
   readonly target: ComposerTarget
 }
 
+/**
+ * Environment variable holding a token that can read the lock's release repository.
+ * Packaging passes it to the `prepare:composer` stage only, never to the other build stages.
+ */
+export const COMPOSER_TOKEN_ENV = 'DSH_DESKTOP_COMPOSER_TOKEN'
+
 const SHA256 = /^[0-9a-f]{64}$/u
 const COMMIT = /^[0-9a-f]{40}$/u
+/** A tag segment that names a commit, such as `4bbac2b7` in `composer-{version}-4bbac2b7`. */
+const TAG_COMMIT = /(?:^|[-_/])([0-9a-f]{7,40})(?=$|[-_/])/gu
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -97,10 +105,15 @@ export function parseComposerLock(value: unknown): ComposerLock {
     return { ...base, version: null }
   }
   const renderer = record(lock.renderer, 'lock renderer')
+  const commit = matching(lock.commit, COMMIT, 'lock commit')
+  // A tag that names a commit must name the pinned one, so bumping `commit` without the tag fails here.
+  for (const [, prefix] of release.tag.replaceAll('{version}', '').matchAll(TAG_COMMIT)) {
+    if (!commit.startsWith(prefix!)) throw new Error(`composer: lock release tag names commit ${prefix!}, but the lock pins ${commit}`)
+  }
   return {
     ...base,
     version: matching(lock.version, VERSION, 'lock version'),
-    commit: matching(lock.commit, COMMIT, 'lock commit'),
+    commit,
     bridgeProtocol: integer(lock.bridgeProtocol, 'lock bridgeProtocol'),
     schemaVersion: integer(lock.schemaVersion, 'lock schemaVersion'),
     rendererSha256: matching(renderer.sha256, SHA256, 'lock renderer sha256'),
@@ -121,17 +134,17 @@ export function localComposerArtifacts(directory: string): ComposerArtifactSourc
 
 /**
  * Download release files, reusing verified binaries from the shared download cache.
- * Without a token the public release download URL is used; with one, the REST asset endpoint, which also serves internal repositories.
+ * Without a token the public release download URL is used; with one, the REST asset endpoint, which also serves private repositories.
  * @param lock - Pinned release.
  * @param version - Pinned version.
  * @param cache - Shared download cache directory.
- * @param environment - Optional `GITHUB_TOKEN` and download timeout.
+ * @param environment - Optional {@link COMPOSER_TOKEN_ENV} and download timeout.
  * @param fetcher - Network implementation; tests replace it.
  */
 export function releaseComposerArtifacts(lock: ComposerLock, version: string, cache: string, environment: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch): ComposerArtifactSource {
   const tag = lock.tag.replaceAll('{version}', version)
-  const token = environment.GITHUB_TOKEN
+  const token = environment[COMPOSER_TOKEN_ENV]
   const timeout = Number(environment.DSH_RESOURCE_DOWNLOAD_TIMEOUT_MS ?? '300000')
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) throw new Error('DSH_RESOURCE_DOWNLOAD_TIMEOUT_MS must be an integer from 1 to 2147483647')
   let assets: Promise<Map<string, string>> | undefined
@@ -170,6 +183,33 @@ export function releaseComposerArtifacts(lock: ComposerLock, version: string, ca
     }
     return bytes
   }
+}
+
+/**
+ * Fail in seconds, before any long packaging stage, when the pinned release cannot be read.
+ * Skipped when the target ships without Composer or when local artifacts replace the download.
+ * @param desktopTarget - Desktop release target.
+ * @param environment - Packaging environment; reads {@link COMPOSER_TOKEN_ENV} and `DSH_DESKTOP_COMPOSER_ARTIFACTS`.
+ * @param lock - Pinned release; defaults to the checked-in lock.
+ * @param fetcher - Network implementation; tests replace it.
+ * @returns The release tag that was confirmed, or undefined when nothing needs downloading.
+ */
+export async function checkComposerReleaseAccess(desktopTarget: keyof typeof DESKTOP_COMPOSER_TARGETS, environment: NodeJS.ProcessEnv,
+  lock: ComposerLock = parseComposerLock(lockFile), fetcher: typeof fetch = fetch): Promise<string | undefined> {
+  if (lock.version === null || !lock.targets[DESKTOP_COMPOSER_TARGETS[desktopTarget]].available) return undefined
+  const artifacts = environment.DSH_DESKTOP_COMPOSER_ARTIFACTS
+  if (artifacts !== undefined && artifacts !== '') return undefined
+  const tag = lock.tag.replaceAll('{version}', lock.version)
+  const token = environment[COMPOSER_TOKEN_ENV]
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'dsh-desktop-packaging' }
+  if (token !== undefined && token !== '') headers.authorization = `Bearer ${token}`
+  const url = `https://api.github.com/repos/${lock.repository}/releases/tags/${encodeURIComponent(tag)}`
+  const response = await fetcher(url, { headers, signal: AbortSignal.timeout(30_000) })
+  if (response.ok) return tag
+  const hint = token === undefined || token === ''
+    ? `set ${COMPOSER_TOKEN_ENV} to a token that can read ${lock.repository}`
+    : `${COMPOSER_TOKEN_ENV} cannot read it; it may be expired or lack access to ${lock.repository}`
+  throw new Error(`composer: release ${tag} in ${lock.repository} is not readable (${String(response.status)}); ${hint}`)
 }
 
 function digest(bytes: Buffer): string {

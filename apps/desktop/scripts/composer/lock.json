@@ -1,5 +1,5 @@
 {
-  "$comment": "Embedded Nexus Composer pin. Pins the local 3.16.7 build of the onenexus-team/nexus-composer sidecar branch at commit 4bbac2b7ac3d1c5c5857b839c82ffd582097b618, published as release composer-3.16.7-4bbac2b7 in the private repo sonle5/nexus-composer-builds (the internal org repo has no 3.16.7 release). Downloads need a GITHUB_TOKEN that can read that repo. Only darwin-arm64 is published; other targets ship without Composer.",
+  "$comment": "Embedded Nexus Composer pin: version 3.16.7 of the onenexus-team/nexus-composer sidecar branch at commit 4bbac2b7ac3d1c5c5857b839c82ffd582097b618, published as release composer-3.16.7-4bbac2b7 in the private repo sonle5/nexus-composer-builds (the internal org repo has no 3.16.7 release). The tag names the commit, so a bump must change release.tag together with commit; parseComposerLock rejects a tag whose commit segment does not match. Downloads need DSH_DESKTOP_COMPOSER_TOKEN set to a token that can read that repo; packaging checks it before any long stage. Only darwin-arm64 is published; other targets ship without Composer.",
   "release": {
     "repository": "sonle5/nexus-composer-builds",
     "tag": "composer-{version}-4bbac2b7"

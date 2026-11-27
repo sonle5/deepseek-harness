@@ -133,6 +133,8 @@ jobs:
       - name: Check packaging configuration and toolchain
         env:
           PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
+          # Lets the check confirm the pinned Composer release is readable before the long build starts.
+          DSH_DESKTOP_COMPOSER_TOKEN: ${{ secrets.COMPOSER_BUILDS_TOKEN }}
         run: |
           args=()
           if [[ "$PACKAGE_SKIP_NOTARIZATION" = true ]]; then args+=(--skip-notarization); fi
@@ -158,7 +160,8 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
           # Read-only token for the private Composer release repo pinned in apps/desktop/scripts/composer/lock.json.
-          GITHUB_TOKEN: ${{ secrets.COMPOSER_BUILDS_TOKEN }}
+          # Packaging hands it to the prepare:composer stage only.
+          DSH_DESKTOP_COMPOSER_TOKEN: ${{ secrets.COMPOSER_BUILDS_TOKEN }}
         run: |
           args=()
           if [[ "$PACKAGE_SKIP_NOTARIZATION" = true ]]; then args+=(--skip-notarization); fi

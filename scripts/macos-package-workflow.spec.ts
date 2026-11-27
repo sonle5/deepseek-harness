@@ -95,6 +95,19 @@ describe.each(['arm64', 'x64'])('macOS %s packaging', (arch) => {
     expect(run).toContain('pnpm exec tsx scripts/cua-helper/stage.ts --from dist/cua-helper/extracted')
   })
 
+  it('scopes the Composer release token to the check and build steps under its dedicated name', () => {
+    const steps = workflow.jobs.package!.steps
+    const holders = steps.filter(step => JSON.stringify(step.env ?? {}).includes('COMPOSER_BUILDS_TOKEN')).map(step => step.name)
+    // Only darwin-arm64 Composer is published, so the Intel build has nothing to download.
+    expect(holders).toEqual(arch === 'arm64' ? ['Check packaging configuration and toolchain', 'Build signed installers'] : [])
+    for (const name of holders) {
+      const env = steps.find(step => step.name === name)!.env!
+      expect(env.DSH_DESKTOP_COMPOSER_TOKEN).toBe('${{ secrets.COMPOSER_BUILDS_TOKEN }}')
+      expect(env).not.toHaveProperty('GITHUB_TOKEN')
+    }
+    expect(JSON.stringify(workflow.jobs.package!.env)).not.toContain('COMPOSER_BUILDS_TOKEN')
+  })
+
   it('passes the same target to preparation, packaging and retention', () => {
     const archive = workflow.jobs['upload-artifact']!
     const uploads = expectDesktopArchive(archive, 3)

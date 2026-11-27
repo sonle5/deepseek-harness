@@ -67,7 +67,7 @@ import { readDesktopLocaleCache, writeDesktopLocaleCache } from './locale-cache.
 import { DesktopUpdateDialog, type UpdateDialogOptions } from './update-dialog.ts'
 import { readDesktopRuntime } from './runtime-tree.ts'
 import { DesktopBrowserGuests } from './browser-guests.ts'
-import { installDesktopShortcuts } from './keyboard.ts'
+import { installDesktopShortcuts, type MenuCommandId } from './keyboard.ts'
 import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
@@ -991,11 +991,11 @@ async function main(): Promise<void> {
   ipcMain.handle(PLATFORM_IPC.open, (event, page: unknown, bounds: unknown) => {
     const owner = assertMainApplication(event)
     if (page !== 'usage' && page !== 'top-up') throw new Error('Invalid Platform page')
-    return platformView.open(owner, page, platformBounds(bounds))
+    return platformView.open(owner, page, platformBounds(bounds, owner.webContents.getZoomFactor()))
   })
   ipcMain.handle(PLATFORM_IPC.bounds, (event, bounds: unknown) => {
-    assertMainApplication(event)
-    platformView.setBounds(platformBounds(bounds))
+    const owner = assertMainApplication(event)
+    platformView.setBounds(platformBounds(bounds, owner.webContents.getZoomFactor()))
   })
   ipcMain.handle(PLATFORM_IPC.close, (event) => { assertMainApplication(event); platformView.close() })
   // Only the main window may synchronize its palette with the native material.
@@ -1323,9 +1323,45 @@ async function main(): Promise<void> {
   ]
   const viewMenu = (): MenuItemConstructorOptions[] => composerSwitcher.available
     ? [{ label: currentDesktopLocale().messages.viewMenu, submenu: composerProductItems() }] : []
+  // Product commands stay disabled outside an entered workspace and during mandatory updates, like Settings.
+  const productCommand = (commandId: MenuCommandId, label: string): MenuItemConstructorOptions =>
+    shortcuts.commandMenuItem(commandId, label, enteredWorkspace && !isMandatory(), () => { focusPrimaryWindow() })
+  // Electron's zoom roles step the zoom level by 0.5; these items do the same on the product page.
+  const zoomItem = (label: string, level: (current: number) => number, accelerator?: string): MenuItemConstructorOptions => ({
+    label, ...accelerator === undefined ? {} : { accelerator }, enabled: enteredWorkspace && !isMandatory(), click: () => {
+      if (mainWindow === undefined || mainWindow.isDestroyed() || !enteredWorkspace || isMandatory()) return
+      mainWindow.webContents.setZoomLevel(level(mainWindow.webContents.getZoomLevel()))
+    },
+  })
+  const macViewMenu = (messages: DesktopMessages): MenuItemConstructorOptions => ({ label: messages.viewMenu, submenu: [
+    productCommand('sidebar.left.toggle', messages.toggleSidebarMenu),
+    productCommand('sidebar.right.toggle', messages.toggleRightPanelMenu),
+    productCommand('session.search', messages.searchSessionsMenu),
+    { type: 'separator' },
+    // Plain items rather than zoom roles: the roles' ⌘+ and ⌘− accelerators would also fire the fixed font-size shortcuts.
+    zoomItem(messages.actualSizeMenu, () => 0, 'Command+0'),
+    zoomItem(messages.zoomInMenu, level => level + 0.5),
+    zoomItem(messages.zoomOutMenu, level => level - 0.5),
+    ...composerSwitcher.available ? [{ type: 'separator' as const }, ...composerProductItems()] : [],
+  ] })
+  // Help links: the project documentation and this repository's new-issue page.
+  const documentationUrl = 'https://deepseek-harness.github.io/deepseek-harness/'
+  const newIssueUrl = 'https://github.com/sonle5/deepseek-harness/issues/new'
+  const openPublicPage = (url: string): void => {
+    void shell.openExternal(url).catch((error: unknown) => { console.error('desktop help: could not open', url, error) })
+  }
+  const macHelpMenu = (messages: DesktopMessages): MenuItemConstructorOptions => ({ role: 'help', label: messages.helpMenu, submenu: [
+    productCommand('shortcuts.open', messages.keyboardShortcutsMenu),
+    { type: 'separator' },
+    { label: messages.documentationMenu, click: () => { openPublicPage(documentationUrl) } },
+    { label: messages.reportIssueMenu, click: () => { openPublicPage(newIssueUrl) } },
+  ] })
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), macEditMenu(currentDesktopLocale().messages),
-      ...viewMenu(), { role: 'windowMenu' }]
+    ? [shortcuts.fileMenu(currentDesktopLocale().messages, [
+      productCommand('session.new', currentDesktopLocale().messages.newSessionMenu),
+      productCommand('workspace.add', currentDesktopLocale().messages.openWorkspaceMenu),
+    ]), macEditMenu(currentDesktopLocale().messages),
+    macViewMenu(currentDesktopLocale().messages), { role: 'windowMenu' }, macHelpMenu(currentDesktopLocale().messages)]
     : [{ role: 'editMenu' }, ...viewMenu()]
   const hideCommands: MenuItemConstructorOptions[] = darwin
     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },

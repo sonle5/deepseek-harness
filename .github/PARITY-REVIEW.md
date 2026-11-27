@@ -67,7 +67,8 @@ The Issue body is the brief. A fixing PR:
 
 - targets `develop`, never `master` (which mirrors upstream),
 - says `Fixes #N`, so merging closes the Issue and the lifecycle workflow moves
-  it to Done,
+  it to Done (GitHub skips closing keywords on the loop's own merges, so the
+  Parity loop closes those Issues itself),
 - carries exactly one `kind/*` and at least one `area/*`,
 - is routed for review by the Parity loop, which requests it automatically.
 

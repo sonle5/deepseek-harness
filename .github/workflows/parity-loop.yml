@@ -1,6 +1,7 @@
 name: Parity loop
 
-# Routes review and enables auto-merge for pull requests into `develop`.
+# Routes review and enables auto-merge for pull requests into `develop`, and
+# closes the issues those merges fix.
 #
 # Only `pull_request_target` is used, and it loads this file from the base
 # branch, so a PR cannot edit the gate that merges it. `pull_request_review` is
@@ -29,6 +30,15 @@ name: Parity loop
 # to decide anything. The gate instead reads two facts a write token can see:
 # `branches/{b}.protected` (REST) and the pull request's `reviewDecision`
 # (GraphQL), which is null exactly when no rule asks for review.
+#
+# Auto-merge merges as the identity that enabled it, so loop merges are
+# attributed to `github-actions`, and GitHub applies no closing keyword to them:
+# the linked issue gets a `referenced` event and stays open. A merge made with
+# `GITHUB_TOKEN` also starts no workflow, so `pull_request: closed` never fires
+# for it. The `close-issues` job therefore sweeps recent loop merges instead.
+# It runs when the approval that releases an auto-merge is recorded (a
+# `workflow_run` of `weighted-approval-review-event`, which a reviewer's own
+# review starts), on every loop run, and on demand.
 on:
   pull_request_target:
     types:
@@ -39,20 +49,24 @@ on:
       - synchronize
     branches:
       - develop
+  workflow_run:
+    workflows: [weighted-approval-review-event]
+    types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: parity-loop-${{ github.event.pull_request.number }}
+  group: parity-loop-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   loop:
     name: Route review and enable auto-merge
     # A closed pull request has nothing left to route.
-    if: github.event.pull_request.state == 'open'
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.state == 'open'
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy
@@ -66,3 +80,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/parity-loop/run.mjs
+
+  close-issues:
+    name: Close issues fixed by loop merges
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    # One sweep at a time, so two runs cannot both close and comment on the same issue.
+    concurrency:
+      group: parity-loop-close-issues
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The default branch for every trigger: this job must never run pull-request code.
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Close fixed issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/parity-loop/run.mjs close-issues

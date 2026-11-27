@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process'
 import {
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
+  autoMergeNotNeeded,
   baseBranchError,
   latestVerdicts,
   needsReviewRequest,
@@ -283,6 +284,13 @@ async function enableAutoMerge(repository, number) {
     // the pull request waiting forever with a green run.
     if (autoMergeAlreadyEnabled(error)) {
       process.stdout.write(`Auto-merge already enabled on #${number}.\n`)
+      return
+    }
+    // GitHub enables auto-merge only while something is pending. A pull request
+    // that can merge now waits for a human merge or the next push, because no
+    // event re-runs this loop when the state changes.
+    if (autoMergeNotNeeded(error)) {
+      process.stdout.write(`::notice::#${number} is already mergeable, so GitHub will not enable auto-merge; merge it by hand.\n`)
       return
     }
     throw error

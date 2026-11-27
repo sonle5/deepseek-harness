@@ -142,3 +142,16 @@ export function autoMergeAlreadyEnabled(error) {
   const message = error instanceof Error ? error.message : String(error)
   return /automerge is already enabled/i.test(message)
 }
+
+/**
+ * Whether a failed auto-merge mutation means GitHub already considers the pull
+ * request mergeable, so there is nothing for auto-merge to wait on. GitHub
+ * reports this as the `clean` or `unstable` merge state; `unstable` means only
+ * checks that the branch does not require are failing.
+ * @param {unknown} error Failure from the mutation.
+ * @returns {boolean} True when the mutation refused because the pull request can merge now.
+ */
+export function autoMergeNotNeeded(error) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /pull request is in (clean|unstable) status/i.test(message)
+}

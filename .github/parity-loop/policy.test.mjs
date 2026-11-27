@@ -4,12 +4,15 @@ import {
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
   baseBranchError,
+  EVIDENCE_HEADING,
   latestVerdicts,
+  missingEvidenceWarning,
   needsReviewRequest,
   reviewerFor,
   REVIEWERS,
   TARGET_BASE,
 } from './policy.mjs'
+import { readFileSync } from 'node:fs'
 
 const clean = {
   base: 'develop',
@@ -178,4 +181,46 @@ test('an already-enabled auto-merge is told apart from a real failure', () => {
   assert.equal(autoMergeAlreadyEnabled(
     'Head branch was modified. Review and try the merge again.',
   ), false)
+})
+
+const evidenceBody = section => `## Motivation\n\nFixes #33\n\n## Testing\n\n![unit](https://example.test/unit.png)\n\n${EVIDENCE_HEADING}\n\n${section}\n`
+
+test('a desktop or client pull request with an image in its evidence section is not flagged', () => {
+  for (const labels of [['area/desktop'], ['area/client'], ['kind/bug-fix', 'area/desktop', 'area/client']]) {
+    assert.equal(missingEvidenceWarning({
+      labels,
+      body: evidenceBody('**Before / after**: ![Dock icon at abc1234](https://example.test/dock.png)'),
+    }), null, labels.join(','))
+  }
+  assert.equal(missingEvidenceWarning({
+    labels: ['area/client'],
+    body: evidenceBody('<img alt="About panel at abc1234" src="https://example.test/about.png">'),
+  }), null)
+})
+
+test('a desktop or client pull request without an evidence image is flagged', () => {
+  // An image elsewhere in the body, or one inside the template's comments, is
+  // not evidence.
+  const noImage = missingEvidenceWarning({
+    labels: ['area/desktop'],
+    body: evidenceBody('<!-- ![placeholder](https://example.test/x.png) -->\n**Before / after**: see the unit tests'),
+  })
+  assert.match(noImage, /`area\/desktop` but has no image in its `## User-visible evidence` section/u)
+  const noSection = missingEvidenceWarning({ labels: ['area/client', 'area/desktop'], body: '## Motivation\n\n![x](https://example.test/x.png)\n' })
+  assert.match(noSection, /`area\/desktop` and `area\/client` but has no `## User-visible evidence` section/u)
+  assert.match(missingEvidenceWarning({ labels: ['area/client'], body: null }), /has no `## User-visible evidence` section/u)
+})
+
+test('the stated N/A path and other areas are not flagged', () => {
+  assert.equal(missingEvidenceWarning({
+    labels: ['area/desktop'],
+    body: evidenceBody('N/A — no user-visible change: the diff only renames a test helper.'),
+  }), null)
+  assert.equal(missingEvidenceWarning({ labels: ['kind/doc', 'area/ci'], body: '' }), null)
+})
+
+test('the pull request template carries the evidence heading the check reads', () => {
+  const template = readFileSync(new URL('../pull_request_template.md', import.meta.url), 'utf8')
+  assert.ok(template.split('\n').includes(EVIDENCE_HEADING))
+  assert.match(template, /N\/A — no user-visible change: <reason>/u)
 })

@@ -16,7 +16,7 @@ This skill defines what a deepseek-harness PR description contains, how to write
 
 ## Description structure
 
-The description uses three second-level headings, in this order: `## Motivation`, `## Changes`, and `## Testing`.
+The description uses four second-level headings, in this order: `## Motivation`, `## Changes`, `## Testing`, and `## User-visible evidence`.
 
 Write fixed section headings and labels, such as **Interface changes**, **Behavior changes**, **Module responsibilities and dependencies**, **Test design**, and **Test entries**, in English. Write table headers and the rest of the description in the PR description's language, Chinese unless a human asked for another language.
 
@@ -98,6 +98,15 @@ When the PR mixes change types, give one form for each type present. Items that 
 - List only tests that have run, with their results; add later runs when the description is updated. State whether the evidence comes from a local run or from CI.
 - Put reviewable evidence, such as test output, screenshots, recordings, or logs, in that entry's `<details><summary>Proof</summary>` block; when the full output is long, the block may hold the command, the counts, and a result summary.
 
+### User-visible evidence
+
+The section is required when the PR carries `area/desktop` or `area/client`, or fixes a `parity` Issue; [Reviewing a PR](../../../.github/PARITY-REVIEW.md#reviewing-a-pr) owns the review rules and the list of packaged-only surfaces.
+
+- **Build**: the packaging command, `pnpm run package:desktop:mac:arm64:unsigned` or the equivalent named for the area, and the commit it was built from.
+- **Before / after**: screenshots from that packaged build of the same scenario, each captioned with the commit it was built from.
+- **Acceptance criteria**: one ticked entry per criterion of the linked Issue, saying how it was checked, with the output or screenshot.
+- A PR without a user-visible change writes `N/A — no user-visible change: <reason>` as the whole section.
+
 ### Change-specific disclosures
 
 Write each disclosure in the section it concerns, usually Changes, after a bold English label that names it, such as **Existing test behavior**; do not add headings.
@@ -113,4 +122,4 @@ Write each disclosure in the section it concerns, usually Changes, after a bold 
 
 1. Write the description to a file that git ignores, such as `.artifacts/pr/body.md`. Create the PR with `gh pr create --body-file <file>`, or update it with `gh pr edit <number> --body-file <file>`; when the description embeds a GIF, follow [record-browser-gif](../record-browser-gif/SKILL.md) and use `--attach`.
 2. Before an update, save the current description with `gh pr view <number> --json body --jq .body`, and change only the sections that need it: keep content and media the author wrote, and remove statements that no longer match the code.
-3. After writing, read the description back and confirm that all three sections are present and that the dependency edges in Changes match the current diff.
+3. After writing, read the description back and confirm that all four sections are present and that the dependency edges in Changes match the current diff.

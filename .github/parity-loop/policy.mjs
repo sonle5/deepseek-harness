@@ -1,4 +1,4 @@
-/** Pure decisions for the develop parity loop: review routing and auto-merge eligibility. */
+/** Pure decisions for the develop parity loop: review routing, the evidence warning, and auto-merge eligibility. */
 
 /**
  * The agents that review parity PRs, most senior first. The first entry reviews
@@ -130,6 +130,50 @@ export function autoMergeBlockers({
     blockers.push(`\`${TARGET_BASE}\` is protected but requires no approving review; auto-merge would land unreviewed.`)
   }
   return blockers
+}
+
+/** Labels whose pull requests must show evidence from a packaged build. */
+export const EVIDENCE_AREAS = Object.freeze(['area/desktop', 'area/client'])
+
+/** The pull-request template's heading for packaged-build evidence. */
+export const EVIDENCE_HEADING = '## User-visible evidence'
+
+/**
+ * Decide whether to warn that a pull request lacks packaged-build screenshots.
+ *
+ * Report-only: the caller prints a warning and never fails the run. The
+ * reviewer still judges whether the evidence comes from a packaged build and
+ * covers every acceptance criterion.
+ * @param {object} input Pull-request state.
+ * @param {readonly string[]} input.labels Label names on the pull request.
+ * @param {string|null|undefined} input.body Pull-request description.
+ * @returns {string|null} The warning, or null when the pull request carries no
+ *   evidence area, its evidence section has an image, or the section states
+ *   `N/A — no user-visible change`.
+ */
+export function missingEvidenceWarning({ labels, body }) {
+  const areas = EVIDENCE_AREAS.filter(area => labels.includes(area))
+  if (areas.length === 0) return null
+  const section = evidenceSection(body ?? '')
+  if (section !== null && /^\s*N\/A\s+—\s+no user-visible change\b/mu.test(section)) return null
+  if (section !== null && /!\[[^\]]*\]\([^)]+\)|<img\b/iu.test(section)) return null
+  const where = section === null ? `has no \`${EVIDENCE_HEADING}\` section` : `has no image in its \`${EVIDENCE_HEADING}\` section`
+  return `This pull request carries ${areas.map(area => `\`${area}\``).join(' and ')} but ${where}. Add before/after screenshots from a packaged build, or state \`N/A — no user-visible change\` with a reason (.github/PARITY-REVIEW.md, Reviewing a PR).`
+}
+
+/**
+ * Extract the evidence section from a description, without HTML comments.
+ * @param {string} body Pull-request description.
+ * @returns {string|null} The text between the evidence heading and the next
+ *   second-level heading, or null when the heading is absent.
+ */
+function evidenceSection(body) {
+  const lines = body.replace(/<!--[\s\S]*?-->/gu, '').split(/\r?\n/u)
+  const start = lines.findIndex(line => line.trim() === EVIDENCE_HEADING)
+  if (start === -1) return null
+  const rest = lines.slice(start + 1)
+  const end = rest.findIndex(line => /^## /u.test(line))
+  return (end === -1 ? rest : rest.slice(0, end)).join('\n')
 }
 
 /**

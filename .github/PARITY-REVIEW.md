@@ -93,9 +93,56 @@ PR kinds and their meanings are the ones the policy already knows:
 | `kind/cleanup` | Refactor, rename, or removal with no behaviour change |
 | `kind/dependency` | Dependency or pinned-artifact changes |
 
-Fill the [pull request template](pull_request_template.md) as written. A
-parity-fix PR additionally states which acceptance criteria from the Issue it
-satisfies and how each was checked.
+Fill the [pull request template](pull_request_template.md) as written. A PR
+that carries `area/desktop` or `area/client`, or fixes a `parity` Issue, fills
+its **User-visible evidence** section from a packaged build: before and after
+screenshots, each captioned with the commit it was built from, and one ticked
+entry per acceptance criterion of the Issue saying how it was checked, with the
+output or screenshot. A PR with no user-visible change writes
+`N/A — no user-visible change` with a reason instead. The evidence is the
+author's to produce; CI does not build a DMG per PR.
+
+### Packaged-only surfaces
+
+A dev build (`dev:desktop`, `start:desktop`, a Web renderer or a DOM read)
+cannot verify these, because they come from the packaging step or from macOS
+reading the bundle. Evidence for them comes from a
+`pnpm run package:desktop:mac:arm64:unsigned` build:
+
+- Dock and Finder icon
+- About panel
+- `Info.plist`
+- DMG window, background and layout
+- native menus
+- code signature and bundle id
+- first-run window
+
+## Reviewing a PR
+
+The routed reviewer agent checks the pull request against this list before
+anything else. When any item fails, submit **Request changes**, not a comment,
+and name each failed item; a comment leaves the PR mergeable once another
+account approves.
+
+- [ ] A PR that carries `area/desktop` or `area/client`, or says `Fixes` a
+      `parity` Issue, has a **User-visible evidence** section. Only a stated
+      `N/A — no user-visible change` with a reason replaces it, and that reason
+      must hold for the diff.
+- [ ] The evidence names the build command and the commit it was built from,
+      and that commit is the PR head or an ancestor whose later commits do not
+      change what the evidence shows.
+- [ ] Every criterion that names a
+      [packaged-only surface](#packaged-only-surfaces) is shown from a packaged
+      build. Dev-build screenshots or DOM reads for one of those surfaces fail
+      this item.
+- [ ] Every acceptance criterion in the linked Issue has its own ticked entry
+      saying how it was checked, with the output or screenshot. A criterion
+      left out, or covered only by "tests pass", fails this item.
+- [ ] Before and after screenshots show the same scenario, so the difference is
+      the change.
+
+Then review the diff as usual. A green CI run does not stand in for this list:
+unit tests and dev-build DOM reads can pass while the shipped bundle is wrong.
 
 ## Merging
 

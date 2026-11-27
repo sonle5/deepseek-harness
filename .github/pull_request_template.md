@@ -1,20 +1,36 @@
-<!-- 本 PR 正文按 .agents/skills/dsh-pr-description/SKILL.md 填写。 -->
+<!-- Fill this description as .agents/skills/dsh-pr-description/SKILL.md describes. -->
 
 ## Motivation
 
-<!-- 引用同仓库 Issue：Fixes #N 或 Refs #N。 -->
+<!-- Reference a same-repository Issue: Fixes #N or Refs #N. -->
 
 ## Changes
 
-<!-- Interface changes、Behavior changes、Module responsibilities and dependencies 三项；没有就写 None。 -->
+<!-- Three items: Interface changes, Behavior changes, and Module responsibilities and dependencies; write None for an item with nothing to report. -->
 
 ## Testing
 
-<!-- 测试设计 -->
+<!-- Test design -->
 
-- <!-- 测试条目 -->
+- <!-- Test entry -->
 
   <details>
   <summary>Proof</summary>
 
   </details>
+
+## User-visible evidence
+
+<!--
+Required when this PR carries `area/desktop` or `area/client`, or fixes a `parity` Issue. Evidence comes from the build users get: a `pnpm run package:desktop:mac:arm64:unsigned` build, or the build named explicitly for a surface that build does not ship. A dev build or a DOM read from `dev:desktop` does not verify a packaged surface. The reviewer requests changes when this section is missing, comes from a dev build where a criterion names a packaged surface, or leaves an acceptance criterion unchecked (.github/PARITY-REVIEW.md, Reviewing a PR).
+
+The only alternative is one line, with a reason: N/A — no user-visible change: <reason>
+-->
+
+**Build**: <!-- Packaging command and the commit it was built from. -->
+
+**Before / after**: <!-- Screenshots from the packaged build, each captioned with the commit it was built from. -->
+
+**Acceptance criteria**:
+
+- [ ] <!-- One entry per criterion in the linked Issue: the criterion, how it was checked, and the output or screenshot. -->

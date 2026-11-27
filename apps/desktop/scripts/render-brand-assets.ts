@@ -1,14 +1,11 @@
 /** Render every committed Nexus Superharness native and installer asset. */
 
-import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import sharp from 'sharp'
+import { encodePng, MACOS_ICON_PATHS, packIcns, renderMacOSIconBitmaps, renderMacOSIconElements } from './render-macos-icon.ts'
 import { packIco, renderTrayIconEntries, TRAY_ICON_SIZES } from './render-tray-icon.ts'
 
-const execute = promisify(execFile)
 const APP_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256] as const
 /** Composer's N monogram, the one mark both products now share. */
 const MARK_PATH = 'M24 20H37L61 48V20H72V76H59L35 48V76H24Z'
@@ -97,7 +94,6 @@ async function main(): Promise<void> {
   const source = await readFile(join(resources, 'icon.svg'))
   const windowsSource = await readFile(join(resources, 'icon-windows.svg'))
   await Promise.all([
-    renderPng(source, join(resources, 'icon-macos.png'), 1024, 1024),
     renderPng(source, join(resources, 'icon-windows.png'), 1024, 1024),
     renderPng(source, join(resources, 'icon.png'), 1024, 1024),
     renderPng(brandArtwork(600, 196, false), join(installer, 'brand.png'), 600, 196),
@@ -112,27 +108,10 @@ async function main(): Promise<void> {
     windowsSource,
     TRAY_ICON_SIZES,
   )))
-
-  const iconset = await mkdtemp(join(tmpdir(), 'nexus-superharness-iconset-')) + '.iconset'
-  await mkdir(iconset)
-  try {
-    const entries = [
-      ['icon_16x16.png', 16],
-      ['icon_16x16@2x.png', 32],
-      ['icon_32x32.png', 32],
-      ['icon_32x32@2x.png', 64],
-      ['icon_128x128.png', 128],
-      ['icon_128x128@2x.png', 256],
-      ['icon_256x256.png', 256],
-      ['icon_256x256@2x.png', 512],
-      ['icon_512x512.png', 512],
-      ['icon_512x512@2x.png', 1024],
-    ] as const
-    await Promise.all(entries.map(([name, size]) => renderPng(source, join(iconset, name), size, size)))
-    await execute('/usr/bin/iconutil', ['--convert', 'icns', '--output', join(resources, 'icon.icns'), iconset])
-  } finally {
-    await rm(iconset, { recursive: true, force: true })
-  }
+  const macOSSource = await readFile(MACOS_ICON_PATHS.source)
+  const [macOSPng] = await renderMacOSIconBitmaps(macOSSource, [1024])
+  await writeFile(MACOS_ICON_PATHS.png, await encodePng(macOSPng!))
+  await writeFile(MACOS_ICON_PATHS.icns, packIcns(await renderMacOSIconElements(macOSSource)))
 }
 
 if (import.meta.main) await main()

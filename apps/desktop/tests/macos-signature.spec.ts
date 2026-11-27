@@ -71,6 +71,8 @@ describe('desktop macOS release signature', () => {
     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
     expect(config.protocols).toEqual([{ name: PRODUCT_IDENTITY.productName, schemes: [PRODUCT_IDENTITY.protocol, 'dsh'] }])
     expect(portablePath(config.directories.output)).toContain('/.desktop-build/targets/mac-arm64/artifacts')
+    // electron-builder copies an ICNS unchanged into the bundle and the DMG volume icon.
+    expect(portablePath(config.mac.icon)).toMatch(/\/apps\/desktop\/resources\/icon\.icns$/)
     expect(config.mac.extendInfo.NSMicrophoneUsageDescription).toContain('microphone')
     expect(config.mac.extendInfo.CFBundleLocalizations).toEqual(SHIPPED_LOCALE_IDS.map(id => id === 'zh' ? 'zh_CN' : id))
     expect(config.mac.entitlementsInherit).toBe(config.mac.entitlements)

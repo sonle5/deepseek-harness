@@ -175,7 +175,8 @@ export function createElectronBuilderConfig(
       ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
     ],
     mac: {
-      icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+      // A prebuilt ICNS is bundled unchanged and also becomes the DMG volume icon; a PNG would be resampled by electron-builder.
+      icon: fileURLToPath(new URL('../resources/icon.icns', import.meta.url)),
       category: 'public.app-category.developer-tools',
       // macOS matches the application locale against this bundle, not Electron Framework resources.
       extendInfo: {

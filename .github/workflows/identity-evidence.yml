@@ -1,0 +1,89 @@
+name: Identity evidence (Issue 34, temporary)
+
+on:
+  pull_request:
+    branches: [agent/remove-identity-strings-717973315a20]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [before, after]
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select source
+        run: |
+          if [ "${{ matrix.label }}" = before ]; then git checkout --detach ed397c810f1c23c79bcc09cd341931ab458ac9ef; else git checkout --detach ad36300875d97def56adbbbf1265b639397902ff; fi
+          git log --oneline -1
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/source-sha.txt"
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '^24.22.3'
+      - run: pnpm install --frozen-lockfile
+      - name: Regenerate brand assets with render-brand-assets.ts
+        if: matrix.label == 'after'
+        run: |
+          pnpm --filter @deepseek-ai/dsh-desktop run render:brand-assets
+          git status --short | tee "$RUNNER_TEMP/evidence/render-git-status.txt"
+          mkdir -p "$RUNNER_TEMP/evidence/rendered"
+          cp apps/desktop/installer/assets/*.png "$RUNNER_TEMP/evidence/rendered/"
+          git checkout -- apps/desktop/resources
+      - name: Omit the internal Composer release this repository cannot download
+        run: |
+          node -e "const f='apps/desktop/scripts/composer/lock.json';const fs=require('fs');const l=JSON.parse(fs.readFileSync(f,'utf8'));l.targets['darwin-arm64']={available:false};fs.writeFileSync(f,JSON.stringify(l,null,2)+'\n')"
+      - name: Package unsigned arm64 DMG
+        run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: Collect evidence
+        if: always()
+        run: |
+          set -x
+          out="$RUNNER_TEMP/evidence"; mkdir -p "$out"
+          find apps/desktop/.desktop-build -maxdepth 8 \( -name 'Nexus Superharness.app' -o -name '*.dmg' \) -print > "$out/found.txt" 2>/dev/null || true
+          app=$(grep -m1 'Nexus Superharness.app$' "$out/found.txt" || true)
+          dmg=$(grep -m1 '\.dmg$' "$out/found.txt" || true)
+          echo "app=$app"; echo "dmg=$dmg"
+          [ -n "$app" ] || exit 0
+          { echo '$ plutil -p "Nexus Superharness.app/Contents/Info.plist" | grep -i deepseek'; plutil -p "$app/Contents/Info.plist" | grep -i deepseek; echo "[grep exit status $?]"; } > "$out/plutil-grep.txt" 2>&1
+          plutil -p "$app/Contents/Info.plist" > "$out/Info.plist.txt"
+          npx --yes @electron/asar@4 extract "$app/Contents/Resources/app.asar" "$RUNNER_TEMP/asar"
+          ( cd "$RUNNER_TEMP/asar" && ls -1 ) > "$out/asar-top.txt"
+          ( cd "$RUNNER_TEMP/asar" && echo '$ grep -rIil deepseek renderer lib' && grep -rIil deepseek renderer lib; echo "[exit $?]" ) > "$out/asar-desktop-renderer-files.txt" 2>&1
+          ( cd "$RUNNER_TEMP/asar" && grep -rIoiE '.{0,70}deepseek.{0,70}' renderer lib | grep -viE '@deepseek-ai/|deepseek-ai/dsh|com\.deepseek' ) > "$out/asar-desktop-renderer-hits.txt" 2>&1 || true
+          web="dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist"
+          ( cd "$RUNNER_TEMP/asar" && [ -d "$web" ] && grep -rIoiE '.{0,70}deepseek.{0,70}' "$web" | grep -viE '@deepseek-ai/|deepseek-ai/dsh|com\.deepseek' ) > "$out/asar-web-frontend-hits.txt" 2>&1 || true
+          wc -l "$out"/asar-*-hits.txt
+          if [ -n "$dmg" ]; then
+            hdiutil attach "$dmg" | tee "$out/hdiutil.txt"
+            vol=$(ls -d /Volumes/Nexus* 2>/dev/null | head -1)
+            open "$vol" || true; sleep 10
+            screencapture -x "$out/dmg-window.png" || true
+            hdiutil detach "$vol" -force || true
+          fi
+          open "$app"; sleep 30
+          osascript -e 'tell application "System Events" to tell process "Nexus Superharness" to set frontmost to true' \
+                    -e 'tell application "System Events" to tell process "Nexus Superharness" to click menu item 1 of menu 1 of menu bar item 2 of menu bar 1' \
+            > "$out/about-osascript.txt" 2>&1 || true
+          sleep 5
+          screencapture -x "$out/about-panel.png" || true
+          osascript -e 'tell application "System Events" to tell process "Nexus Superharness" to get value of static texts of every window' >> "$out/about-osascript.txt" 2>&1 || true
+          pkill -f 'Nexus Superharness' || true
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: identity-evidence-${{ matrix.label }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 7

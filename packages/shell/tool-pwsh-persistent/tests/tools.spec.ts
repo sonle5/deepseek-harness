@@ -109,6 +109,7 @@ type StubMode =
   | 'with-echo'
   | 'exit-after-send'
   | 'prompt-collision'
+  | 'silent-pause'
 
 const START_PATTERN = /__DSH_PERSISTENT_PWSH_START_[^_]+(?:-[^_]+)*__/
 const END_PATTERN = /__DSH_PERSISTENT_PWSH_END_[^:]+:/
@@ -163,6 +164,16 @@ class StubTerminalSession implements TerminalBackendSession {
       }
       const output = `pwsh: syntax error\n${this.motd}`
       this.scrollback += output
+      return this.operation(Promise.resolve(this.result(output, 'stdin_read')))
+    }
+    if (this.mode === 'silent-pause') {
+      // Retained scrollback keeps only the tail, so the captured send output
+      // is the only record of the start marker and the first line.
+      const start = START_PATTERN.exec(request.text)?.[0]
+      if (request.text.length > 0) return this.operation(Promise.resolve(this.result(`${start ?? ''}\nfirst\n`, 'inferred_idle')))
+      if (this.sends === 3) return this.operation(Promise.resolve(this.result('', 'inferred_idle')))
+      const output = `tail\n${this.motd}`
+      this.scrollback = output
       return this.operation(Promise.resolve(this.result(output, 'stdin_read')))
     }
     if (this.mode === 'prompt-only' || this.mode === 'prompt-crlf') {
@@ -588,6 +599,27 @@ describe('tool-pwsh-persistent', () => {
     // The backend owns the prompt text, so the fallback retains it verbatim.
     expect(result.endsWith('stub> ')).toBe(true)
     expect(result).not.toContain('DSH_PERSISTENT_PWSH_START')
+  })
+
+  it('does not report a lost prefix when the start marker was never printed', async () => {
+    const { ctx, owner, stub } = await setup({ backendType: 'stub', maxOutputChars: 1_000 })
+    await call(ctx, owner, 'warm up')
+    const session = stub.sessions[0]!
+    session.mode = 'prompt-only'
+    session.scrollback = ''
+    const result = text(await call(ctx, owner, 'bad {'))
+    expect(result).toBe('pwsh: syntax error\nstub> ')
+    expect(result).not.toContain('<response clipped>')
+  })
+
+  it('keeps send output captured before a silent follow-up send', async () => {
+    const { ctx, owner, stub } = await setup({ backendType: 'stub', maxOutputChars: 1_000 })
+    await call(ctx, owner, 'warm up')
+    const session = stub.sessions[0]!
+    session.mode = 'silent-pause'
+    session.sends = 1
+    expect(text(await call(ctx, owner, 'first; Start-Sleep 5; tail'))).toBe('first\ntail\nstub> ')
+    expect(session.sends).toBe(4)
   })
 
   it('does not attribute old scrollback truncation to a complete current command', async () => {

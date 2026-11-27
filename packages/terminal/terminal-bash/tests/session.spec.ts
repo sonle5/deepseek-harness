@@ -701,6 +701,28 @@ describe('LocalPtySession readiness and output', () => {
     expect((await operation.done).waitReason).toBe('stdin_read')
   })
 
+  it('does not settle a pwsh send on a stdin wait inside the shell group', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config({ shellDialect: 'pwsh', idleSilenceMs: 100, timeoutMs: 200 }))
+    await initialize(session, terminal)
+
+    inspector.waiting = false
+    const operation = session.startSend({ text: '1..12050', submit: true })
+    let settled = false
+    void operation.done.then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(10)
+    inspector.waiting = true
+    terminal.emitData('12016\r\n')
+    await vi.advanceTimersByTimeAsync(40)
+    expect(settled).toBe(false)
+
+    terminal.emitData('12050\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(20)
+    expect(await operation.done).toMatchObject({ waitReason: 'stdin_read', viewport: '12016\n12050\ndsh> ' })
+  })
+
   it('tracks a pre-write wait exit before exact probing begins', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()

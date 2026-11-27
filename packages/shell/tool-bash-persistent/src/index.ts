@@ -346,7 +346,7 @@ async function executeCommand(
       throw error
     }
     const incremental = operation.readOutput()
-    fallback = incremental.delta.length > 0 ? fallback + incremental.delta : result.viewport
+    fallback += incremental.delta.length > 0 ? incremental.delta : result.viewport
     fallbackTruncated ||= incremental.truncated || result.truncated
     const latest = ctx.terminals.read(owner, id, { offset: 0, count: SCROLLBACK_PAGE_LINES })
     const timedOut = timeoutOf(commandDeadline.signal, TIMEOUT_CODE)

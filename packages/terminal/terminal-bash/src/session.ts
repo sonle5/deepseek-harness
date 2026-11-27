@@ -578,7 +578,10 @@ export class LocalPtySession implements TerminalBackendSession {
       }
       const elapsed = Date.now() - operation.startedAt
       const startupHasOutput = !this.initializing || !this.scrollback.isEmpty
-      const acceptsStdinWait = startupHasOutput && foreground !== undefined
+      // pwsh runs commands inside its own process group and blocks reading the
+      // terminal while they still write output, so its stdin wait is no evidence
+      // of readiness; only the prompt marker and silence tiers settle it.
+      const acceptsStdinWait = this.config.shellDialect === 'bash' && startupHasOutput && foreground !== undefined
         && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
       if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
         this.settleActive('stdin_read')

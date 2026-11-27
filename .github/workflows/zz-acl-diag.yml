@@ -30,4 +30,4 @@ jobs:
         shell: pwsh
         env:
           DSH_COVERAGE_TEST_TIMEOUT_MS: '90000'
-        run: pnpm exec vitest run packages/sandbox/sandbox-windows-acl/tests/zz-diag.spec.ts --reporter=verbose --silent=false
+        run: pnpm exec vitest run packages/sandbox/sandbox-windows-acl/tests/diagnose-script.spec.ts packages/sandbox/sandbox-windows-acl/tests/runner.spec.ts

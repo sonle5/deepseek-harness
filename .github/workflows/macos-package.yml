@@ -157,6 +157,8 @@ jobs:
       - name: Build signed installers
         env:
           PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
+          # Read-only token for the private Composer release repo pinned in apps/desktop/scripts/composer/lock.json.
+          GITHUB_TOKEN: ${{ secrets.COMPOSER_BUILDS_TOKEN }}
         run: |
           args=()
           if [[ "$PACKAGE_SKIP_NOTARIZATION" = true ]]; then args+=(--skip-notarization); fi

@@ -119,15 +119,18 @@ reading the bundle. Evidence for them comes from a
 
 ## Reviewing a PR
 
-The routed reviewer agent checks the pull request against this list before
-anything else. When any item fails, submit **Request changes**, not a comment,
-and name each failed item; a comment leaves the PR mergeable once another
-account approves.
+The routed reviewer agent checks a PR that carries `area/desktop` or
+`area/client`, or says `Fixes` a `parity` Issue, against this list before
+anything else; other PRs skip it. When any item fails, submit
+**Request changes**, not a comment, and name each failed item; a comment leaves
+the PR mergeable once another account approves.
 
-- [ ] A PR that carries `area/desktop` or `area/client`, or says `Fixes` a
-      `parity` Issue, has a **User-visible evidence** section. Only a stated
+- [ ] The PR has a **User-visible evidence** section. Only a stated
       `N/A — no user-visible change` with a reason replaces it, and that reason
-      must hold for the diff.
+      must hold for the diff. A valid N/A line passes the whole list.
+
+When the section shows evidence rather than the N/A line:
+
 - [ ] The evidence names the build command and the commit it was built from,
       and that commit is the PR head or an ancestor whose later commits do not
       change what the evidence shows.
@@ -143,6 +146,12 @@ account approves.
 
 Then review the diff as usual. A green CI run does not stand in for this list:
 unit tests and dev-build DOM reads can pass while the shipped bundle is wrong.
+
+The Parity loop prints a report-only warning when such a desktop or client PR
+has no image in its evidence section. It re-reads the labels and body only when
+it runs, on open, reopen, push, ready-for-review or a review request, so a
+warning can predate a later label or body edit; read the PR itself, not the
+warning.
 
 ## Merging
 

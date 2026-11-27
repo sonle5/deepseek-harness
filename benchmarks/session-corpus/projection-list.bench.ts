@@ -12,8 +12,11 @@ import type { ProjectionListReport } from './projection-list.worker.ts'
 const WORKER = join(import.meta.dirname, '..', '.dsh-build', 'session-corpus', 'projection-list.worker.js')
 const ATTEMPTS = 3
 const WORKER_TIMEOUT_MS = 120_000
-/** Coarse reference-machine throughput allowances, before CI scaling and variance headroom. */
-const LIST_REFERENCE_MS = { modest: 50, tail: 500, cheap: 150 } as const
+/**
+ * Coarse throughput allowances before CI scaling and variance headroom. The cheap allowance is
+ * about half the slowest serialized hosted first-call median, 350.8 ms on an AMD EPYC 7763 / Node 24.
+ */
+const LIST_REFERENCE_MS = { modest: 50, tail: 500, cheap: 180 } as const
 /** Queue-delay reference allowance above the measured 16 ms work slices and one-row overshoot. */
 const CALLBACK_REFERENCE_MS = 30
 /** Reference retained-heap allowance; memory receives variance headroom but no CPU scaling. */

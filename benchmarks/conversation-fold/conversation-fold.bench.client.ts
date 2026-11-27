@@ -56,10 +56,14 @@ const PREPARING_CASES = [
 
 const STREAMING_CHARACTERS = 256 * 1024
 const STREAMING_SAMPLES = 5
-/** Reference-machine expectations; shared CI scaling applies only to elapsed time. */
+/**
+ * Elapsed-time expectations before shared CI scaling and headroom: about half the slowest hosted
+ * median, because AMD EPYC 7763 runners exceed the shared 2× scale (Node 24, up to 31.7 ms for
+ * 4,096 deltas and 84.0 ms for 16,384). Heap does not use these values.
+ */
 const STREAMING_WORKLOADS = [
-  { fragments: 4_096, expectedMs: 12 },
-  { fragments: 16_384, expectedMs: 32 },
+  { fragments: 4_096, expectedMs: 16 },
+  { fragments: 16_384, expectedMs: 42 },
 ] as const
 const STREAMING_CASES = STREAMING_WORKLOADS.flatMap(workload => [
   { ...workload, blockType: 'text', pattern: 'ordinary' },

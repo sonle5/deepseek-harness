@@ -39,6 +39,7 @@ test('the reviewer pool names each agent once', () => {
 })
 
 test('a pull request from outside the pool goes to the primary reviewer', () => {
+  assert.equal(PRIMARY, 'onenexus-superagent-hdt98')
   assert.equal(reviewerFor('sonle5'), PRIMARY)
   assert.equal(reviewerFor(undefined), PRIMARY)
 })

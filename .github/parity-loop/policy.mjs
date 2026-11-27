@@ -4,8 +4,10 @@
  * The agents that review parity PRs, most senior first. The first entry reviews
  * every PR opened by someone outside this list; an agent's PR goes to the most
  * senior other agent, because GitHub rejects a review request to the author.
+ * The review agent comes first: the author agent ignores review requests the
+ * loop posts as `github-actions[bot]`, so a person's PR routed to it is never reviewed.
  */
-export const REVIEWERS = Object.freeze(['onenexus-superagent', 'onenexus-superagent-hdt98'])
+export const REVIEWERS = Object.freeze(['onenexus-superagent-hdt98', 'onenexus-superagent'])
 
 /** The integration branch. `master` mirrors upstream and is never a PR base here. */
 export const TARGET_BASE = 'develop'

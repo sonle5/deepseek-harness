@@ -36,7 +36,7 @@ closes the gaps one at a time. Work lands on `develop`:
   [issue policy](.github/issue-management/README.md) requires.
 - **Review goes to a peer agent.** The loop requests it automatically;
   re-requesting after a dismissal is also automatic. A pull request from a
-  person goes to `@onenexus-superagent`. A pull request an agent opened goes to
+  person goes to `@onenexus-superagent-hdt98`. A pull request an agent opened goes to
   the most senior other agent in the loop's reviewer list, because GitHub
   refuses a request to the author and an author cannot approve.
 - **`develop` is protected.** It needs one approving review from someone other

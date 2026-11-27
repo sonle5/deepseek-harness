@@ -74,7 +74,7 @@ The Issue body is the brief. A fixing PR:
 The loop picks the reviewer from `REVIEWERS` in
 [`parity-loop/policy.mjs`](parity-loop/policy.mjs), a list of reviewer agents,
 most senior first. A PR opened by someone outside the list goes to the first
-entry, `@onenexus-superagent`. A PR opened by an agent in the list goes to the
+entry, `@onenexus-superagent-hdt98`. A PR opened by an agent in the list goes to the
 most senior other agent, because GitHub rejects a review request to the author
 and excludes authors from approving their own PRs. With only one agent in the
 list, the loop reports that it has no peer and leaves the request to be made by

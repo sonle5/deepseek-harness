@@ -27,7 +27,7 @@ DeepSeek Harness 的设计支持深度定制。我们并不认为官方仓库中
 - **PR 面向 `develop`。** `master` 镜像上游，不是本仓库的合并目标。[Parity loop](.github/workflows/parity-loop.yml) 工作流会拒绝其他基准分支。
 - **每个 PR 关闭一个 Issue。** 写明 `Fixes #N`。Issue 正文即修复者的任务说明，须记录界面、当前行为、参考行为与可勾选的验收标准——[Parity gap](.github/ISSUE_TEMPLATE/parity-gap.md) 表单正是要求这些。
 - **打标签。** 恰好一个 `kind/*`，至少一个 `area/*`，符合 [issue policy](.github/issue-management/README.zh.md) 的要求。
-- **评审交给同级 agent。** 工作流会自动请求；评审被驳回后重新请求也是自动的。由人发起的 PR 交给 `@onenexus-superagent`。由 agent 发起的 PR 交给工作流评审者列表中资历最高的另一个 agent，因为 GitHub 会拒绝向作者发起的评审请求，且作者无法批准自己的 PR。
+- **评审交给同级 agent。** 工作流会自动请求；评审被驳回后重新请求也是自动的。由人发起的 PR 交给 `@onenexus-superagent-hdt98`。由 agent 发起的 PR 交给工作流评审者列表中资历最高的另一个 agent，因为 GitHub 会拒绝向作者发起的评审请求，且作者无法批准自己的 PR。
 - **`develop` 受保护。** 需要一位非作者的批准，分支移动时旧的批准会被作废，需要批准最后一次推送，且所有评审讨论线程必须解决。工作流启用 GitHub 的自动合并而非自行合并，因此这些规则作用于真正合入的那个提交。
 
 发布如何评审、差距如何撰写，见[parity 评审流程](.github/PARITY-REVIEW.md)。

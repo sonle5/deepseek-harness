@@ -139,6 +139,7 @@ function attachable(state: ComposerSwitcherState): boolean {
  */
 export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer }: ComposerSurfaceProps) {
   const viewport = useRef<HTMLDivElement>(null)
+  const dragRow = useRef<HTMLDivElement>(null)
   // Latest commands, read through a ref so attaching runs once per mount.
   //
   // These must not be effect dependencies: main answers every command with a
@@ -160,15 +161,17 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
   const resync = useRef<(() => void) | undefined>(undefined)
   useEffect(() => {
     const element = viewport.current
-    /* v8 ignore next -- the panel always renders its viewport before effects run. */
-    if (element === null) return
+    const row = dragRow.current
+    /* v8 ignore next -- the panel always renders its viewport and drag row before effects run. */
+    if (element === null || row === null) return
     let attached = false
     const bounds = (): ComposerBounds => {
       const rect = element.getBoundingClientRect()
       // Native views paint above the document, so the frame's window-chrome
-      // seat would end up underneath one. Starting the view below the band
-      // keeps the traffic lights and the reopen control reachable.
-      const inset = chromeInset()
+      // seat and this panel's drag row would end up underneath one. Starting
+      // the view below both keeps the traffic lights, the reopen control and
+      // the window drag reachable.
+      const inset = Math.max(chromeInset(), row.getBoundingClientRect().height)
       return { x: rect.x, y: rect.y + inset, width: rect.width, height: Math.max(0, rect.height - inset) }
     }
     // A narrow-window drawer is document content sliding over this column; a
@@ -217,6 +220,8 @@ export function ComposerSurface({ state, t, show, setBounds, hide, retryComposer
   useEffect(() => { resync.current?.() }, [canAttach])
   return (
     <div ref={viewport} className={css.surface} role="region" aria-label={t('region.label')}>
+      {/* The Composer document declares no window drag, so the panel keeps its own row above the view. */}
+      <div ref={dragRow} className={css.dragBand} data-window-drag aria-hidden="true" />
       {/* A standalone Composer owns routing; there is no view to attach here. */}
       {state.ownership === 'external'
         ? (

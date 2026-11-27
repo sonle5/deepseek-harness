@@ -11,6 +11,13 @@ permissions:
   issues: read
   pull-requests: read
 
+# Agents push, label and review in bursts; every event re-validates the same
+# pull request against its current metadata, so only the newest run matters.
+# The job itself stays unconditional (it is a required check).
+concurrency:
+  group: issue-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   policy:
     name: Issue policy

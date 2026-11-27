@@ -313,7 +313,7 @@ describe('CI workflow', () => {
     const verdict = workflowJob(ci, 'all-checks-passed')
     // node-compat orders runner use after the publisher smoke; only a publisher
     // failure, which already fails the verdict, may skip it.
-    expect(compatibility.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && needs.publisher-isolated.result != 'failure' }}")
+    expect(compatibility.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.publisher-isolated.result != 'failure' }}")
     expect(verdict.permissions).toEqual({ actions: 'read' })
     if (!Array.isArray(verdict.steps)) throw new TypeError('the verdict must define steps')
     const steps = verdict.steps.filter(isRecord)
@@ -605,7 +605,7 @@ describe('CI workflow', () => {
       const cores = jobName === 'windows-native-tests' ? 2 : 16
       expect(evaluateRunsOn(job['runs-on'], { vars: { DSH_CI_FAILOVER_WINDOWS: 'blacksmith' } }))
         .toBe(`blacksmith-${cores}vcpu-windows-2025`)
-      expect(job.if).toBe("github.event_name == 'pull_request'")
+      expect(job.if).toBe("github.event_name == 'pull_request' && !github.event.pull_request.draft")
     }
 
     // windows-build runs the blocking build/site pair.
@@ -908,7 +908,7 @@ describe('CI workflow', () => {
       expect(evaluateRunsOn(benchmark['runs-on'], { vars: { DSH_CI_FAILOVER_LINUX: mode } })).toBe('ubuntu-24.04')
     }
     expect(JSON.stringify(benchmark.steps)).not.toContain('DSH_CI_FAILOVER_LINUX')
-    expect(benchmark.if).toBe("github.event_name == 'pull_request'")
+    expect(benchmark.if).toBe("github.event_name == 'pull_request' && !github.event.pull_request.draft")
     expect(benchmark.needs).toBe('node-24-build')
     expect(benchmark['continue-on-error']).toBeUndefined()
     expect(aggregate.needs).toContain('node-24-bench')
@@ -920,7 +920,7 @@ describe('CI workflow', () => {
     for (const mode of ['', 'selfhosted', 'unexpected']) {
       expect(evaluateRunsOn(report['runs-on'], { vars: { DSH_CI_FAILOVER_LINUX: mode } })).toBe('ubuntu-latest')
     }
-    expect(report.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' }}")
+    expect(report.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}")
     expect(JSON.stringify(report.steps)).not.toContain('pnpm install')
   })
 
@@ -1187,7 +1187,7 @@ describe('CI workflow', () => {
     }
 
     expect(pythonRuntime).toMatchObject({
-      if: "github.event_name == 'pull_request'",
+      if: "github.event_name == 'pull_request' && !github.event.pull_request.draft",
       name: 'python runtime / release-shaped matrix',
       uses: './.github/workflows/build-exe-for-python-sdk.yml',
       with: { targets: 'node24-linux-x64,node24-win-x64', ci: true },

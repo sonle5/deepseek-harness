@@ -10,6 +10,7 @@ name: Release (vendor)
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [master]
   workflow_dispatch:
@@ -28,6 +29,7 @@ env:
 
 jobs:
   pack:
+    if: ${{ !github.event.pull_request.draft }}
     name: Pack npm tarballs
     # Persistent runners accept only trusted, credential-free rehearsals.
     runs-on: >-

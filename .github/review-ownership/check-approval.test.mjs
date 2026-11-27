@@ -48,6 +48,8 @@ test('loads the repository approval score policy', () => {
     ['creatixchu', 2],
     ['imccyu', 2],
     ['leggasai', 2],
+    ['onenexus-superagent', 2],
+    ['onenexus-superagent-hdt98', 2],
     ['tianyicui', 2],
     ['tianyicui-bot', 2],
     ['turtle1999', 2],
@@ -176,6 +178,25 @@ test('accepts one two-point approval from a write-capable reviewer', async () =>
   assert.deepEqual(result.approvals, [{ login: '07akioni', points: 2 }])
   assert.equal(calls.length, 2)
 })
+
+for (const [author, agent] of [['onenexus-superagent-hdt98', 'onenexus-superagent'], ['onenexus-superagent', 'onenexus-superagent-hdt98']]) {
+  test(`accepts a peer reviewer agent approval from @${agent} at 2/2`, async () => {
+    const result = await evaluateApproval({
+      event: pullRequestEvent({ author }),
+      policySource,
+      getMergedCount: async () => { throw new Error('agent approval must skip author history') },
+      getOwnership: async () => { throw new Error('agent approval must skip ownership lookup') },
+      api: async (path) => {
+        if (path.includes('/reviews?')) return [review(agent, 'APPROVED')]
+        if (path.includes(`/collaborators/${agent}/permission`)) return { permission: 'write' }
+        throw new Error(`unexpected API path ${path}`)
+      },
+    })
+    assert.equal(result.state, 'success')
+    assert.equal(result.description, '2/2 approval points.')
+    assert.deepEqual(result.approvals, [{ login: agent, points: 2 }])
+  })
+}
 
 test('accepts two one-point approvals and ignores reviews without write access', async () => {
   const result = await evaluateApproval({

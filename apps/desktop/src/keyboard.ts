@@ -13,6 +13,8 @@ export const MENU_COMMAND_IDS = ['page.close', 'settings.open', 'session.new', '
 /** One registry command reachable from the native application menu. */
 export type MenuCommandId = typeof MENU_COMMAND_IDS[number]
 
+type MenuKeyInput = Pick<Input, 'code' | 'key' | 'control' | 'alt' | 'shift' | 'meta'>
+
 /**
  * Install application-owned configuration handlers and attach each product window's input lifecycle.
  * @param getWindow - current product window.
@@ -45,6 +47,13 @@ export function installDesktopShortcuts(
   sendEditingKey(keyCode: string, modifiers: Array<'control'>): void
   attach(window: BrowserWindow): void
   /**
+   * Keep these commands' menu accelerators from firing while another product's view has focus.
+   * @param contents - focused contents outside the product document, such as the Composer view.
+   * @param input - native key reaching that contents.
+   * @param commandIds - commands that belong to the product document.
+   */
+  ignoreMenuKeys(contents: Pick<WebContents, 'setIgnoreMenuShortcuts'>, input: MenuKeyInput, commandIds: readonly MenuCommandId[]): void
+  /**
    * Intercept an approved browser guest's keys until its lease ends.
    * @param window - owning product window.
    * @param guest - approved browser contents.
@@ -66,6 +75,20 @@ export function installDesktopShortcuts(
   const guestInputs = new Map<WebContents, { window: BrowserWindow; reset(): void }>()
   const menuAccelerator = (binding: NormalizedBinding | null): string | undefined => presentBinding(binding, platform).aria
     ?.replace('Meta+', platform === 'macos' ? 'Command+' : 'Super+').replace(/Arrow(Up|Down|Left|Right)$/u, '$1')
+  // Whether a native key would fire the menu accelerator of one of these commands.
+  const matchesMenuKey = (input: MenuKeyInput, commandIds: readonly MenuCommandId[]): boolean => {
+    const modifiers = (['control', 'alt', 'shift', 'meta'] as const).filter(modifier => input[modifier])
+    return commandIds.some((commandId) => {
+      const binding = menuBindings.get(commandId) ?? null
+      if (binding === null || binding.secondCode !== undefined || modifiers.join('+') !== binding.modifiers.join('+')) return false
+      if (binding.code.startsWith('Key')) return input.key.toUpperCase() === binding.code.slice(3)
+      if (binding.code.startsWith('Digit')) return input.key === binding.code.slice(5)
+      const acceleratorKey = menuAccelerator(binding)?.split('+').at(-1)
+      return acceleratorKey !== undefined && acceleratorKey.length === 1
+        ? input.key.toUpperCase() === acceleratorKey.toUpperCase()
+        : input.code === binding.code
+    })
+  }
   const sendMenuClose = (): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || !window.isFocused() || !window.isEnabled()
@@ -193,16 +216,7 @@ export function installDesktopShortcuts(
       const modifiers = (['control', 'alt', 'shift', 'meta'] as const).filter(modifier => input[modifier])
       const key = bindingKey({ code: input.code, modifiers })
       const match = keys.has(key)
-      const matchesMenuKey = (binding: NormalizedBinding | null): boolean => {
-        if (binding === null || binding.secondCode !== undefined || modifiers.join('+') !== binding.modifiers.join('+')) return false
-        if (binding.code.startsWith('Key')) return input.key.toUpperCase() === binding.code.slice(3)
-        if (binding.code.startsWith('Digit')) return input.key === binding.code.slice(5)
-        const acceleratorKey = menuAccelerator(binding)?.split('+').at(-1)
-        return acceleratorKey !== undefined && acceleratorKey.length === 1
-          ? input.key.toUpperCase() === acceleratorKey.toUpperCase()
-          : input.code === binding.code
-      }
-      const menuMatch = [...menuBindings.values()].some(matchesMenuKey)
+      const menuMatch = matchesMenuKey(input, MENU_COMMAND_IDS)
       contents.setIgnoreMenuShortcuts(recording || match || menuMatch)
       const frame = contents.focusedFrame
       const composing = input.isComposing || input.key === 'Dead' || deadKey || input.modifiers.includes('altgr')
@@ -305,6 +319,7 @@ export function installDesktopShortcuts(
     settingsMenuItem: (label, available, focusWindow) => commandMenuItem('settings.open', label, available, focusWindow),
     commandMenuItem,
     attach(window) { attachInput(window, window.webContents) },
+    ignoreMenuKeys(contents, input, commandIds) { contents.setIgnoreMenuShortcuts(matchesMenuKey(input, commandIds)) },
     attachGuest: attachInput,
     dispose() {
       for (const dispose of disposers) dispose()

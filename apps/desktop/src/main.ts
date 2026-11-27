@@ -621,7 +621,12 @@ async function main(): Promise<void> {
   // application document draws its placeholder underneath either way.
   notifyComposerSwitcher = () => { composerSwitcher.sync() }
   if (composer !== undefined) {
-    composer.view.onInput = (event, input) => { composerSwitcher.forwardInput(event, input) }
+    composer.view.onInput = (event, input, contents) => {
+      composerSwitcher.forwardInput(event, input)
+      // Superharness commands target the product document, which Composer covers while it has focus.
+      shortcuts.ignoreMenuKeys(contents, input, ['session.new', 'workspace.add', 'session.search',
+        'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open'])
+    }
     // A crash loop detaches the view without a command; the client must learn it is no longer visible.
     composer.view.onVisibility = () => { composerSwitcher.publish() }
   }

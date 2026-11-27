@@ -980,4 +980,15 @@ it('builds registry command menu items that follow rebinding and run through the
   await f.call(DESKTOP_IPC.shortcutsRecording, false)
   expect(f.contents.send).not.toHaveBeenCalled()
   expect(run).toHaveBeenCalledTimes(2)
+
+  // Another product's view suppresses only the named commands' menu keys.
+  const composer = { setIgnoreMenuShortcuts: vi.fn<(ignore: boolean) => void>() }
+  const key = (code: string, key: string, shift = false) => ({ code, key, meta: true, control: false, alt: false, shift })
+  const ignore = (input: ReturnType<typeof key>, commandIds: Parameters<typeof f.keyboard.ignoreMenuKeys>[2]) => {
+    f.keyboard.ignoreMenuKeys(composer, input, commandIds)
+    return composer.setIgnoreMenuShortcuts.mock.lastCall?.[0]
+  }
+  expect(ignore(key('KeyJ', 'J', true), ['session.new'])).toBe(true)
+  expect(ignore(key('KeyN', 'n'), ['session.new'])).toBe(false)
+  expect(ignore(key('KeyJ', 'J', true), ['sidebar.right.toggle'])).toBe(false)
 })

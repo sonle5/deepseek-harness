@@ -132,7 +132,7 @@ export class DesktopComposerView {
   #visible = false
   #crashes: number[] = []
   /** Keyboard input reaching the Composer renderer, for shell accelerators while it has focus. */
-  onInput: ((event: Electron.Event, input: Input) => void) | undefined
+  onInput: ((event: Electron.Event, input: Input, contents: WebContents) => void) | undefined
   /** Attachment or visibility changed without an IPC command (crash recovery, window close). */
   onVisibility: (() => void) | undefined
 
@@ -265,7 +265,7 @@ export class DesktopComposerView {
     view.webContents.on('will-redirect', (event) => { event.preventDefault() })
     view.webContents.on('will-attach-webview', (event) => { event.preventDefault() })
     view.webContents.on('render-process-gone', () => { if (this.#view === view) this.rendererGone() })
-    view.webContents.on('before-input-event', (event, input) => { this.onInput?.(event, input) })
+    view.webContents.on('before-input-event', (event, input) => { this.onInput?.(event, input, view.webContents) })
     view.setVisible(false)
     void view.webContents.loadURL(`${COMPOSER_ORIGIN}/`).catch(() => {
       // A failed load leaves the view blank; the next show recreates it after a renderer crash.

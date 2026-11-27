@@ -18,7 +18,7 @@ This skill defines what a deepseek-harness PR description contains, how to write
 
 The description uses three second-level headings, in this order: `## Motivation`, `## Changes`, and `## Testing`.
 
-Write fixed section headings and labels, such as **Interface changes**, **Behavior changes**, **Module responsibilities and dependencies**, **Test design**, and **Test entries**, in English. Write table headers and the rest of the description in the PR description's language, Chinese unless a human asked for another language.
+Write fixed section headings and labels, such as **Interface changes**, **Behavior changes**, **Module responsibilities and dependencies**, **Test design**, and **Test entries**, in English. Write table headers and the rest of the description in the PR description's language, English unless a human asked for another language.
 
 ### Motivation
 
@@ -47,33 +47,33 @@ Filled in from the manifests, READMEs, and call sites of #8521:
 ````markdown
 **Module responsibilities and dependencies**
 
-| 包 | 职责 | 本 PR 的变化 |
+| Package | Responsibility | Change in this PR |
 |---|---|---|
-| `dsh-deepseek-auth` | `ctx.deepseekAuth`：在 API 密钥与账号登录之间选择，把凭据绑定到所属部署，给出请求头 | 新增 |
-| `dsh-llm-deepseek-api-key`、`dsh-llm-deepseek-account` | 注册各自的 DeepSeek 模型路由 | 用 `connect()` 登记自己的部署，用 `authorize()` 取请求头 |
-| `dsh-web-deepseek-api`、`dsh-web-search-deepseek` | Search / Fetch API 与 Messages 搜索 | 改为向 `ctx.deepseekAuth` 取凭据，不再自己读账号服务和模型路由配置 |
-| `dsh-sdk-jsonrpc-server` | SDK JSON-RPC 服务 | 组合里没有 `deepseekAuth` 时自己挂载它 |
-| `dsh-credentials`、`dsh-deepseek-account` | 凭据存取、账号登录 | 不变，被 `dsh-deepseek-auth` 读取 |
+| `dsh-deepseek-auth` | `ctx.deepseekAuth`: chooses between an API key and account sign-in, binds the credential to its owning deployment, and returns request headers | Added |
+| `dsh-llm-deepseek-api-key`, `dsh-llm-deepseek-account` | Register their DeepSeek model routes | Register their deployment with `connect()` and get request headers from `authorize()` |
+| `dsh-web-deepseek-api`, `dsh-web-search-deepseek` | Search / Fetch API and Messages search | Get credentials from `ctx.deepseekAuth` instead of reading the account service and model route configuration themselves |
+| `dsh-sdk-jsonrpc-server` | SDK JSON-RPC server | Mounts `deepseekAuth` itself when the composition lacks it |
+| `dsh-credentials`, `dsh-deepseek-account` | Credential storage, account sign-in | Unchanged; read by `dsh-deepseek-auth` |
 
-依赖边：
+Dependency edges:
 
-- 新增 `dsh-deepseek-auth → dsh-credentials`、`dsh-error`、`dsh-launch-environment`、`dsh-deepseek-account`（可选）
-- 新增 `dsh-llm-deepseek-api-key → dsh-deepseek-auth`、`dsh-llm-deepseek-account → dsh-deepseek-auth`
-- 新增 `dsh-web-deepseek-api → dsh-deepseek-auth`、`dsh-web-search-deepseek → dsh-deepseek-auth`
-- 新增 `dsh-sdk-jsonrpc-server → dsh-deepseek-auth`
-- 删除 `dsh-web-deepseek-api → dsh-deepseek-account`（可选）、`dsh-web-deepseek-api → dsh-launch-environment`
-- 删除 `dsh-web-search-deepseek → dsh-llm`
-- 组合：`dsh-base`、`dsh-sdk-minimal`、`dsh-python-runtime-closure` 新增 `dsh-deepseek-auth`
-- 反向边：无。`dsh-deepseek-auth` 的运行时依赖只有第一条中的四个包，不含任何新依赖它的包；这四个包都不依赖 `dsh-deepseek-auth`
+- Added `dsh-deepseek-auth → dsh-credentials`, `dsh-error`, `dsh-launch-environment`, `dsh-deepseek-account` (optional)
+- Added `dsh-llm-deepseek-api-key → dsh-deepseek-auth`, `dsh-llm-deepseek-account → dsh-deepseek-auth`
+- Added `dsh-web-deepseek-api → dsh-deepseek-auth`, `dsh-web-search-deepseek → dsh-deepseek-auth`
+- Added `dsh-sdk-jsonrpc-server → dsh-deepseek-auth`
+- Removed `dsh-web-deepseek-api → dsh-deepseek-account` (optional), `dsh-web-deepseek-api → dsh-launch-environment`
+- Removed `dsh-web-search-deepseek → dsh-llm`
+- Composition: `dsh-base`, `dsh-sdk-minimal`, and `dsh-python-runtime-closure` add `dsh-deepseek-auth`
+- Reverse edges: none. The runtime dependencies of `dsh-deepseek-auth` are only the four packages in the first item, and none of them depends on `dsh-deepseek-auth`
 
-调用流程：
+Call flow:
 
 ```ts
 const authorization = await ctx.deepseekAuth.authorize({
   consumer: 'my-plugin', accepts: ['account', 'api-key'], billing: 'auto',
   route, destination: { path: '/v1/tools/search' },
 }, signal)
-await fetch(authorization.endpoint, { headers: authorization.headers, signal }) // 请求仍由使用方自己发
+await fetch(authorization.endpoint, { headers: authorization.headers, signal }) // the consumer still sends the request itself
 ```
 ````
 

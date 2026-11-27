@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
 
@@ -20,6 +21,7 @@ concurrency:
 
 jobs:
   publisher-isolated:
+    if: ${{ !github.event.pull_request.draft }}
     strategy:
       max-parallel: 1
       fail-fast: false
@@ -80,7 +82,7 @@ jobs:
   # serial-linux-selfhosted standby lane in ci-master.yml. Native Windows jobs
   # and their separate DSH_CI_FAILOVER_WINDOWS switch live in ci-windows.yml.
   node-24:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-8vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -147,7 +149,7 @@ jobs:
         run: pnpm run check:ci:static
 
   node-24-coverage:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -282,7 +284,7 @@ jobs:
   # A failed shard skips this job, and the skipped result fails all-checks-passed.
   node-24-coverage-report:
     needs: node-24-coverage
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-8vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -360,7 +362,7 @@ jobs:
   # full rerun. The lane compiles package declarations because oxlint's
   # type-aware rules read them.
   node-24-lint:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-8vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -427,7 +429,7 @@ jobs:
   # scripts/run-bench-suite.ts).
   node-24-bench:
     needs: node-24-build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-4vcpu-ubuntu-2404'
           || 'ubuntu-24.04' }}
@@ -537,7 +539,7 @@ jobs:
   # this job stays out of all-checks-passed.
   node-24-bench-report:
     needs: node-24-bench
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404'
           || 'ubuntu-latest' }}
@@ -582,7 +584,7 @@ jobs:
   # for the downstream consumer and web snapshot jobs, which restore it
   # instead of rebuilding.
   node-24-build:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -689,7 +691,7 @@ jobs:
 
   node-24-consumers:
     needs: node-24-build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -825,7 +827,7 @@ jobs:
 
   node-24-web-snapshot:
     needs: node-24-build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
           || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
@@ -1005,7 +1007,7 @@ jobs:
     needs: publisher-isolated
     # The need only orders runner use; an abandoned publisher leg must not skip
     # this job, while a failed one still fails the verdict.
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.publisher-isolated.result != 'failure' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.publisher-isolated.result != 'failure' }}
     # Under the selfhosted leg this job admits only repository-owned PR code
     # to the persistent shared VM; the blacksmith branch targets ephemeral
     # runners and carries none of those predicates.
@@ -1145,7 +1147,7 @@ jobs:
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
     needs: [publisher-isolated, node-24, node-24-coverage-report, node-24-lint, node-24-bench, node-24-build, node-24-consumers, node-24-web-snapshot, node-compat]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}
     permissions:
       actions: read
     steps:

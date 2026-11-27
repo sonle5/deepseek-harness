@@ -9,6 +9,7 @@ name: Release (dsh)
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [master]
   workflow_dispatch:
@@ -27,6 +28,7 @@ env:
 
 jobs:
   dependencies:
+    if: ${{ !github.event.pull_request.draft }}
     name: Dependency layout
     # Persistent runners accept only trusted, credential-free rehearsals.
     runs-on: >-
@@ -97,6 +99,7 @@ jobs:
           exit "$layout_status"
 
   pack:
+    if: ${{ !github.event.pull_request.draft }}
     name: Pack npm tarballs
     # Persistent runners accept only trusted, credential-free rehearsals.
     runs-on: >-

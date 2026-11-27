@@ -83,7 +83,7 @@ describe('Node compatibility self-hosted routing', () => {
   })
 
   it('preserves the supported version jobs and their concurrency', () => {
-    expect(job.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && needs.publisher-isolated.result != 'failure' }}")
+    expect(job.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.publisher-isolated.result != 'failure' }}")
     expect(job.strategy['fail-fast']).toBe(false)
     expect(job.strategy.matrix.include).toEqual([
       { node: '24.22.3', name: 'node 24.22.3', runner: 'ubuntu-latest', gate_concurrency: '1', build: '1' },

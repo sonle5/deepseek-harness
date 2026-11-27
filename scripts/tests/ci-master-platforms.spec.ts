@@ -37,7 +37,7 @@ function commands(job: Job): string[] {
 
 // These boolean/string cases share Actions and JavaScript semantics. GitHub
 // supplies status functions; this probe is not a general Actions interpreter.
-function evaluateCondition(expression: string, cancelled: boolean, results: string[], event = 'pull_request'): boolean {
+function evaluateCondition(expression: string, cancelled: boolean, results: string[], event = 'pull_request', draft = false): boolean {
   const source = expression.trim().replace(/^[$][{][{]|[}][}]$/g, '')
     .replaceAll('needs.*.result', 'results')
   return runInNewContext(source, {
@@ -45,7 +45,7 @@ function evaluateCondition(expression: string, cancelled: boolean, results: stri
     always: () => true,
     contains: (values: string[], value: string) => values.includes(value),
     results,
-    github: { event_name: event },
+    github: { event_name: event, event: { pull_request: { draft } } },
   }, { timeout: 1000 }) as boolean
 }
 
@@ -63,6 +63,8 @@ describe('master-only platform scheduling', () => {
       expect(evaluateCondition(condition, false, results)).toBe(true)
       expect(evaluateCondition(condition, true, results)).toBe(false)
       expect(evaluateCondition(condition, false, results, 'push')).toBe(false)
+      // A draft pull request runs no CI; the verdict waits for ready_for_review.
+      expect(evaluateCondition(condition, false, results, 'pull_request', true)).toBe(false)
       const failureStep = aggregate.steps!.find(step => step.name === 'Fail if any needed job did not succeed')!
       expect(evaluateCondition(failureStep.if!, false, results)).toBe(result !== 'success')
       expect(failureStep.run).toContain('exit 1')
@@ -78,7 +80,7 @@ describe('master-only platform scheduling', () => {
     const pr = workflow('ci-python.yml')
     expect(Object.keys(pr.on)).toEqual(['pull_request'])
     expect(pr.jobs['python-runtime']).toMatchObject({
-      if: "github.event_name == 'pull_request'",
+      if: "github.event_name == 'pull_request' && !github.event.pull_request.draft",
       uses: runtimeBuilder,
       with: { ci: true, targets: 'node24-linux-x64,node24-win-x64' },
     })
@@ -88,7 +90,7 @@ describe('master-only platform scheduling', () => {
     expect(aggregate.needs).toContain('python-runtime')
     expect(aggregate.needs).not.toContain('windows')
     expect(aggregate.needs!.every(id => id in pr.jobs)).toBe(true)
-    expect(aggregate.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' }}")
+    expect(aggregate.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}")
     expect(aggregate.steps).toContainEqual(expect.objectContaining({
       if: "contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')",
     }))

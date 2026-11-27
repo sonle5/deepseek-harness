@@ -23,7 +23,7 @@ describe('PR preview workflow', () => {
     expect(preview['runs-on']).toContain('blacksmith-4vcpu-ubuntu-2404')
     expect(preview['runs-on']).toContain("'ubuntu-24.04'")
     expect(preview['runs-on']).toContain('DSH_CI_FAILOVER_LINUX')
-    expect(workflow.on).toEqual({ pull_request: { types: ['opened', 'synchronize', 'reopened'] } })
+    expect(workflow.on).toEqual({ pull_request: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'] } })
     expect(workflow.permissions).toEqual({ contents: 'read', 'pull-requests': 'write' })
     expect(preview.steps.find(step => step.uses === 'actions/checkout@v7.0.1')?.with).toEqual({ 'persist-credentials': false, 'fetch-depth': 2 })
   })

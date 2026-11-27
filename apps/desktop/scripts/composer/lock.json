@@ -1,19 +1,32 @@
 {
-  "$comment": "Embedded Nexus Composer pin. Pins the local 3.16.7 build that embeds the schema-33 Gateway lineage; digests are the sha256 of the files produced by scripts/embedded-artifacts.mjs at commit 93b2a5007dec1886de3d31fceeb392e9211860a4. Only darwin-arm64 is published at this commit, so the other targets stay unavailable and a build for them ships without Composer.",
+  "$comment": "Embedded Nexus Composer pin. Pins the local 3.16.7 build of the onenexus-team/nexus-composer sidecar branch at commit 4bbac2b7ac3d1c5c5857b839c82ffd582097b618, published as release composer-3.16.7-4bbac2b7 in the private repo sonle5/nexus-composer-builds (the internal org repo has no 3.16.7 release). Downloads need a GITHUB_TOKEN that can read that repo. Only darwin-arm64 is published; other targets ship without Composer.",
   "release": {
-    "repository": "onenexus-team/nexus-composer",
-    "tag": "v{version}"
+    "repository": "sonle5/nexus-composer-builds",
+    "tag": "composer-{version}-4bbac2b7"
   },
   "version": "3.16.7",
-  "commit": "93b2a5007dec1886de3d31fceeb392e9211860a4",
+  "commit": "4bbac2b7ac3d1c5c5857b839c82ffd582097b618",
   "bridgeProtocol": 1,
   "schemaVersion": 33,
-  "renderer": { "sha256": "aa60170726058abbdc59254cc1e6ae0d890f13874a480d4fcea45ea30546af39" },
+  "renderer": {
+    "sha256": "c429e45974127dc2e27c91b0b53d5b2794c022bb6d9b07da9595782925f5d241"
+  },
   "targets": {
-    "darwin-arm64": { "available": true, "sha256": "43a97e530d3e82ec0e458f88a618bcb2f45146453db578f1419412f64151420a" },
-    "darwin-x64": { "available": false },
-    "win32-x64": { "available": false },
-    "win32-arm64": { "available": false },
-    "linux-x64": { "available": false }
+    "darwin-arm64": {
+      "available": true,
+      "sha256": "7f645e2cab44d377125adf920155d3b71101cbaccd03578d18486034e3afaef6"
+    },
+    "darwin-x64": {
+      "available": false
+    },
+    "win32-x64": {
+      "available": false
+    },
+    "win32-arm64": {
+      "available": false
+    },
+    "linux-x64": {
+      "available": false
+    }
   }
 }

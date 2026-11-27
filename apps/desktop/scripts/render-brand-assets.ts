@@ -12,6 +12,8 @@ const execute = promisify(execFile)
 const APP_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256] as const
 /** Composer's N monogram, the one mark both products now share. */
 const MARK_PATH = 'M24 20H37L61 48V20H72V76H59L35 48V76H24Z'
+/** Publisher line under the product name; installer art names the product and its publisher only. */
+const PUBLISHER = 'ONE NEXUS'
 
 function markArtwork(color: string, x: number, y: number, size: number): string {
   // The 96-unit box is Composer's own artwork box: the monogram fills half of
@@ -19,7 +21,15 @@ function markArtwork(color: string, x: number, y: number, size: number): string 
   return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 96 96" preserveAspectRatio="xMidYMid meet"><path d="${MARK_PATH}" fill="${color}"/></svg>`
 }
 
-function brandArtwork(width: number, height: number, dark: boolean, compact = false): Buffer {
+/**
+ * Build the SVG of the Windows installer banner or uninstaller sidebar.
+ * @param width - Canvas width in pixels.
+ * @param height - Canvas height in pixels.
+ * @param dark - Whether to use the dark palette.
+ * @param compact - Whether to stack the mark above a two-line name.
+ * @returns SVG document bytes.
+ */
+export function brandArtwork(width: number, height: number, dark: boolean, compact = false): Buffer {
   const foreground = dark ? '#f8fafc' : '#0f172a'
   const muted = dark ? '#94a3b8' : '#64748b'
   const tile = dark ? '#172033' : '#fafbfc'
@@ -39,10 +49,9 @@ function brandArtwork(width: number, height: number, dark: boolean, compact = fa
   const name = compact
     ? `<text x="${textX}" y="${nameY}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="24" font-weight="600">Nexus</text>
        <text x="${textX}" y="${nameY + 24}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600">Superharness</text>
-       <text x="${textX}" y="${nameY + 49}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="7" font-weight="600" letter-spacing="1.1">BUILT ON DEEPSEEK</text>
-       <text x="${textX}" y="${nameY + 61}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="7" font-weight="600" letter-spacing="1.1">HARNESS</text>`
+       <text x="${textX}" y="${nameY + 49}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="7" font-weight="600" letter-spacing="1.1">${PUBLISHER}</text>`
     : `<text x="${textX}" y="${nameY}" text-anchor="${textAnchor}" fill="${foreground}" font-family="Space Grotesk, Helvetica Neue, Arial, sans-serif" font-size="${Math.round(height * 0.18)}" font-weight="600" letter-spacing="-1.2">Nexus Superharness</text>
-       <text x="${textX}" y="${subtitleY}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height * 0.058)}" font-weight="600" letter-spacing="1.8">BUILT ON DEEPSEEK HARNESS</text>`
+       <text x="${textX}" y="${subtitleY}" text-anchor="${textAnchor}" fill="${muted}" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height * 0.058)}" font-weight="600" letter-spacing="1.8">${PUBLISHER}</text>`
   return Buffer.from(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="nexus-brand" x1="8" y1="10" x2="78" y2="62" gradientUnits="userSpaceOnUse"><stop stop-color="#22d3ee"/><stop offset=".55" stop-color="#0891b2"/><stop offset="1" stop-color="#0e7490"/></linearGradient></defs>
     <rect width="${width}" height="${height}" fill="${dark ? '#0f172a' : '#f8fafc'}"/>
@@ -52,7 +61,11 @@ function brandArtwork(width: number, height: number, dark: boolean, compact = fa
   </svg>`)
 }
 
-function dmgArtwork(): Buffer {
+/**
+ * Build the SVG of the 2x macOS DMG window background.
+ * @returns SVG document bytes.
+ */
+export function dmgArtwork(): Buffer {
   return Buffer.from(`<svg width="1320" height="800" viewBox="0 0 1320 800" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(1060 90) rotate(133) scale(740)">
@@ -69,7 +82,7 @@ function dmgArtwork(): Buffer {
     <text x="660" y="234" text-anchor="middle" fill="#64748b" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="2.2">MOVE THE APP INTO APPLICATIONS</text>
     <path d="M526 407H790" stroke="#0e7490" stroke-width="7" stroke-linecap="round"/>
     <path d="M758 378L797 407L758 436" fill="none" stroke="#0e7490" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="660" y="646" text-anchor="middle" fill="#94a3b8" font-family="Helvetica, Arial, sans-serif" font-size="13" letter-spacing="1.3">NEXUS SUPERHARNESS · BUILT ON DEEPSEEK HARNESS</text>
+    <text x="660" y="646" text-anchor="middle" fill="#94a3b8" font-family="Helvetica, Arial, sans-serif" font-size="13" letter-spacing="1.3">NEXUS SUPERHARNESS · ${PUBLISHER}</text>
   </svg>`)
 }
 
@@ -122,4 +135,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main()
+if (import.meta.main) await main()

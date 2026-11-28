@@ -121,7 +121,7 @@
 - button "Bad response"
 - button "Branch into a new conversation"
 - text: {{clock}}
-- textbox "Message or run a task, / commands, @ files or sessions":
+- textbox "Message or run a task":
   - paragraph:
     - button "Remove quote"
     - text: Settled reasoning source

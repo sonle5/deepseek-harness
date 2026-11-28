@@ -33,6 +33,12 @@
   cursor: default;
 }
 
+/* Full access lets the agent act outside the workspace: the chip keeps the
+   warning ink in every state, including while the composer is locked. */
+.trigger[data-risk='full-access'] {
+  color: var(--dsw-alias-state-warn-text);
+}
+
 .triggerIcon {
   display: inline-flex;
   flex: 0 0 auto;

@@ -131,3 +131,33 @@ it('routes product accents through the Nexus cyan palette with accessible contra
   expect(contrast(luminance(255, 255, 255), luminance(14, 116, 144))).toBeGreaterThanOrEqual(4.5)
   expect(contrast(luminance(34, 211, 238), luminance(21, 21, 23))).toBeGreaterThanOrEqual(4.5)
 })
+
+it('keeps warning text at AA contrast on the composer input and its hover fill', () => {
+  const css = readFileSync(new URL('../src/styles/design-platform.css', import.meta.url), 'utf8')
+  expect(css).toContain('--dsw-static-amber-700: rgb(158, 74, 10)')
+  expect(css).toContain('--dsw-alias-state-warn-text: var(--dsw-static-amber-700)')
+  expect(css).toContain('--dsw-alias-state-warn-text: var(--dsw-static-amber-400)')
+
+  type Rgb = readonly [number, number, number]
+  const channel = (value: number): number => {
+    const normalized = value / 255
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = ([red, green, blue]: Rgb): number =>
+    0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+  const contrast = (left: Rgb, right: Rgb): number =>
+    (Math.max(luminance(left), luminance(right)) + 0.05) / (Math.min(luminance(left), luminance(right)) + 0.05)
+  const over = (tint: Rgb, alpha: number, base: Rgb): Rgb => {
+    const mix = (index: 0 | 1 | 2): number => tint[index] * alpha + base[index] * (1 - alpha)
+    return [mix(0), mix(1), mix(2)]
+  }
+
+  // Light: amber-700 on the white input and under the 0.1 interactive tint.
+  const lightInput: Rgb = [255, 255, 255]
+  expect(contrast([158, 74, 10], lightInput)).toBeGreaterThanOrEqual(4.5)
+  expect(contrast([158, 74, 10], over([38, 49, 72], 0.1, lightInput))).toBeGreaterThanOrEqual(4.5)
+  // Dark: amber-400 on the raised composer input and under the 0.14 interactive tint.
+  const darkInput: Rgb = [34, 38, 44]
+  expect(contrast([247, 173, 49], darkInput)).toBeGreaterThanOrEqual(4.5)
+  expect(contrast([247, 173, 49], over([255, 255, 255], 0.14, darkInput))).toBeGreaterThanOrEqual(4.5)
+})

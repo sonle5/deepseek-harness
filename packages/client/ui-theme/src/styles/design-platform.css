@@ -6,6 +6,7 @@ body {
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-amber-500: rgb(245, 158, 11);
   --dsw-static-amber-600: rgb(221, 134, 41);
+  --dsw-static-amber-700: rgb(158, 74, 10);
   --dsw-static-amber-900: rgb(39, 36, 31);
   --dsw-static-blue-100: rgb(219, 234, 254);
   --dsw-static-blue-300: rgb(147, 197, 253);
@@ -112,6 +113,7 @@ body[data-ds-dark-theme] {
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-amber-500: rgb(245, 158, 11);
   --dsw-static-amber-600: rgb(221, 134, 41);
+  --dsw-static-amber-700: rgb(158, 74, 10);
   --dsw-static-amber-900: rgb(39, 36, 31);
   --dsw-static-blue-100: rgb(219, 234, 254);
   --dsw-static-blue-300: rgb(147, 197, 253);
@@ -322,6 +324,7 @@ body {
   --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-100);
+  --dsw-alias-state-warn-text: var(--dsw-static-amber-700);
   --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-toast-action: var(--dsw-static-nexus-400);
   --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-800);
@@ -474,6 +477,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-900);
+  --dsw-alias-state-warn-text: var(--dsw-static-amber-400);
   --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-400);
   --dsw-alias-toast-action: var(--dsw-static-nexus-400);
   --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-750);

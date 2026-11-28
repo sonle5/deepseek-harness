@@ -353,6 +353,13 @@ export const InputBar = memo(function InputBar({
     toggleCommandMenu?.(keyboard.caretSpan())
   }
 
+  // The tab strip's own controls handle their clicks; only the rest of the
+  // capsule opens the Workspace picker.
+  const onWorkspaceCardClick = (e: MouseEvent<HTMLDivElement>): void => {
+    if (e.target instanceof Element && e.target.closest('[data-composer-accessory]') !== null) return
+    onRequestWorkspace?.()
+  }
+
   // The no-session Workspace trigger: the resident editable div acts as the
   // picker trigger for keyboard users (no editor is bound in this state).
   const onWorkspaceKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -460,14 +467,14 @@ export const InputBar = memo(function InputBar({
         tabIndex={-1}
         className={clsx(css.card, workspaceTrigger && css.cardWorkspaceTrigger)}
         data-composer-card
-        onClick={workspaceTrigger ? onRequestWorkspace : undefined}
+        onClick={workspaceTrigger ? onWorkspaceCardClick : undefined}
         onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
         onMouseDown={onCardMouseDown}
       >
         {sessionId !== undefined && (
           <div className={css.overlayAnchor} data-composer-overlay>{renderSlot('conversation.input.overlay', {})}</div>
         )}
-        {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
+        {accessory !== undefined && <div className={css.accessory} data-composer-accessory>{accessory}</div>}
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,
@@ -505,7 +512,7 @@ export const InputBar = memo(function InputBar({
         />
         <div ref={rowRef} className={css.row}>
           <div className={css.tools} hidden={activity}>
-            <Tooltip label={t('input.commands')} side="top" delayMs={500} portal>
+            <Tooltip label={`${t('input.commands')}\n${t('input.triggers')}`} side="top" delayMs={500} portal>
               <button
                 type="button"
                 className={css.add}

@@ -20,7 +20,7 @@
 - text: What should we build?
 - button "Choose workspace": workspace
 - button "Standard mode"
-- textbox "Describe what you want to build, / commands, @ files or sessions":
+- textbox "Describe what you want to build":
   - paragraph
 - button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write

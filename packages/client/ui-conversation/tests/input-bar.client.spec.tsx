@@ -914,9 +914,9 @@ describe('Enter semantics', () => {
   })
 
   it('keeps the owning placeholder or ordinary guidance when whole-queue steering is unavailable', () => {
-    expect(bench({ running: true }).placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
-    expect(bench({ queue: [row('q-1')] }).placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
-    expect(bench({ running: true, queue: [row('q-1')], draft: '消息' }).placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
+    expect(bench({ running: true }).placeholder).toBe('发消息或创建任务')
+    expect(bench({ queue: [row('q-1')] }).placeholder).toBe('发消息或创建任务')
+    expect(bench({ running: true, queue: [row('q-1')], draft: '消息' }).placeholder).toBe('发消息或创建任务')
     expect(bench({
       running: true,
       queue: [row('q-1')],
@@ -928,7 +928,7 @@ describe('Enter semantics', () => {
       running: true,
       queue: [row('q-1')],
       commandMenuOpen: true,
-    }).placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
+    }).placeholder).toBe('发消息或创建任务')
     // The steer hint intentionally outranks the plan placeholder: while it
     // shows, the whole-queue gesture is genuinely available in plan mode.
     expect(bench({
@@ -1176,6 +1176,18 @@ describe('running and lock semantics', () => {
       expect(view.getByRole('tooltip').getAttribute('aria-label')).toBe(`${label} Esc Esc`)
       act(() => { stopShortcut.set([]) })
       expect(view.getByRole('tooltip').textContent).toBe(label)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('names the / and @ triggers in the add button tooltip', () => {
+    vi.useFakeTimers()
+    try {
+      const { view } = bench()
+      fireEvent.pointerEnter(view.getByLabelText('添加文件或调用指令'))
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(view.getByRole('tooltip').textContent).toBe('添加文件或调用指令\n输入 / 调用指令，@ 引用文件或对话')
     } finally {
       vi.useRealTimers()
     }
@@ -1798,7 +1810,7 @@ describe('running and lock semantics', () => {
   it('disabled state shows the unavailable placeholder; custom placeholder wins', () => {
     expect(bench({ disabled: true }).placeholder).toBe('会话不可用')
     const live = bench()
-    expect(live.placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
+    expect(live.placeholder).toBe('发消息或创建任务')
     const custom = bench({ placeholder: 'Custom placeholder' })
     expect(custom.placeholder).toBe('Custom placeholder')
   })
@@ -1845,7 +1857,7 @@ describe('running and lock semantics', () => {
     expect(entering.placeholder).toBe('描述你的任务以生成计划')
     // Pending exit: target is default again.
     const leaving = bench({ plan: { active: true, pending: true } })
-    expect(leaving.placeholder).toBe('发消息或创建任务, / 调用指令, @ 文件或对话')
+    expect(leaving.placeholder).toBe('发消息或创建任务')
     // Owner placeholder outranks the plan swap.
     const custom = bench({ plan: { active: true, pending: false }, placeholder: 'Custom placeholder' })
     expect(custom.placeholder).toBe('Custom placeholder')
@@ -2161,6 +2173,28 @@ describe('strips and variants', () => {
   it('hero variant renders the accessory row', () => {
     const { view } = bench({ variant: 'hero', accessory: <i data-testid="acc" /> })
     expect(view.getByTestId('acc')).toBeTruthy()
+  })
+
+  it('seats the accessory as a tab strip inside the card, ahead of the draft in focus order', () => {
+    const onRequestWorkspace = vi.fn()
+    const { view, textarea } = bench({
+      variant: 'hero',
+      inert: true,
+      onRequestWorkspace,
+      placeholder: '选择一个工作区开始',
+      accessory: <><button type="button">strip</button>{createPortal(<button type="button">dialog</button>, document.body)}</>,
+    })
+    const card = view.container.querySelector('[data-composer-card]') as HTMLElement
+    const strip = view.getByRole('button', { name: 'strip' })
+    expect(card.contains(strip)).toBe(true)
+    expect(strip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The strip's own controls own their clicks, as does content a strip control portals out,
+    // such as a picker dialog; the rest of the capsule still opens the picker.
+    fireEvent.click(strip)
+    fireEvent.click(view.getByRole('button', { name: 'dialog' }))
+    expect(onRequestWorkspace).not.toHaveBeenCalled()
+    fireEvent.click(card)
+    expect(onRequestWorkspace).toHaveBeenCalledTimes(1)
   })
 
   it('renders overlay, left/right, and footer slots at their layout positions', () => {

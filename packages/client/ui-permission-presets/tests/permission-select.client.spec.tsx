@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -138,6 +140,25 @@ describe('PermissionSelect', () => {
     fireEvent.click(screen.getByRole('button', { name: '启用完全权限' }))
     expect(select).toHaveBeenCalledExactlyOnceWith('danger-full-access')
     await act(async () => {})
+  })
+
+  it('flags Full access on the chip with a warning hook and an accessible risk description', () => {
+    const { selection } = setup()
+    expect(trigger().hasAttribute('data-risk')).toBe(false)
+    expect(trigger().getAttribute('aria-describedby')).toBeNull()
+
+    act(() => { selection.set({ value: { currentValue: 'danger-full-access' } }) })
+    expect(trigger().getAttribute('data-risk')).toBe('full-access')
+    expect(screen.getByRole('button', { name: /^访问模式/, description: '智能体可以在工作区之外执行操作' })).toBe(trigger())
+    expect(trigger().title).toBe('智能体可以在工作区之外执行操作')
+
+    act(() => { selection.set({ value: { currentValue: 'read-only' } }) })
+    expect(trigger().hasAttribute('data-risk')).toBe(false)
+  })
+
+  it('draws the Full access chip in the theme warning ink', () => {
+    const sheet = readFileSync(resolve(import.meta.dirname, '../src/client/PermissionSelect.module.css'), 'utf8')
+    expect(sheet).toMatch(/\.trigger\[data-risk='full-access'\] \{\s*color: var\(--dsw-alias-state-warn-text\);\s*\}/)
   })
 
   it('marks Auto experimental and uses the current-session risk copy', async () => {

@@ -1,4 +1,4 @@
-- textbox "发消息或创建任务, / 调用指令, @ 文件或对话":
+- textbox "发消息或创建任务":
   - paragraph:
     - button "移除引用"
     - text: src/extra.ts R1 请检查这项修改

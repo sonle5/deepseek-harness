@@ -1,4 +1,4 @@
-- textbox "Message or run a task, / commands, @ files or sessions"
+- textbox "Message or run a task"
 - button "Cancel"
 - status "Recording was interrupted. Please try again."
 - button "Record again"

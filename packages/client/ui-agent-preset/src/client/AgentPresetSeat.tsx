@@ -208,8 +208,8 @@ export function AgentPresetSeat({
           text={t('switchRefused', { name: presetDisplayText(toast.error.preset, t).name, reason: toast.error.reason })}
           icon={<IconWarningOutlineRegular />}
           holdMs={REFUSAL_HOLD_MS}
-          // The composer card, which is the content column this chip sits
-          // above rather than inside — hence a page query, not `closest`.
+          // The composer card, whose top tab strip hosts this chip. A page
+          // query keeps the banner anchored while the chip is not mounted.
           // Absent, the banner centers on the window, which is off-center
           // whenever the sidebar is open.
           anchor={document.querySelector<HTMLElement>('[data-composer-card]')}

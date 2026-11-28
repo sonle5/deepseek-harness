@@ -29,7 +29,7 @@
 - button "Bad response"
 - button "Branch into a new conversation"
 - text: {{clock}}
-- textbox "Message or run a task, / commands, @ files or sessions"
+- textbox "Message or run a task"
 - button "Add files or run commands"
 - 'button "Access mode, current: Read Only"': Read Only
 - button "Select model, current github-webhook-review-test/reply": github-webhook-review-test/reply

@@ -173,11 +173,13 @@ export function ConversationContent(props: ConversationContentProps) {
         // user clears it.
         ? { blocked: composerBlock, placeholder: composerBlock.reason }
         : hero ? { placeholder: t('placeholder.hero') } : {}),
+    // The workspace row is the composer's top tab strip, so it shares the
+    // card's width and corners and precedes the draft in focus order.
+    ...(hero ? { accessory: heroWorkspaceRow } : {}),
   })
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
     </div>

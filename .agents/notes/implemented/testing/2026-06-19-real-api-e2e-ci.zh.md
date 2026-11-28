@@ -12,7 +12,7 @@ Status: implemented
 
 ## 决策
 
-一个与 ci.yml 分离的专用工作流 [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml) 使用 repo secret 对外部 API 运行且仅运行 `pnpm run test:e2e`，仅在可信事件上触发，并带有一个 preflight 检查：将缺失的 secret 转化为明确的失败而非虚假的绿色。无密钥工作流保持独立，使可 fork 的质量门禁与消费 secret 的真实 API 门禁各自拥有不同的触发和凭证策略。
+一个与 ci.yml 分离的专用工作流 [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml) 使用 repo secret 对外部 API 运行且仅运行 `pnpm run test:e2e`，仅在可信事件上触发，并带有一个 preflight 检查：将缺失的 secret 转化为可见的跳过而非虚假的绿色（[无密钥跳过与可配置端点 Agent Note](2026-11-28-configurable-real-api-e2e-endpoint.zh.md)）。无密钥工作流保持独立，使可 fork 的质量门禁与消费 secret 的真实 API 门禁各自拥有不同的触发和凭证策略。
 
 ### 独立工作流，而非 ci.yml 中的一个 job
 
@@ -39,18 +39,18 @@ Dependabot 子句基于 PR **作者**（`pull_request.user.login`）而非 `gith
 
 该门禁是一个*干净跳过的便利措施*，而非 secret 的安全边界（见 § 安全性——边界是 GitHub 自身在 `pull_request` 下对 fork 的 secret 扣留机制）。没有该门禁，fork 仍然无法读取密钥；只是会遇到令人困惑的 preflight 硬失败并浪费计算资源。
 
-### Preflight：明确失败，绝不虚假报绿
+### Preflight：绝不虚假报绿
 
-由于 job 仅在 secret 应当存在的可信事件上运行，preflight 是一个无条件的存在性检查：密钥为空→`exit 1` 并附带 `::error::` 注解指明需要配置的 secret 名称。这是让自跳过套件可以安全地作为门禁的关键。没有它，被删除/重命名/错误配置的 secret 会让 `test:e2e` 跳过所有真实套件并报告全绿——整个安全网的静默退化。该守卫将「secret 缺失」从不可见的虚假通过转化为可见的失败。（其正确性已在实际中验证：secret 存在之前的运行恰好在此步骤失败。）
+没有 preflight，被删除/重命名/错误配置的 secret 会让 `test:e2e` 跳过所有真实套件并报告全绿——整个安全网的静默退化。preflight 改为跳过构建与测试步骤，并在 `::notice::` 和 step summary 中说明真实 API 测试未运行；[无密钥跳过与可配置端点 Agent Note](2026-11-28-configurable-real-api-e2e-endpoint.zh.md)记录了它取代 `exit 1` 失败的原因。
 
 ### Secret 映射与卫生
 
-repo secret 命名为 `DEEPSEEK_API_KEY_EXTERNAL`；映射到适配器和测试读取的 `DEEPSEEK_API_KEY` 环境变量（`process.env.DEEPSEEK_API_KEY`）。独立的 secret 名称记录了意图（这是*外部*公开 API 密钥，不是内部端点密钥），并允许内部端点密钥日后无冲突地共存。以下卫生选择均为防御性设计：
+repo secret 为 `DSH_E2E_API_KEY`，回退到 `DEEPSEEK_API_KEY_EXTERNAL`；在默认的 `anthropic-messages` 协议下映射到适配器和测试读取的 `DEEPSEEK_API_KEY` 环境变量（`process.env.DEEPSEEK_API_KEY`）。独立的 secret 名称记录了意图（这是*外部*公开 API 密钥，不是内部端点密钥），并允许内部端点密钥日后无冲突地共存。以下卫生选择均为防御性设计：
 
-- **步骤级 secret。** `DEEPSEEK_API_KEY` 仅在 preflight 和 e2e 步骤的 `env:` 中设置，从不在 job 级设置——因此 checkout/setup-node/install 永远看不到它。依赖中被入侵的安装时生命周期脚本无法读取不在其环境中的 secret。
+- **步骤级 secret。** 密钥仅在 e2e 测试步骤的 `env:` 中设置，从不在 job 级设置；preflight 只获知它是否存在——因此 checkout/setup-node/install 永远看不到它。依赖中被入侵的安装时生命周期脚本无法读取不在其环境中的 secret。
 - **`permissions: contents: read`。** job 仅读取仓库以运行测试；不需要写权限（无 PR 评论、无 status 写入），因此 `GITHUB_TOKEN` 降至最小权限。
-- **`DEEPSEEK_BASE_URL` 固定**为 e2e 步骤上的 `https://api.deepseek.com/anthropic`。适配器在未设置时会默认使用此值（[packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`），但显式固定具有自文档性和密封性——仓库根目录的 `.env`（如果存在，`vitest.e2e.config.ts` 会加载它）无法静默地将运行重定向到其他端点。
-- **不回显 secret。** preflight 仅打印 `DEEPSEEK_API_KEY present.`——不打印值或长度。
+- **`DEEPSEEK_BASE_URL` 固定**为 e2e 步骤上的 `DSH_E2E_BASE_URL` 仓库变量，默认 `https://api.deepseek.com/anthropic`。适配器在未设置时会默认使用此值（[packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`），但显式固定具有自文档性和密封性——仓库根目录的 `.env`（如果存在，`vitest.e2e.config.ts` 会加载它）无法静默地将运行重定向到其他端点。
+- **不回显 secret。** preflight 从不接触密钥值；其 summary 只写出端点、协议和模型。
 
 ### 范围与运行时形态
 
@@ -93,7 +93,7 @@ DeepSeek 原生 `web_search` 探测已注册但会跳过。线上 Anthropic 兼�
 
 ## 后果
 
-新增一个 CI 工作流和仓库的首个需要维护的 secret。真实 API 套件现在作为合并门禁（可信 PR 上的合并前门禁、主分支上的合并后门禁）并每夜运行，因此 agent 与外部 API 交互中的真实故障会在 CI 中浮现，而非仅在开发者的本地运行中出现——代价是每个可信 PR 和合并都会产生真实的（但内部免费的）API 调用。preflight 使 secret 配置错误变为自我通告而非静默禁用安全网。
+新增一个 CI 工作流和仓库的首个需要维护的 secret。真实 API 套件现在作为合并门禁（可信 PR 上的合并前门禁、主分支上的合并后门禁）并每夜运行，因此 agent 与外部 API 交互中的真实故障会在 CI 中浮现，而非仅在开发者的本地运行中出现——代价是每个可信 PR 和合并都会产生真实的（但内部免费的）API 调用。preflight 通过其 notice 使 secret 配置错误变为自我通告而非静默禁用安全网。
 
 该设计带有已记录的约束表面：`pull_request` 触发器在密钥暴露方面的取舍（删除它可加强防护）、`if:` 门禁对基于作者的 Dependabot 检查的依赖，以及对 `pull_request_target` 的严格禁止。上方公开仓库检查清单是操作配套——未来维护者在更改触发器集合或切换仓库可见性之前，应重新阅读本 Agent Note，而不是从头推导 fork/secret 模型。
 

@@ -63,6 +63,7 @@ jobs:
       ci: true
     secrets:
       DEEPSEEK_API_KEY_EXTERNAL: ${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}
+      DSH_E2E_API_KEY: ${{ secrets.DSH_E2E_API_KEY }}
 
   # Stable required check for the Python lanes, with the same semantics as
   # ci.yml's "all checks passed": every blocking job in THIS workflow is

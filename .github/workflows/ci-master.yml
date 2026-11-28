@@ -49,6 +49,7 @@ jobs:
       ci: true
     secrets:
       DEEPSEEK_API_KEY_EXTERNAL: ${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}
+      DSH_E2E_API_KEY: ${{ secrets.DSH_E2E_API_KEY }}
 
   # Wine runs on master or develop pushes or an explicit suite=wine dispatch, independently of native standbys.
   windows:

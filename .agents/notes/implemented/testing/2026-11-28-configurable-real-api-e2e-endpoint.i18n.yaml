@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-11-28-configurable-real-api-e2e-endpoint.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-11-28-configurable-real-api-e2e-endpoint.md
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci:
+  en: d52fed7f9d38e2f9
+  zh: c4eddd791162f125
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/problem:
+  en: 3704ce9af9031448
+  zh: a0cf93916525a5cd
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/decision:
+  en: 0afd746ead36f450
+  zh: f3bdbc90304759d1
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/decision/configuration:
+  en: 4f291af66bffe53b
+  zh: 112823395b048b93
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/decision/protocol-neutral-suites-not-a-rerouted-suite:
+  en: ee5db64ee665db14
+  zh: f9e268ee8cd44ac8
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/alternatives-considered:
+  en: 7c7f8f7208139981
+  zh: cbb6465fb45c35f5
+/agent-note-keyless-skip-and-configurable-endpoint-for-real-api-e2e-ci/consequences:
+  en: fe86118b0c6a2bed
+  zh: c40fcc6a6be0bc0a

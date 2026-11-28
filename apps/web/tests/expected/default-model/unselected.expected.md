@@ -1,3 +1,5 @@
+- button "选择工作区": workspace
+- button "标准模式"
 - textbox "描述你想要构建的内容"
 - button "添加文件或调用指令"
 - button "访问模式，当前：工作区内修改": 工作区内修改

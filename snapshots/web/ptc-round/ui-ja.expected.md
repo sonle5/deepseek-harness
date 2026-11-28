@@ -32,7 +32,7 @@
 - button "悪い回答"
 - button "新しい会話に分岐"
 - text: {{clock}}
-- textbox "メッセージを送信するかタスクを実行、/ コマンド、@ ファイルやセッション"
+- textbox "メッセージを送信するかタスクを実行"
 - button "ファイルを追加またはコマンドを実行"
 - 'button "アクセスモード、現在: ワークスペース書き込み"': ワークスペース書き込み
 - button "モデルを選択、現在 DeepSeek-V4-Flash": DeepSeek-V4-Flash

@@ -5,4 +5,6 @@ import type { Volatile } from '@deepseek-ai/cordis'
 export interface WorkspaceNavigationConfig {
   /** Recently viewed Sessions needing no attention kept loaded besides the main-view Session. */
   recentViewLimit: Volatile<number>
+  /** Sessions the sidebar's Recents section lists; zero hides the section. */
+  recentSessionLimit: Volatile<number>
 }

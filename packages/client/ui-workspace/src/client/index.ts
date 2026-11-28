@@ -48,11 +48,13 @@ import {
   type ArchiveSessionInjected, type DirectoryFlowSlotName, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
   type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState, type SessionRenameDialogInjected,
-  type WorkspaceActionRequest, type SessionIdInjected, type WorkspaceBrowserInjected, type WorkspacePickerInjected,
+  type WorkspaceActionRequest, type SessionIdInjected, type SessionSearchActionInjected, type WorkspaceBrowserInjected,
+  type WorkspacePickerInjected,
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
 import { UiWorkspaceService } from './navigation.ts'
 import { createWorkspaceViewStore } from './stores.ts'
+import { SessionSearchAction } from './rows/SessionSearchAction.tsx'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
 import { derive } from './session-actions/derived.ts'
@@ -68,7 +70,7 @@ export type { StartSessionOptions, UiWorkspace } from './navigation.ts'
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
   MenuOpenState, RowToast, SessionDragType, SessionRenameTarget, SessionRowOwnerProps, UseMenuOpenState, WorkspaceBrowserInjected,
-  SessionRowScheduleOwnerProps,
+  SessionRowScheduleOwnerProps, SessionSearchActionInjected, SessionSearchActionProps,
   WorkspaceBrowserProps,
   WorkspacePickerInjected, WorkspacePickerInput, WorkspacePickerProps,
 } from './contract/slots.ts'
@@ -369,7 +371,7 @@ export function apply(ctx: Context, config: SyncedConfig<WorkspaceNavigationConf
     closeAddWorkspace: shortcutControls.closeAdd,
     setDirectoryBusy: shortcutControls.directoryBusy,
     hooks: { workspaceActionRequest, contextMenuTarget: ctx.contextMenus.active, directoryFlow: browserFlowSource, hostInfo,
-      workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog },
+      workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog, recentSessionLimit: config.recentSessionLimit },
   })
   const pickerInjected = (directoryFlow: HostObservable<boolean>) => (): WorkspacePickerInjected => ({
     createWorkspace: input => workspaces.create(input),
@@ -393,6 +395,14 @@ export function apply(ctx: Context, config: SyncedConfig<WorkspaceNavigationConf
     },
     WorkspaceBrowser,
   ))
+  // The highest order makes search the innermost layer, so it sits directly after New Session.
+  const searchActionInjected = (): SessionSearchActionInjected => ({
+    requestSearch: shortcutControls.search,
+    hooks: { shortcuts: ctx.shortcuts.catalog },
+  })
+  ctx.slots.inject('sidebar.session.action', () => ctx.slots.register({
+    name: 'sidebar.session.action', id: 'workspace.search', order: 1000, locale: NS, inject: searchActionInjected,
+  }, SessionSearchAction))
   ctx.slots.inject('contextMenu.content', () => ctx.slots.register({
     name: 'contextMenu.content', key: 'session',
     children: { 'sidebar.workspaces.session.menu.item': {

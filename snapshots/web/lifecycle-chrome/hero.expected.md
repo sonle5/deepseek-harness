@@ -1,14 +1,13 @@
 - button "New session": Nexus Superharness
 - button "Collapse sidebar"
 - button "New session": New Session
+- button "Search sessions"
 - navigation "Global panels":
   - button "Plugins"
   - button "Automation tasks"
   - button "Unpin Automation tasks from sidebar"
   - button "More"
 - text: Workspaces
-- button "Search sessions"
-- textbox "Search session names"
 - button "View options"
 - button "Add workspace"
 - tree "Sessions":

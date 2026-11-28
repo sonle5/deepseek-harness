@@ -39,8 +39,8 @@
  */
 import type { ContextMenuTarget } from '@deepseek-ai/dsh-client-ui-context-menu/client'
 import type {
-  FactoryComponentPropsOf, HostObservable, InjectFace, PropsHooks, PropsLocale, PropsRenderFactories, PropsRenderSlots,
-  PropsRuntime, PropsStore, SlotHookFactory,
+  FactoryComponentPropsOf, HocShare, HostObservable, InjectFace, PropsHooks, PropsLocale, PropsRenderFactories, PropsRenderSlots,
+  PropsRuntime, PropsStore, SlotHookFactory, SlotMap,
 } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pull the owner SlotMap merges into programs that resolve the
 // runtime shares below.
@@ -290,9 +290,11 @@ export type WorkspaceBrowserInjected = {
      */
     hostInfo: HostObservable<RemoteHostFacts>
     workspaceShortcuts: HostObservable<WorkspaceShortcutState>
+    /** Host-synced Recents length; undefined until the browser receives the Config. */
+    recentSessionLimit: HostObservable<number | undefined>
     shortcuts: HostObservable<readonly ShortcutCatalogEntry[]>
   }
-  /** Open the browser search and focus its input. */
+  /** Open the browser search and focus its input; the fallback control uses it while New Session is absent. */
   requestSearch: () => void
   /** Request the existing directory picker. */
   requestAddWorkspace: () => void
@@ -527,6 +529,20 @@ export type RowToastProps =
   & PropsRenderSlots<'workspace.toast'>
   & Pick<RowToastInjected, 'dismissToast'>
   & PropsHooks<RowToastInjected['hooks']>
+
+/** Injected share of the search layer beside New Session. */
+export type SessionSearchActionInjected = {
+  /** Open the browser search and focus its input; on the rail, expand the sidebar first. */
+  requestSearch: () => void
+  hooks: { shortcuts: HostObservable<readonly ShortcutCatalogEntry[]> }
+}
+
+/** Props of the `sidebar.session.action` search layer: row owner share, wrapped row content, injected share, locale seat. */
+export type SessionSearchActionProps =
+  PropsRuntime<'sidebar.session.action'>
+  & HocShare<SlotMap['sidebar.session.action']>
+  & InjectFace<SessionSearchActionInjected>
+  & PropsLocale<'workspace'>
 
 /** Full browser props: shell owner share + viewing store + injected actions + the locale seat. */
 export type WorkspaceBrowserProps =

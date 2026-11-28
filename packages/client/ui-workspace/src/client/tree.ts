@@ -537,6 +537,43 @@ function workspaceLabels(workspaces: readonly WorkspaceView[]): (summary: Sessio
   return summary => workspaceBySession.get(summary.id) ?? workspaceLabel(summary.cwd)
 }
 
+/** One Recents row: a Session row plus the display label of its Workspace. */
+export interface RecentSessionNode extends SessionNode {
+  /** Workspace title, else the cwd label; empty for a Session outside every Workspace without a cwd. */
+  workspace: string
+}
+
+/**
+ * Derive the cross-Workspace Recents rows: the newest non-blank, unarchived
+ * ordinary Sessions by update time, whatever the archived filter shows.
+ * @param list - session metadata authority.
+ * @param workspaces - Workspace membership and display labels.
+ * @param rowState - registry-global pin and archive sets.
+ * @param statuses - unified UI status by Session.
+ * @param limit - maximum row count.
+ * @returns at most `limit` rows, newest first.
+ */
+export function deriveRecents(
+  list: SessionListState,
+  workspaces: readonly WorkspaceView[],
+  rowState: Pick<SessionRowState, 'pinnedSessionIds' | 'archivedSessionIds'>,
+  statuses: SessionStatuses,
+  limit: number,
+): RecentSessionNode[] {
+  const archived = new Set(rowState.archivedSessionIds)
+  const pinned = new Set(rowState.pinnedSessionIds)
+  const current = mainSessionId(list)
+  const labelOf = workspaceLabels(workspaces)
+  const visible = list.ids.filter((id) => {
+    const summary = list.byId[id]
+    return summary !== undefined && !summary.blank && sessionVisible(summary, current, archived, 'default')
+  })
+  return orderByRecency(visible, list.byId).slice(0, limit).map((id) => {
+    const summary = list.byId[id] as SessionSummary
+    return { ...sessionNode(summary, list, statuses, pinned, archived), workspace: labelOf(summary) }
+  })
+}
+
 /**
  * Search index over the Sessions sidebar search can show, newest first: title
  * and Workspace match fuzzily, the Session id as a substring. Blank placeholders

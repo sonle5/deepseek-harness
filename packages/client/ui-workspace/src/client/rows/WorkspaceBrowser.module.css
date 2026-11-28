@@ -43,7 +43,6 @@
 /* The action cluster animates its width and the search pill rounds its corners,
  * so both clip an outer ring; these controls keep theirs inside instead. */
 .iconButton:focus-visible,
-.searchButton:focus-visible,
 .clearButton:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
@@ -61,7 +60,56 @@
   min-width: 200px;
 }
 
-/* Section header: title, an inline search control, and the two trailing
+/* Recents: a 36px foldable heading over compact two-line rows, above the
+   Workspaces toolbar; the rows share the session rows' hover fill and inset. */
+.recents {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+.recentsHeading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--workspace-toolbar-height);
+  padding: 0 0 0 var(--dsh-sidebar-row-padding);
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recentsHeading:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+.recentsHeading .sectionLabel {
+  max-width: none;
+}
+
+.recentsArrow {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  transition: transform 150ms var(--ds-ease-in-out);
+}
+
+.recentsArrowOpen {
+  transform: rotate(90deg);
+}
+
+.recentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Section header: title, the expanded search field, and the trailing
    actions. Expanding search collapses the action cluster and takes its room. */
 .sectionHeader {
   flex: none;
@@ -120,7 +168,7 @@
 
 .searchSlot {
   flex: 1;
-  max-width: 28px;
+  max-width: 0;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -142,7 +190,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  max-width: 60px;
+  /* Room for three 28px controls: the fallback search, view options, and add. */
+  max-width: 92px;
   opacity: 1;
   overflow: hidden;
   visibility: visible;
@@ -162,8 +211,7 @@
   transition-delay: 0s, 0s, 0s, 180ms;
 }
 
-/* Inline search always fills the room between the title and trailing actions;
-   it grows farther right when the action cluster collapses. */
+/* The open search field fills the toolbar once the title and action cluster collapse. */
 .search {
   flex: none;
   display: flex;
@@ -187,6 +235,11 @@
     background-color 180ms var(--ds-ease-in-out);
 }
 
+/* The closed field stays mounted to keep its query; `hidden` must win over `display: flex`. */
+.search[hidden] {
+  display: none;
+}
+
 .root:not(.rail) .sectionHeader:has(.searchExpanded) {
   margin-right: 0;
   padding-inline: calc(var(--dsh-sidebar-paint-inset) + 1px);
@@ -208,34 +261,14 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.searchButton {
+.searchIcon {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: var(--dsw-radius-sm);
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  color: inherit;
-}
-
-.searchExpanded .searchButton {
-  width: 28px;
   height: 32px;
-}
-
-@media (hover: hover) {
-  .searchButton:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-  }
-
-  .searchExpanded .searchButton:hover {
-    background: transparent;
-  }
+  color: inherit;
 }
 
 .searchInput {
@@ -285,9 +318,9 @@
 }
 
 /* Rail variant (own .rail class from the wide owner prop — the region never
-   reads the shell's class names): the two icon controls stack as 36x36
-   circles matching the shell's rail rhythm. Both use the rail's shared base
-   left anchor so the outer shell can translate the whole region uniformly. */
+   reads the shell's class names): the icon controls stack as 36x36 circles
+   matching the shell's rail rhythm. They use the rail's shared base left
+   anchor so the outer shell can translate the whole region uniformly. */
 .rail .sectionHeader {
   gap: 0;
   padding-left: 0;
@@ -296,6 +329,7 @@
 }
 
 .rail .headerActions {
+  flex-direction: column;
   max-width: none;
 }
 
@@ -305,32 +339,6 @@
   /* Rail hovers share the shell rail's 12px rounding. */
   border-radius: var(--dsw-radius-md);
   color: var(--dsw-alias-label-primary);
-}
-
-.rail .search {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  margin: 0 0 12px;
-  gap: 0;
-  /* The collapsed search frame clips its button's hover, so it must carry the
-     rail's 12px rounding itself. */
-  border-radius: var(--dsw-radius-md);
-  border-color: transparent;
-  background: transparent;
-}
-
-.rail .searchButton {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-primary);
-}
-
-@media (hover: hover) {
-  .rail .searchButton:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-  }
 }
 
 /* List seat: always mounted so the shell foot never moves. */

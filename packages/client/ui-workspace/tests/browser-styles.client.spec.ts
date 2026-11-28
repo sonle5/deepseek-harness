@@ -177,7 +177,10 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(declarations('.root:not(.rail) .sectionHeader:not(:has(.searchExpanded))')?.get('margin-right')).toBe('-4px')
     expect(declarations('.searchExpanded')?.get('width')).toBe('100%')
     expect(declarations('.searchExpanded')?.get('margin-inline')).toBe('0')
-    expect(declarations('.searchExpanded .searchButton')?.get('height')).toBe('32px')
+    expect(declarations('.searchExpanded')?.get('height')).toBe('32px')
+    expect(declarations('.searchIcon')?.get('height')).toBe('32px')
+    // The closed field stays mounted for its query but takes no room.
+    expect(declarations('.search[hidden]')?.get('display')).toBe('none')
     expect(declarations('.sectionHeader .wide.sectionLabelHidden')?.get('margin-right')).toBe('0')
     expect(declarations('.list')?.get('overflow')).toBe('visible')
     expect(declarations('.listArea')?.get('min-height')).toBe('0')
@@ -190,9 +193,8 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(rowDeclarations('.sessionRow:hover .title')?.get('text-overflow')).toBe('clip')
   })
 
-  it('pins both rail controls to the shared left anchor during the column slide', () => {
+  it('pins the rail controls to the shared left anchor during the column slide', () => {
     expect(declarations('.rail .sectionHeader')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.rail .iconButton')?.get('width')).toBe('36px')
-    expect(declarations('.rail .search')?.get('width')).toBe('36px')
   })
 })

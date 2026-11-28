@@ -7,6 +7,9 @@ find apps/desktop/.desktop-build -maxdepth 8 \( -name 'Nexus Superharness.app' -
 app=$(grep -m1 'Nexus Superharness.app$' "$out/found.txt")
 dmg=$(grep -m1 '\.dmg$' "$out/found.txt")
 [ -n "$app" ] || { echo "no packaged app" > "$out/error.txt"; exit 0; }
+# The Dock resolves tiles from absolute file URLs; install the app where users keep it.
+ditto "$app" "/Applications/Nexus Superharness.app"
+app="/Applications/Nexus Superharness.app"
 proc='Nexus Superharness'
 sw_vers > "$out/sw_vers.txt"
 
@@ -29,9 +32,7 @@ defaults write com.apple.dock autohide -bool false
 killall Dock; sleep 8
 osascript -e 'tell application "Finder" to close every window' >> "$out/osascript.txt" 2>&1
 screencapture -x "$out/dock-full.png"
-read -r width height < <(sips -g pixelWidth -g pixelHeight "$out/dock-full.png" | awk '/pixel/{print $2}' | xargs)
-crop=$((height / 4))
-sips --cropToHeightWidth "$crop" "$width" --cropOffset $((height - crop)) 0 "$out/dock-full.png" --out "$out/dock.png" >> "$out/sips.txt" 2>&1
+defaults read com.apple.dock persistent-apps > "$out/dock-persistent-apps.txt" 2>&1
 
 # Finder icon view of a folder holding the app beside two system apps.
 view="$RUNNER_TEMP/Icon view"

@@ -79,18 +79,101 @@ export function latestVerdicts(reviews, reviewer) {
 }
 
 /**
- * List what still blocks enabling GitHub's auto-merge.
+ * Check runs that must conclude `success` on the head commit before the loop
+ * lets it merge. `develop` requires no status checks in its protection, so
+ * GitHub's auto-merge waits for none of them; the loop enforces these itself.
+ * Each is the verdict job of one pull-request workflow (CI, CI Windows, CI
+ * Python, Build PR preview).
+ */
+export const GATING_CHECKS = Object.freeze([
+  'all checks passed',
+  'windows checks passed',
+  'python checks passed',
+  'cloudflare pages preview',
+])
+
+/** The app whose check runs count toward the gate; any other app's run of the same name is ignored. */
+export const GATING_CHECK_APP = 'github-actions'
+
+/**
+ * Classify the gating checks on one commit.
  *
- * The loop does not merge. It asks GitHub to, and GitHub applies the branch's
- * protection: a required approval, dismissal of stale approvals on push, and
- * the required checks. Doing it that way means the approval, the reviewed
- * commit and the check results are all enforced by GitHub against the commit
- * being merged, and there is no merge call for a pull request to subvert.
+ * Only the latest run of each name counts (the highest id), so a re-run that is
+ * still in progress replaces the failure it re-runs. A gating check with no run
+ * yet is pending, never passing. So is one that concluded `skipped`: every
+ * gating job skips itself on a draft (`!github.event.pull_request.draft`), and
+ * a skip is no verdict — nothing failed, and the job runs for real once the
+ * pull request is marked ready. Counting it as failing would report four
+ * failures on every draft push, which no fix or re-run can clear.
+ * @param {readonly {id: number, name: string, status: string, conclusion: string|null, html_url: string, app: {slug: string}|null}[]} checkRuns
+ *   Check runs of the commit, in any order.
+ * @param {readonly string[]} [gating] Names that must succeed.
+ * @returns {{failing: {name: string, url: string, conclusion: string}[], pending: string[]}} Gating checks that concluded other than `success` or `skipped`, and those not yet concluded or skipped.
+ */
+export function ciGate(checkRuns, gating = GATING_CHECKS) {
+  const latest = new Map()
+  for (const run of checkRuns) {
+    if (run.app?.slug !== GATING_CHECK_APP || !gating.includes(run.name)) continue
+    if ((latest.get(run.name)?.id ?? -1) < run.id) latest.set(run.name, run)
+  }
+  const failing = []
+  const pending = []
+  for (const name of gating) {
+    const run = latest.get(name)
+    if (run === undefined || run.status !== 'completed' || run.conclusion === 'skipped') pending.push(name)
+    else if (run.conclusion !== 'success') failing.push({ name, url: run.html_url, conclusion: run.conclusion })
+  }
+  return { failing, pending }
+}
+
+/** Hidden marker that ties a failing-checks comment to the commit it reports. */
+const FAILING_CHECKS_MARKER = 'parity-loop-failing-checks'
+
+/**
+ * Build the pull-request comment that names the gating checks failing on a
+ * head commit, and the marker that finds an earlier copy of it.
+ * @param {object} input Failing checks.
+ * @param {string} input.headSha Commit the checks ran on.
+ * @param {readonly {name: string, url: string, conclusion: string}[]} input.failing Failing gating checks.
+ * @returns {{marker: string, body: string}} The marker, which the body contains, and the comment body.
+ */
+export function failingChecksComment({ headSha, failing }) {
+  const marker = `<!-- ${FAILING_CHECKS_MARKER}:${headSha} -->`
+  const lines = failing.map(check => `- [\`${check.name}\`](${check.url}): ${check.conclusion}`)
+  return {
+    marker,
+    body: `${marker}\nThe Parity loop will not merge ${headSha} while these gating checks fail on it:\n\n${lines.join('\n')}\n\nAn approval does not override them. Push a fix, or re-run a check that failed for an unrelated reason; the loop re-evaluates when the checks finish.\n`,
+  }
+}
+
+/**
+ * Choose the pull requests a finished `workflow_run` asks the loop to
+ * re-evaluate: those into the integration branch of this repository that the
+ * run was for. GitHub leaves `pull_requests` empty for a run from a fork.
+ * @param {any} event Workflow event payload.
+ * @returns {number[]} Pull-request numbers, without duplicates.
+ */
+export function workflowRunPullNumbers(event) {
+  const numbers = (event?.workflow_run?.pull_requests ?? [])
+    .filter(pull => pull.base?.ref === TARGET_BASE && pull.base?.repo?.id === event.repository?.id)
+    .map(pull => pull.number)
+  return [...new Set(numbers)]
+}
+
+/**
+ * List what still blocks letting the pull request merge.
  *
- * So the only things worth blocking on here are the ones that make auto-merge
- * meaningless: a wrong base, a closed or draft pull request, a branch GitHub
- * cannot merge, and — the important one — a branch that does not require
- * review, where enabling auto-merge lands the head without waiting for anyone.
+ * The loop enables GitHub's auto-merge, or merges a pull request GitHub already
+ * considers mergeable, and in both cases GitHub applies the branch's
+ * protection: a required approval and dismissal of stale approvals on push.
+ * That protection requires no status checks on `develop`, so the gating checks
+ * are the one condition this loop enforces itself, against the head commit it
+ * pins with `expectedHeadOid`.
+ *
+ * The other blockers are what make auto-merge meaningless: a wrong base, a
+ * closed or draft pull request, a branch GitHub cannot merge, and a branch that
+ * does not require review, where enabling auto-merge lands the head without
+ * waiting for anyone.
  * @param {object} input Pull-request state.
  * @param {string} input.base Base branch.
  * @param {boolean} input.isDraft Whether the pull request is a draft.
@@ -98,7 +181,8 @@ export function latestVerdicts(reviews, reviewer) {
  * @param {boolean|null} input.mergeable GitHub's computed mergeability (`null` while pending).
  * @param {boolean|null} input.protectedBranch Whether the base branch is protected at all, or `null` when it cannot be read.
  * @param {string|null} input.reviewDecision GitHub's review decision for the pull request, or `null` when no rule requires review.
- * @returns {string[]} Blocking reasons; empty means auto-merge may be enabled.
+ * @param {{failing: readonly {name: string}[], pending: readonly string[]}} input.gate Gating checks on the head commit, from `ciGate`.
+ * @returns {string[]} Blocking reasons; empty means the pull request may merge once GitHub's protection allows.
  */
 export function autoMergeBlockers({
   base,
@@ -107,6 +191,7 @@ export function autoMergeBlockers({
   mergeable,
   protectedBranch,
   reviewDecision,
+  gate,
 }) {
   const blockers = []
   const baseError = baseBranchError(base)
@@ -129,7 +214,30 @@ export function autoMergeBlockers({
   } else if (reviewDecision === null) {
     blockers.push(`\`${TARGET_BASE}\` is protected but requires no approving review; auto-merge would land unreviewed.`)
   }
+  const checkList = names => names.map(name => `\`${name}\``).join(', ')
+  if (gate.failing.length > 0) blockers.push(`Gating checks failed on the head commit: ${checkList(gate.failing.map(check => check.name))}.`)
+  if (gate.pending.length > 0) blockers.push(`Gating checks have not finished on the head commit: ${checkList(gate.pending)}.`)
   return blockers
+}
+
+/**
+ * Decide what to do with the pull request's auto-merge.
+ *
+ * Auto-merge stays on across pushes, and GitHub merges as soon as an approval
+ * arrives, so an auto-merge enabled for an earlier head must be turned off
+ * while the current head's gating checks fail or run. Other blockers leave it
+ * as it is: they are transient (mergeability not yet computed) or GitHub
+ * refuses the merge on its own (a draft, a conflict).
+ * @param {object} input Decision inputs.
+ * @param {readonly string[]} input.blockers Reasons from `autoMergeBlockers`.
+ * @param {{failing: readonly unknown[], pending: readonly unknown[]}} input.gate Gating checks on the head commit, from `ciGate`.
+ * @param {boolean} input.autoMergeEnabled Whether auto-merge is currently on.
+ * @returns {'enable'|'disable'|'wait'} `enable` when nothing blocks, `disable` when a gating check blocks an enabled auto-merge, otherwise `wait`.
+ */
+export function autoMergeAction({ blockers, gate, autoMergeEnabled }) {
+  if (blockers.length === 0) return 'enable'
+  if (autoMergeEnabled && (gate.failing.length > 0 || gate.pending.length > 0)) return 'disable'
+  return 'wait'
 }
 
 /** Labels whose pull requests must show evidence from a packaged build. */

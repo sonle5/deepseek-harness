@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  autoMergeAction,
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
   autoMergeNotNeeded,
   baseBranchError,
+  ciGate,
   CLOSE_WINDOW_MS,
   EVIDENCE_HEADING,
+  failingChecksComment,
+  GATING_CHECKS,
   issuesToClose,
   latestVerdicts,
   LOOP_MERGER,
@@ -16,6 +20,7 @@ import {
   reviewerFor,
   REVIEWERS,
   TARGET_BASE,
+  workflowRunPullNumbers,
 } from './policy.mjs'
 import { readFileSync } from 'node:fs'
 
@@ -26,6 +31,7 @@ const clean = {
   mergeable: true,
   protectedBranch: true,
   reviewDecision: 'REVIEW_REQUIRED',
+  gate: { failing: [], pending: [] },
 }
 
 test('develop is the only pull-request base', () => {
@@ -203,6 +209,110 @@ test('a pull request that can merge now is told apart from a real failure', () =
   assert.equal(autoMergeNotNeeded(
     new Error('GraphQL: Pull request AutoMerge is already enabled (enablePullRequestAutoMerge)'),
   ), false)
+})
+
+const HEAD = 'c4086e28aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+let runId = 0
+const run = (name, status, conclusion, slug = 'github-actions') => ({
+  id: ++runId,
+  name,
+  status,
+  conclusion,
+  html_url: `https://github.test/runs/${runId}`,
+  app: { slug },
+})
+const allPassed = () => GATING_CHECKS.map(name => run(name, 'completed', 'success'))
+
+test('every gating check must succeed on the head commit', () => {
+  assert.deepEqual(ciGate(allPassed()), { failing: [], pending: [] })
+  assert.deepEqual(ciGate([]), { failing: [], pending: [...GATING_CHECKS] })
+  const runs = allPassed()
+  runs[1] = run(GATING_CHECKS[1], 'completed', 'cancelled')
+  runs[2] = run(GATING_CHECKS[2], 'in_progress', null)
+  const gate = ciGate(runs)
+  assert.deepEqual(gate.failing.map(check => [check.name, check.conclusion]), [[GATING_CHECKS[1], 'cancelled']])
+  assert.deepEqual(gate.pending, [GATING_CHECKS[2]])
+})
+
+test('the latest run of a gating check replaces the one it re-runs', () => {
+  const failed = run(GATING_CHECKS[0], 'completed', 'failure')
+  const rerun = run(GATING_CHECKS[0], 'in_progress', null)
+  const rest = allPassed().slice(1)
+  assert.deepEqual(ciGate([rerun, failed, ...rest]), { failing: [], pending: [GATING_CHECKS[0]] })
+  const passed = run(GATING_CHECKS[0], 'completed', 'success')
+  assert.deepEqual(ciGate([passed, failed, ...rest]), { failing: [], pending: [] })
+})
+
+test('a same-named check from another app does not count', () => {
+  const runs = [run(GATING_CHECKS[0], 'completed', 'success', 'some-other-app'), ...allPassed().slice(1)]
+  assert.deepEqual(ciGate(runs).pending, [GATING_CHECKS[0]])
+})
+
+test('gating checks a draft skipped are pending, never failing, so a draft gets no failing-checks comment', () => {
+  // Replay of draft #52 at 7570d5cafd: all four gating jobs skip on a draft.
+  const gate = ciGate(GATING_CHECKS.map(name => run(name, 'completed', 'skipped')))
+  assert.deepEqual(gate, { failing: [], pending: [...GATING_CHECKS] })
+  const blockers = autoMergeBlockers({ ...clean, isDraft: true, reviewDecision: 'APPROVED', gate })
+  assert.ok(blockers.includes('Pull request is a draft.'))
+  assert.equal(blockers.some(reason => reason.startsWith('Gating checks failed')), false)
+  // An auto-merge left on from before the pull request went back to draft is still turned off.
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  // Once marked ready the jobs run for real, and their run replaces the skip.
+  const ready = ciGate([...GATING_CHECKS.map(name => run(name, 'completed', 'skipped')), ...allPassed()])
+  assert.deepEqual(ready, { failing: [], pending: [] })
+})
+
+test('the issue sweep runs after the loop, so it sees a merge the loop made directly', () => {
+  const workflow = readFileSync(new URL('../workflows/parity-loop.yml', import.meta.url), 'utf8')
+  const job = workflow.slice(workflow.indexOf('\n  close-issues:\n'))
+  assert.match(job, /\n    needs: loop\n/u)
+  // Without a status function, a failed or skipped `loop` would skip the sweep.
+  assert.match(job, /\n    if: \$\{\{ !cancelled\(\) \}\}\n/u)
+})
+
+test('an approval with failing checks on the head does not merge, and the comment names them', () => {
+  // Replay of #26: approved, auto-merge on, `all checks passed` red on the head.
+  const runs = [run(GATING_CHECKS[0], 'completed', 'failure'), ...allPassed().slice(1)]
+  const gate = ciGate(runs)
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED', gate })
+  assert.deepEqual(blockers, [`Gating checks failed on the head commit: \`${GATING_CHECKS[0]}\`.`])
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  const { marker, body } = failingChecksComment({ headSha: HEAD, failing: gate.failing })
+  assert.ok(body.startsWith(marker))
+  assert.ok(marker.includes(HEAD))
+  assert.ok(body.includes(`[\`${GATING_CHECKS[0]}\`](${gate.failing[0].url}): failure`))
+})
+
+test('pending gating checks block auto-merge and turn an enabled one off', () => {
+  const gate = ciGate(allPassed().slice(1))
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED', gate })
+  assert.deepEqual(blockers, [`Gating checks have not finished on the head commit: \`${GATING_CHECKS[0]}\`.`])
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: false }), 'wait')
+})
+
+test('a blocker other than the gating checks leaves auto-merge as it is', () => {
+  const gate = { failing: [], pending: [] }
+  const blockers = autoMergeBlockers({ ...clean, mergeable: null, gate })
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'wait')
+  assert.equal(autoMergeAction({ blockers: [], gate, autoMergeEnabled: false }), 'enable')
+})
+
+test('a finished workflow re-evaluates only this repository’s pull requests into develop', () => {
+  const pull = (number, ref = TARGET_BASE, id = 7) => ({ number, base: { ref, repo: { id } } })
+  const event = {
+    repository: { id: 7 },
+    workflow_run: { pull_requests: [pull(3), pull(3), pull(4, 'master'), pull(5, TARGET_BASE, 8), pull(6)] },
+  }
+  assert.deepEqual(workflowRunPullNumbers(event), [3, 6])
+  assert.deepEqual(workflowRunPullNumbers({ repository: { id: 7 }, workflow_run: { pull_requests: [] } }), [])
+  assert.deepEqual(workflowRunPullNumbers({}), [])
+})
+
+test('the review checklist forbids approving while a gating check is red or pending', () => {
+  const checklist = readFileSync(new URL('../PARITY-REVIEW.md', import.meta.url), 'utf8')
+  for (const name of GATING_CHECKS) assert.ok(checklist.includes(`\`${name}\``), name)
+  assert.match(checklist, /Do not approve while any gating check on the head commit is failing or pending/u)
 })
 
 const evidenceBody = section => `## Motivation\n\nFixes #33\n\n## Testing\n\n![unit](https://example.test/unit.png)\n\n${EVIDENCE_HEADING}\n\n${section}\n`

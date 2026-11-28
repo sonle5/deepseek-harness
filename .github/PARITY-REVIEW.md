@@ -6,9 +6,9 @@ carries enough context that the fixing agent needs nothing beyond the Issue body
 This file is the operating procedure. The label rules below are enforced by
 [`issue-policy.yml`](workflows/issue-policy.yml) and
 [`issue-lifecycle.yml`](workflows/issue-lifecycle.yml); the review and merge
-rules are enforced by `develop`'s branch protection, which the
-[Parity loop](workflows/parity-loop.yml) workflow relies on rather than
-re-implements.
+rules are enforced by `develop`'s branch protection and by the
+[Parity loop](workflows/parity-loop.yml) workflow, which requires the gating
+checks that the protection does not.
 
 Two things this procedure asks of a reviewer that no workflow can check: whether
 an Issue records the surface, the current behaviour and the reference behaviour
@@ -120,6 +120,14 @@ reading the bundle. Evidence for them comes from a
 
 ## Reviewing a PR
 
+Do not approve while any gating check on the head commit is failing or pending.
+The gating checks are `all checks passed`, `windows checks passed`,
+`python checks passed` and `cloudflare pages preview`; the last runs the
+aggregate type check, so "tests pass" includes it. When one is red, submit
+**Request changes** that names the check and links its log; when one is still
+running, wait for it or leave a comment. This applies to every PR, not only the
+desktop and client PRs below.
+
 The routed reviewer agent checks a PR that carries `area/desktop` or
 `area/client`, or says `Fixes` a `parity` Issue, against this list before
 anything else; other PRs skip it. When any item fails, submit
@@ -156,26 +164,27 @@ warning.
 
 ## Merging
 
-No workflow merges on its own. `develop` is protected: it requires one approving
+No merge skips review or CI. `develop` is protected: it requires one approving
 review from someone other than the author, dismisses stale approvals when the
 branch moves, requires an approval of the last push, and requires every review
 conversation to be resolved. The Parity loop asks GitHub to auto-merge the pull
 request, and GitHub applies those rules to the commit it is about to merge — so an
 approval cannot carry over to a commit it did not see.
 
-GitHub enables auto-merge only while a requirement is still pending. When the loop
-runs on a pull request that can already merge, GitHub refuses auto-merge and the
-run posts a notice; merge that pull request by hand. Because `develop` requires no
-status checks (below), every approved pull request reaches this state, so an
-approved pull request without auto-merge is waiting for a hand merge.
+`develop` requires no status checks, so the Parity loop enforces the gating
+checks itself. It enables auto-merge, pinned to the head commit, only after every
+gating check has concluded `success` on that commit, and it turns an enabled
+auto-merge off while any of them fails or runs on the current head. It comments
+once per head commit naming the checks that failed. It re-evaluates when one of
+the CI workflows or a review finishes.
+
+GitHub enables auto-merge only while a requirement is still pending. When the
+gating checks have passed and the pull request can already merge, the loop
+merges it, pinned to the head it checked, instead.
 
 Squash every merge, by hand or automatic, to one commit per Issue so `develop`
 reads as a list of gaps closed. The first release after a merge is what the next
 review measures.
-
-`develop` currently has no required status checks: the fork's CI workflows still
-reference upstream organisation secrets and do not run here. Protection enforces
-review, not CI, until those workflows can run.
 
 ## Scope
 

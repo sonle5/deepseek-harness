@@ -1188,6 +1188,13 @@ export function WorkspaceBrowser({
   const focusSearch = useCallback(() => {
     searchInput.current?.focus({ preventScroll: true })
   }, [])
+  // Hiding the focused field would drop focus to the document body, so a
+  // keyboard dismissal hands it back to the search control first.
+  const dismissSearch = (): void => {
+    setQuery('')
+    searchInput.current?.ownerDocument.querySelector<HTMLElement>('[data-session-search-trigger]')?.focus({ preventScroll: true })
+    changeSearchExpanded(false)
+  }
   // Section-header ＋ opens the picker menu (same popover in wide and rail
   // states; the menu anchors on this button).
   const wsPickerOpen = shortcutState.addRequested
@@ -1350,8 +1357,7 @@ export function WorkspaceBrowser({
                 onChange={(e) => { setQuery(sanitizeSearchQuery(e.target.value)) }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Escape') return
-                  setQuery('')
-                  changeSearchExpanded(false)
+                  dismissSearch()
                 }}
               />
               <button
@@ -1360,8 +1366,7 @@ export function WorkspaceBrowser({
                 aria-label={t('search.clear')}
                 onClick={(e) => {
                   e.stopPropagation()
-                  setQuery('')
-                  changeSearchExpanded(false)
+                  dismissSearch()
                 }}
               >
                 <IconCloseFillRegular />

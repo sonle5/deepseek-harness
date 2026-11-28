@@ -60,7 +60,7 @@
   min-width: 200px;
 }
 
-/* Recents: a 36px foldable heading over compact two-line rows, above the
+/* Recents: a 36px foldable heading over single-line rows, above the
    Workspaces toolbar; the rows share the session rows' hover fill and inset. */
 .recents {
   flex: none;

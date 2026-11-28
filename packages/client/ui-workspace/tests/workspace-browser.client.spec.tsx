@@ -2196,6 +2196,28 @@ describe('WorkspaceBrowser', () => {
     else expect(expandSidebar).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    { carrier: 'New session row', dismissal: 'escape' },
+    { carrier: 'New session row', dismissal: 'clear' },
+    { carrier: 'toolbar', dismissal: 'escape' },
+    { carrier: 'toolbar', dismissal: 'clear' },
+  ] as const)('returns focus to the $carrier search control on $dismissal', ({ carrier, dismissal }) => {
+    if (carrier === 'toolbar') {
+      // Without the permission the sidebar renders neither New session nor its search layer.
+      const b = mount({ useRemoteAccess: (action: string) => action !== 'session/create' })
+      cleanup()
+      render(<WorkspaceBrowser {...b.props} />)
+    } else mount()
+    const trigger = screen.getByRole('button', { name: '搜索会话' })
+    fireEvent.click(trigger)
+    const input = screen.getByPlaceholderText('搜索会话名称')
+    expect(document.activeElement).toBe(input)
+    if (dismissal === 'escape') fireEvent.keyDown(input, { key: 'Escape' })
+    else fireEvent.click(screen.getByRole('button', { name: '清除搜索' }))
+    expect(searchOpen()).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it('shows no toolbar search control while New session carries it', () => {
     mount()
     expect(screen.getAllByRole('button', { name: '搜索会话' })).toHaveLength(1)

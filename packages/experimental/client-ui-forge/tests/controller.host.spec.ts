@@ -369,15 +369,14 @@ describe('forgePanel.follow', () => {
     const linked = join(repo, '.agents', 'worktrees', 'feat')
     await git(repo, 'worktree', 'add', '-b', 'feat', linked)
     const opened = await open(repo)
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers()
-    opened.sandbox.gate = () => gate.promise
+    const inspection = hold(opened.sandbox, 'rev-parse')
     const follower = reader(opened)
     await follower.until(state => state.checkout.state === 'pending')
-    await vi.waitFor(() => { expect(opened.sandbox.calls).toHaveLength(1) })
+    await inspection.reached
+    expect(opened.sandbox.calls).toHaveLength(1)
 
     await opened.ctx.workingDirectory.set(opened.agent, linked)
-    opened.sandbox.gate = undefined
-    gate.resolve()
+    inspection.release()
     const moved = await follower.until(state => state.checkout.state === 'ready')
 
     expect(moved.directory).toBe(linked)
@@ -468,16 +467,15 @@ describe('forgePanel.follow', () => {
   it('skips a queued inspection once the last follower has left', async () => {
     const { repo } = await project()
     const opened = await open(repo)
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers()
-    opened.sandbox.gate = () => gate.promise
+    const inspection = hold(opened.sandbox, 'rev-parse')
     const follower = reader(opened)
     await follower.until(state => state.checkout.state === 'pending')
-    await vi.waitFor(() => { expect(opened.sandbox.calls).toHaveLength(1) })
+    await inspection.reached
+    expect(opened.sandbox.calls).toHaveLength(1)
     shellTurn(opened.session, 1, [{ callId: 'list', command: 'ls', output: '' }])
 
     await follower.stop()
-    opened.sandbox.gate = undefined
-    gate.resolve()
+    inspection.release()
     await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(opened.sandbox.calls).toHaveLength(1)

@@ -42,9 +42,11 @@ name: Parity loop
 # the linked issue gets a `referenced` event and stays open. A merge made with
 # `GITHUB_TOKEN` also starts no workflow, so `pull_request: closed` never fires
 # for it. The `close-issues` job therefore sweeps recent loop merges instead.
-# It runs when the approval that releases an auto-merge is recorded (a
-# `workflow_run` of `weighted-approval-review-event`, which a reviewer's own
-# review starts), on every loop run, and on demand.
+# It runs on every run of this workflow, after `loop` in the same run — so it
+# also sees a merge `loop` just made itself — including when the approval that
+# releases an auto-merge is recorded (a `workflow_run` of
+# `weighted-approval-review-event`, which a reviewer's own review starts), and
+# on demand.
 on:
   pull_request_target:
     types:
@@ -92,6 +94,13 @@ jobs:
 
   close-issues:
     name: Close issues fixed by loop merges
+    # After the loop, so the sweep sees a merge the loop just made directly: a
+    # gating check finishing after the approval lands the merge in `loop`, and a
+    # `GITHUB_TOKEN` merge starts no workflow that would sweep again. Runs
+    # whether `loop` succeeded, failed or was skipped (a closed pull request,
+    # `workflow_dispatch`).
+    needs: loop
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

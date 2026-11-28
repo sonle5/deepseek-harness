@@ -248,6 +248,28 @@ test('a same-named check from another app does not count', () => {
   assert.deepEqual(ciGate(runs).pending, [GATING_CHECKS[0]])
 })
 
+test('gating checks a draft skipped are pending, never failing, so a draft gets no failing-checks comment', () => {
+  // Replay of draft #52 at 7570d5cafd: all four gating jobs skip on a draft.
+  const gate = ciGate(GATING_CHECKS.map(name => run(name, 'completed', 'skipped')))
+  assert.deepEqual(gate, { failing: [], pending: [...GATING_CHECKS] })
+  const blockers = autoMergeBlockers({ ...clean, isDraft: true, reviewDecision: 'APPROVED', gate })
+  assert.ok(blockers.includes('Pull request is a draft.'))
+  assert.equal(blockers.some(reason => reason.startsWith('Gating checks failed')), false)
+  // An auto-merge left on from before the pull request went back to draft is still turned off.
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  // Once marked ready the jobs run for real, and their run replaces the skip.
+  const ready = ciGate([...GATING_CHECKS.map(name => run(name, 'completed', 'skipped')), ...allPassed()])
+  assert.deepEqual(ready, { failing: [], pending: [] })
+})
+
+test('the issue sweep runs after the loop, so it sees a merge the loop made directly', () => {
+  const workflow = readFileSync(new URL('../workflows/parity-loop.yml', import.meta.url), 'utf8')
+  const job = workflow.slice(workflow.indexOf('\n  close-issues:\n'))
+  assert.match(job, /\n    needs: loop\n/u)
+  // Without a status function, a failed or skipped `loop` would skip the sweep.
+  assert.match(job, /\n    if: \$\{\{ !cancelled\(\) \}\}\n/u)
+})
+
 test('an approval with failing checks on the head does not merge, and the comment names them', () => {
   // Replay of #26: approved, auto-merge on, `all checks passed` red on the head.
   const runs = [run(GATING_CHECKS[0], 'completed', 'failure'), ...allPassed().slice(1)]

@@ -100,11 +100,15 @@ export const GATING_CHECK_APP = 'github-actions'
  *
  * Only the latest run of each name counts (the highest id), so a re-run that is
  * still in progress replaces the failure it re-runs. A gating check with no run
- * yet is pending, never passing.
+ * yet is pending, never passing. So is one that concluded `skipped`: every
+ * gating job skips itself on a draft (`!github.event.pull_request.draft`), and
+ * a skip is no verdict — nothing failed, and the job runs for real once the
+ * pull request is marked ready. Counting it as failing would report four
+ * failures on every draft push, which no fix or re-run can clear.
  * @param {readonly {id: number, name: string, status: string, conclusion: string|null, html_url: string, app: {slug: string}|null}[]} checkRuns
  *   Check runs of the commit, in any order.
  * @param {readonly string[]} [gating] Names that must succeed.
- * @returns {{failing: {name: string, url: string, conclusion: string}[], pending: string[]}} Gating checks that concluded other than `success`, and those not yet concluded.
+ * @returns {{failing: {name: string, url: string, conclusion: string}[], pending: string[]}} Gating checks that concluded other than `success` or `skipped`, and those not yet concluded or skipped.
  */
 export function ciGate(checkRuns, gating = GATING_CHECKS) {
   const latest = new Map()
@@ -116,7 +120,7 @@ export function ciGate(checkRuns, gating = GATING_CHECKS) {
   const pending = []
   for (const name of gating) {
     const run = latest.get(name)
-    if (run === undefined || run.status !== 'completed') pending.push(name)
+    if (run === undefined || run.status !== 'completed' || run.conclusion === 'skipped') pending.push(name)
     else if (run.conclusion !== 'success') failing.push({ name, url: run.html_url, conclusion: run.conclusion })
   }
   return { failing, pending }

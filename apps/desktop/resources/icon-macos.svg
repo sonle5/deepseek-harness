@@ -1,6 +1,6 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="tile" x1="64" y1="64" x2="960" y2="960" gradientUnits="userSpaceOnUse">
+    <linearGradient id="tile" x1="100" y1="100" x2="924" y2="924" gradientUnits="userSpaceOnUse">
       <stop stop-color="#101C2B"/>
       <stop offset="1" stop-color="#07111D"/>
     </linearGradient>
@@ -9,14 +9,14 @@
       <stop offset=".55" stop-color="#0891B2"/>
       <stop offset="1" stop-color="#0E7490"/>
     </linearGradient>
-    <filter id="tile-shadow" x="32" y="42" width="960" height="972" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="24" stdDeviation="32" flood-color="#07111D" flood-opacity=".24"/>
+    <filter id="tile-shadow" x="40" y="40" width="944" height="964" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#07111D" flood-opacity=".24"/>
     </filter>
   </defs>
   <g filter="url(#tile-shadow)">
-    <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#tile)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
   </g>
-  <g transform="scale(10.6666666667)">
+  <g transform="translate(41.1428571429 41.1428571429) scale(9.8095238095)">
     <path d="M24 20H37L61 48V20H72V76H59L35 48V76H24Z" fill="url(#brand)"/>
   </g>
 </svg>

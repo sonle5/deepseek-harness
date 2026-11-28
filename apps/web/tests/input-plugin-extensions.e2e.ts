@@ -107,7 +107,7 @@ it('shows shortcuts, a Plan outline, and Session review steps before restoring t
   await plugins.getByRole('switch', { name: 'Enable @fixture/composer-review-session', exact: true, checked: true }).click()
   await input.waitFor()
   await plugins.getByRole('switch', { name: 'Enable @fixture/composer-shortcuts', exact: true, checked: true }).click()
-  const homePrompt = 'Describe what you want to build, / commands, @ files or sessions'
+  const homePrompt = 'Describe what you want to build'
   await page.getByRole('textbox', { name: homePrompt, exact: true }).waitFor()
   expect(await placeholder.innerText()).toBe(homePrompt)
   expect(await placeholder.locator('kbd').count()).toBe(0)

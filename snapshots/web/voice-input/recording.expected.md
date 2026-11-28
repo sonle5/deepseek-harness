@@ -1,4 +1,6 @@
-- textbox "Describe what you want to build, / commands, @ files or sessions":
+- button "Choose workspace": workspace
+- button "Standard mode"
+- textbox "Describe what you want to build":
   - paragraph: Use the bash tool to
 - button "Cancel"
 - img "Recording…"

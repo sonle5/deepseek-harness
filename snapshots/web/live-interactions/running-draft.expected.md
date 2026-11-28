@@ -16,7 +16,7 @@
 - paragraph: partial
 - status: Deep diving
 - text: Deep diving for {{duration}} ···
-- textbox "Message or run a task, / commands, @ files or sessions":
+- textbox "Message or run a task":
   - paragraph: Queue this follow-up while the current turn is running.
 - button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write

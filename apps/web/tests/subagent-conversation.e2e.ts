@@ -776,7 +776,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       expect(await page.getByRole('button', { name: /^Task message received/ }).count()).toBe(0)
       releaseCatalog()
       await page.getByRole('button', { name: `Switch subagent: ${LABEL}` }).waitFor({ timeout: 15_000 })
-      const input = page.getByRole('textbox', { name: 'Message or run a task, / commands, @ files or sessions' })
+      const input = page.getByRole('textbox', { name: 'Message or run a task' })
       await input.waitFor({ timeout: 15_000 })
       await expect.poll(() => input.isEnabled(), { timeout: 15_000 }).toBe(true)
       acknowledgeReloadConnectionLoss(tripwire, warningStart)
@@ -800,7 +800,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
         resolveEnded()
       })
     })
-    const input = page.getByRole('textbox', { name: 'Message or run a task, / commands, @ files or sessions' })
+    const input = page.getByRole('textbox', { name: 'Message or run a task' })
     await input.fill(FOLLOWUP)
     await input.press('Enter')
     await expect.poll(
@@ -859,7 +859,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     await page.getByText(NESTED_PROMPT).waitFor()
     // The docked panel stays beside the grandchild's conversation; the snapshot below is of the conversation alone.
     await dismissSessionPanel(page)
-    expect(await page.getByRole('textbox', { name: 'Message or run a task, / commands, @ files or sessions' }).isEnabled()).toBe(true)
+    expect(await page.getByRole('textbox', { name: 'Message or run a task' }).isEnabled()).toBe(true)
     const hierarchy = page.getByRole('navigation', { name: 'Session hierarchy' })
     const crumbs = await hierarchy.getByRole('button').allTextContents()
     expect(crumbs.slice(-2)).toEqual([LABEL, NESTED_LABEL])
@@ -890,7 +890,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       .click()
     await (await showSubagentsSection(page)).getByRole('treeitem', { name: new RegExp(LABEL) })
       .getByText(LABEL, { exact: true }).click()
-    await page.getByRole('textbox', { name: 'Message or run a task, / commands, @ files or sessions' }).waitFor()
+    await page.getByRole('textbox', { name: 'Message or run a task' }).waitFor()
     const forkResponse = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/session/fork')
     await page.getByRole('button', { name: 'Branch into a new conversation' }).last().click()

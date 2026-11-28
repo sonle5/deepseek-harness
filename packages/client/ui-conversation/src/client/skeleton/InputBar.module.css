@@ -111,11 +111,16 @@
   }
 }
 
+/* Tab strip on the card's top edge (the hero's workspace row): it shares the
+   card's width and corners, and a hairline seats it above the draft. */
 .accessory {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px 0;
+  min-width: 0;
+  margin-top: -4px;
+  padding: 0 8px 4px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 /* Floating overlay anchor (menu / popupSelect shell): entries position

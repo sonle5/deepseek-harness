@@ -42,6 +42,7 @@ export const en = {
 export const accessZh = {
   'mode': '访问模式，当前：{name}',
   'close': '关闭',
+  'fullAccess.description': '智能体可以在工作区之外执行操作',
   'preset.readOnly': '仅可查看',
   'preset.workspaceWrite': '工作区内修改',
   'preset.fullAccess': '完全权限',
@@ -66,6 +67,7 @@ export type PermissionAccessKey = keyof typeof accessZh
 export const accessEn = {
   'mode': 'Access mode, current: {name}',
   'close': 'Close',
+  'fullAccess.description': 'The agent can act outside the workspace',
   'preset.readOnly': 'Read Only',
   'preset.workspaceWrite': 'Workspace Write',
   'preset.fullAccess': 'Full access',
@@ -183,6 +185,7 @@ export const pt = {
 export const accessJa = {
   'mode': 'アクセスモード、現在: {name}',
   'close': '閉じる',
+  'fullAccess.description': 'エージェントはワークスペースの外でも操作できます',
   'preset.readOnly': '読み取り専用',
   'preset.workspaceWrite': 'ワークスペース書き込み',
   'preset.fullAccess': 'フルアクセス',
@@ -204,6 +207,7 @@ export const accessJa = {
 export const accessEs = {
   'mode': 'Modo de acceso, actual: {name}',
   'close': 'Cerrar',
+  'fullAccess.description': 'El agente puede actuar fuera del espacio de trabajo',
   'preset.readOnly': 'Sólo lectura',
   'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
   'preset.fullAccess': 'Acceso completo',
@@ -225,6 +229,7 @@ export const accessEs = {
 export const accessFr = {
   'mode': "Mode d'accès, actuel : {name}",
   'close': 'Fermer',
+  'fullAccess.description': "L'agent peut agir en dehors de l'espace de travail",
   'preset.readOnly': 'Lecture seule',
   'preset.workspaceWrite': "Écriture dans l'espace de travail",
   'preset.fullAccess': 'Accès complet',
@@ -246,6 +251,7 @@ export const accessFr = {
 export const accessDe = {
   'mode': 'Zugriffsmodus, aktuell: {name}',
   'close': 'Schließen',
+  'fullAccess.description': 'Der Agent kann außerhalb des Arbeitsbereichs handeln',
   'preset.readOnly': 'Nur lesen',
   'preset.workspaceWrite': 'Arbeitsbereich schreiben',
   'preset.fullAccess': 'Voller Zugriff',
@@ -267,6 +273,7 @@ export const accessDe = {
 export const accessRu = {
   'mode': 'Режим доступа, текущий: {name}',
   'close': 'Закрыть',
+  'fullAccess.description': 'Агент может действовать за пределами рабочей области',
   'preset.readOnly': 'Только чтение',
   'preset.workspaceWrite': 'Запись в рабочей области',
   'preset.fullAccess': 'Полный доступ',
@@ -288,6 +295,7 @@ export const accessRu = {
 export const accessPt = {
   'mode': 'Modo de acesso, atual: {name}',
   'close': 'Fechar',
+  'fullAccess.description': 'O agente pode agir fora do espaço de trabalho',
   'preset.readOnly': 'Somente leitura',
   'preset.workspaceWrite': 'Gravação no espaço de trabalho',
   'preset.fullAccess': 'Acesso total',

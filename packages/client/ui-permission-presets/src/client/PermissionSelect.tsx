@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import {
@@ -85,6 +85,7 @@ export function PermissionSelect({
   const [open, setOpen] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
   const [acknowledged, setAcknowledged] = useState(false)
+  const riskId = useId()
 
   useEffect(() => {
     if (!locked && selection !== undefined && catalog !== null
@@ -103,6 +104,7 @@ export function PermissionSelect({
     ? permissionLabel(currentValue, currentValue, t)
     : permissionLabel(current.value, current.name, t)
   const busy = pick !== null || confirmation !== null
+  const fullAccess = currentValue === FULL_ACCESS
 
   const items: MenuEntry[] = catalog.options.map((option) => {
     const icon = permissionGlyph(option.value, 'menu')
@@ -177,8 +179,11 @@ export function PermissionSelect({
           <button
             type="button"
             className={css.trigger}
+            data-risk={fullAccess ? 'full-access' : undefined}
             aria-label={t('mode', { name: currentLabel })}
-            title={current === undefined ? undefined : optionDescription(current, t)}
+            aria-describedby={fullAccess ? riskId : undefined}
+            title={(current === undefined ? undefined : optionDescription(current, t))
+              ?? (fullAccess ? t('fullAccess.description') : undefined)}
             disabled={locked || busy}
             onClick={() => { setOpen(!open) }}
           >
@@ -192,6 +197,7 @@ export function PermissionSelect({
           </button>
         }
       />
+      {fullAccess && <span id={riskId} hidden>{t('fullAccess.description')}</span>}
       {confirmation !== null && (
         <RiskConfirmation
           open

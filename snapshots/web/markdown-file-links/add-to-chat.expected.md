@@ -7,5 +7,5 @@
 
 ## Composer
 
-- textbox "Message or run a task, / commands, @ files or sessions":
+- textbox "Message or run a task":
   - paragraph: "Review this file next: example.txt"

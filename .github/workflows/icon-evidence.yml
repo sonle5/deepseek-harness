@@ -13,7 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         label: [before, after]
-    runs-on: macos-latest
+        # macOS 26 redraws legacy ICNS tiles on its own grid; macOS 15 draws them as packaged.
+        os: [macos-15, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7.0.1
@@ -49,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
-          name: icon-evidence-${{ matrix.label }}
+          name: icon-evidence-${{ matrix.os }}-${{ matrix.label }}
           path: ${{ runner.temp }}/evidence
           if-no-files-found: warn
           retention-days: 7

@@ -1451,6 +1451,8 @@ describe('desktop main startup', () => {
         [en.openTerminalMenu, 'dsh-terminal-new', false], [en.openBrowserMenu, 'dsh-browser-new', false], ['separator'],
         [en.previousSessionMenu, 'dsh-session-previous', false], [en.nextSessionMenu, 'dsh-session-next', false],
         [en.previousTabMenu, 'dsh-tab-previous', false], [en.nextTabMenu, 'dsh-tab-next', false], ['separator'],
+        [en.findMenu, 'dsh-find-open', false], [en.backMenu, 'dsh-history-back', false],
+        [en.forwardMenu, 'dsh-history-forward', false], ['separator'],
         [en.actualSizeMenu, false, 'Command+0'], [en.zoomInMenu, false], [en.zoomOutMenu, false]]
       : undefined)
     expect(submenu(en.helpMenu)).toEqual(platform === 'darwin'

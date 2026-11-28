@@ -261,9 +261,11 @@ it('overlays the conversation and closes after navigation without losing its sid
       const opener = page.getByRole('button', { name: 'Open sidebar', exact: true })
       await opener.waitFor()
       const frame = page.locator('[data-sidebar-drawer]')
-      expect(await page.locator('[data-shell-leading]').getByRole('button').count()).toBe(1)
+      expect(await page.locator('[data-shell-leading]').getByRole('button').evaluateAll(buttons =>
+        buttons.map(button => [button.getAttribute('aria-label'), (button as HTMLButtonElement).disabled])))
+        .toEqual([['Open sidebar', false], ['Back', true], ['Forward', true]])
       expect(await frame.evaluate(el => getComputedStyle(el).getPropertyValue('--dsh-frame-leading-clearance').trim()))
-        .toBe('48px')
+        .toBe('120px')
       await expect.poll(() => frame.getAttribute('data-sidebar-collapsed')).toBe('true')
       const sidebar = page.locator('[data-slot="sidebar"]')
       const original = await sidebar.elementHandle()
@@ -625,7 +627,7 @@ it('overlays the conversation and closes after navigation without losing its sid
         'fold transitions: sidebar controls follow the divider in both directions; reduced motion changes width without animation',
         'drawer mask: opacity transitions from 0 to 1 on open and 1 to 0 on close',
         'reduced motion: drawer and mask settle without transitions',
-        'Web header: only the sidebar opener remains, with 48px leading clearance',
+        'Web header: the sidebar opener with disabled Back and Forward, with 120px leading clearance',
         'below 768px: plugin and automation pages use 20px insets; Web view tabs align at 20px, while Desktop and wider Web tabs retain 28px',
         'touch selected Session: More remains visible; update time is hidden; pinned rows offer Unpin before More with Workspace action spacing',
         'touch Workspace: actions appear only while expanded, including after folding the focused row',

@@ -626,7 +626,8 @@ async function main(): Promise<void> {
       // Superharness commands target the product document, which Composer covers while it has focus.
       shortcuts.ignoreMenuKeys(contents, input, ['session.new', 'workspace.add', 'session.search',
         'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open', 'terminal.new', 'browser.new',
-        'session.previous', 'session.next', 'tab.previous', 'tab.next', 'account.signOut', 'feedback.open'])
+        'session.previous', 'session.next', 'tab.previous', 'tab.next', 'find.open', 'history.back', 'history.forward',
+        'account.signOut', 'feedback.open'])
     }
     // A crash loop detaches the view without a command; the client must learn it is no longer visible.
     composer.view.onVisibility = () => { composerSwitcher.publish() }
@@ -1352,6 +1353,10 @@ async function main(): Promise<void> {
     productCommand('session.next', messages.nextSessionMenu),
     productCommand('tab.previous', messages.previousTabMenu),
     productCommand('tab.next', messages.nextTabMenu),
+    { type: 'separator' },
+    productCommand('find.open', messages.findMenu),
+    productCommand('history.back', messages.backMenu),
+    productCommand('history.forward', messages.forwardMenu),
     { type: 'separator' },
     // Plain items rather than zoom roles: the roles' ⌘+ and ⌘− accelerators would also fire the fixed font-size shortcuts.
     zoomItem(messages.actualSizeMenu, () => 0, 'Command+0'),

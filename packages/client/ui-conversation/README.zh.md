@@ -140,6 +140,8 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 
 普通 Enter 使用已配置的投递模式，严格的 Ctrl+Enter 或 Cmd+Enter 使用互补模式，Shift+Enter 插入换行。带 Alt、AltGraph、同时带 Ctrl 与 Cmd，或 Shift 与 Ctrl/Cmd 的 Enter 保持草稿和指令菜单不变，并将 DOM 事件留给应用快捷键。Conversation 插件注册发送、换行、互补投递、命令菜单和引用菜单的固定条目，并在卸载前保留这些键位。
 
+在对话中查找（`find.open`：桌面端 Mod+F，Web 端 Mod+Alt+F，将 Mod+F 留给浏览器页内查找）在主 Conversation 右上角打开查找栏，也可从 composer 中打开，且不改变其草稿和光标。输入后不区分大小写地搜索头部以下已渲染的对话文本，不包括 composer 和未显示的文本（例如折叠详情行的正文）；跨元素拆分的匹配不会被找到，Conversation 尚未加载的较早历史也不会被搜索。查找栏显示当前匹配序号和总数，通过 CSS Custom Highlight API 高亮全部匹配并加强显示当前匹配（不支持该 API 的浏览器改为选中当前匹配），并在查询或步进变化时将当前匹配滚动到可见区域，但流式输出新增匹配时不滚动。Enter 与 Shift+Enter 或箭头按钮向前、向后循环移动；Escape 或关闭按钮关闭查找栏，并把焦点还给打开前聚焦的元素。再次按快捷键会重新聚焦已打开的查找栏。全局面板替换 Conversation 时该命令不可用，导航抽屉以外的对话框会阻止它。
+
 点击可编辑输入框内的留白时，已聚焦的输入框保留当前光标或选区，未聚焦的输入框恢复上次的光标或选区。文本选择、滚动条、控件和内嵌浮层保持各自的指针交互行为。
 
 每次输入框提交都携带原始发生时间、操作来源、投递意图以及会话模型和运行状态快照，贯穿异步命令裁决。快照还记录会话是否仍为空白，以及会话记录的 Agent preset id。普通消息通知在引用序列化前发出一次，纯附件提交也遵循这一规则；已处理或认领的命令不发出通知。快照读取与通知消费异常不能阻断发送。在桌面端，该通知报告 `send_button_click`，携带 `is_new_session`（会话为空白时为 true）和表示 preset 类别的 `agent_preset`：`cordis` 记为 `creator`；`ptc`、`minimal` 与 `standard` 沿用各自的 id；其他 preset 记为 `other`。会话未记录 preset 时省略 `agent_preset`。不发送自定义 preset 的 id。

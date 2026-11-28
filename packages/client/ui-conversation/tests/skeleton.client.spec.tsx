@@ -150,6 +150,8 @@ function mount(
     viewTabs?: ViewTab[]
     /** Persisted ids of unpinned View tabs. */
     unpinnedViews?: readonly string[]
+    /** The find bar state the shell publishes. */
+    find?: { open: boolean; request: number }
     /** Whether the View actions list has registrations. */
     entryActions?: boolean
     /** Isolate header capability checks from the composer's required layout observers. */
@@ -414,8 +416,10 @@ function mount(
     useProjection: (() => undefined),
     useInput,
     inputActions,
+    useFind: selector => selector(options.find ?? { open: false, request: 0 }),
+    closeFind: vi.fn(),
   }
-  const props: ConversationSlotProps = { ...runtimeProps, renderSlot, renderFactorySlot }
+  const props: ConversationSlotProps = { ...runtimeProps, renderSlot, renderFactorySlot, t }
   const view = render(<ConversationMainPanel {...props} />)
   return {
     view, store, wiring, sink, retargetWorkspace, moveDraft, session, conversation, slotCalls, headerFactory, lineageOwners, seatOwners,
@@ -558,6 +562,15 @@ describe('ConversationRoot resident composer', () => {
     ])
     expect(b.lineageOwners.at(-2)?.openTitle).toEqual(expect.any(Function))
     expect(b.lineageOwners.at(-1)?.openTitle).toBeUndefined()
+  })
+
+  it('shows the find bar below the header only while find is open', () => {
+    expect(mount(sessionSnapshotOf()).view.queryByRole('search')).toBeNull()
+    cleanup()
+    const b = mount(sessionSnapshotOf(), undefined, undefined, { find: { open: true, request: 1 } })
+    const bar = b.view.getByRole('search', { name: zh['find.open'] })
+    expect(b.view.container.querySelector('header')?.compareDocumentPosition(bar)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(b.view.container.querySelector('[data-conversation-scroll]')?.contains(bar)).toBe(false)
   })
 
   it('active phase: fixed header outside the scrollport; sticky composer seat inside it', () => {

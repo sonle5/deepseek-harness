@@ -20,10 +20,12 @@ import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from './contract/slots.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { NavigationHistory } from './history.ts'
 import { RecentSessionViews } from './recent-views.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
 
@@ -145,7 +147,46 @@ export interface UiWorkspace {
    * @returns idempotent disposer owned by the caller's Cordis fiber.
    */
   whenAccess(workspaceId: WorkspaceId, action: RemoteEndpoint, callback: () => AccessEffect): () => void
+  /** Whether this window's view history has a view before or after the one shown. */
+  readonly history: ObservableSnapshot<NavigationHistoryState>
+  /** Show the nearest earlier view of this window that can still be shown; does nothing without one. */
+  goBack(): void
+  /** Show the nearest later view of this window that can still be shown; does nothing without one. */
+  goForward(): void
+  /**
+   * Add a view that opens over the main area, such as the settings dialog, to this window's view history.
+   * Opening it records a visit; closing it returns the position to the view it covered when that view
+   * precedes it, and records a visit to the uncovered view otherwise. Back and Forward call `show` and
+   * `hide` and record nothing for the open-state changes those calls cause.
+   * @param id - view id, unique among registered views.
+   * @param view - the view's open state and its show and hide actions.
+   * @returns idempotent disposer; history entries for a disposed view are skipped.
+   * @throws when another registration holds `id`.
+   */
+  registerHistoryView(id: string, view: HistoryView): () => void
 }
+
+/** Back and Forward availability of a window's view history. */
+export interface NavigationHistoryState {
+  readonly canGoBack: boolean
+  readonly canGoForward: boolean
+}
+
+/** A view outside the main selection that participates in the window's view history. */
+export interface HistoryView {
+  /** Whether the view is open; each change is observed. */
+  readonly open: ObservableSnapshot<boolean>
+  /** Open the view. */
+  show(): void
+  /** Close the view. */
+  hide(): void
+}
+
+/** One visited view: the main selection (null for the new-session page), a global panel, or a registered view. */
+type HistoryEntry =
+  | { readonly kind: 'main'; readonly target: SessionTarget | null }
+  | { readonly kind: 'panel'; readonly id: MainPanelId }
+  | { readonly kind: 'view'; readonly id: string }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -178,6 +219,12 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   private mainReference: SessionReference | undefined
   private readonly recentViews: RecentSessionViews
   private restorationNavigation: AbortSignal | undefined
+  private readonly visits = new NavigationHistory<HistoryEntry>(sameEntry)
+  private readonly historyViews = new Map<string, HistoryView>()
+  /** True while Back or Forward shows an entry, so the selection and open-state changes it causes record nothing. */
+  private replaying = false
+  private readonly historyState = createSnapshotStore<NavigationHistoryState>({ canGoBack: false, canGoForward: false })
+  readonly history: ObservableSnapshot<NavigationHistoryState> = this.historyState
 
   /**
    * @param ctx - Client root Context.
@@ -203,7 +250,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     ctx.effect(() => {
       const stop = this.watchNavigation()
       const stopRecentViews = this.recentViews.start()
+      this.visits.replace(this.shownEntry())
+      const stopPanels = this.watchPanels()
       return () => {
+        stopPanels()
         stop()
         this.lifetime.abort()
         const reference = this.mainReference
@@ -437,6 +487,118 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     return access.whenResourceAccess('workspace', workspaceId, action, callback)
   }
 
+  goBack(): void {
+    this.replay(show => this.visits.back(show))
+  }
+
+  goForward(): void {
+    this.replay(show => this.visits.forward(show))
+  }
+
+  registerHistoryView(id: string, view: HistoryView): () => void {
+    if (this.historyViews.has(id)) throw new Error(`uiWorkspace.registerHistoryView: view "${id}" is already registered`)
+    this.historyViews.set(id, view)
+    let open = view.open.getSnapshot()
+    const off = view.open.subscribe(() => {
+      const next = view.open.getSnapshot()
+      if (next === open) return
+      open = next
+      if (this.replaying) return
+      if (next) this.visits.push({ kind: 'view', id })
+      else this.visits.dismiss(this.shownEntry())
+      this.publishHistory()
+    })
+    let disposed = false
+    return () => {
+      if (disposed) return
+      disposed = true
+      off()
+      this.historyViews.delete(id)
+    }
+  }
+
+  /** Record a visit unless Back or Forward caused it. */
+  private visit(entry: HistoryEntry): void {
+    if (this.replaying) return
+    this.visits.push(entry)
+    this.publishHistory()
+  }
+
+  private replay(step: (show: (entry: HistoryEntry) => boolean) => boolean): void {
+    const from = this.visits.current
+    this.replaying = true
+    try {
+      step(entry => this.showEntry(entry, from))
+    } finally {
+      this.replaying = false
+    }
+    this.publishHistory()
+  }
+
+  /** @returns false when the entry can no longer be shown: its Session was archived or removed, or its panel or view left. */
+  private showEntry(entry: HistoryEntry, from: HistoryEntry | undefined): boolean {
+    const leaving = from?.kind === 'view' ? this.historyViews.get(from.id) : undefined
+    switch (entry.kind) {
+      case 'view': {
+        const view = this.historyViews.get(entry.id)
+        if (view === undefined) return false
+        if (from?.kind === 'view' && from.id !== entry.id) leaving?.hide()
+        view.show()
+        return true
+      }
+      case 'panel':
+        try {
+          this.ctx.layout.selectPanel(entry.id)
+        } catch (_error: unknown) {
+          // The panel's plugin unregistered it; the entry is skipped.
+          return false
+        }
+        break
+      case 'main': {
+        if (entry.target !== null && !this.canReopen(entry.target)) return false
+        if (entry.target === null) this.clearMain()
+        else if (mainSessionId(entry.target) === this.mainReference?.sessionId) this.ctx.layout.selectPanel(null)
+        else this.replaceMain(entry.target, this.lifetime.signal, 'reveal')
+        break
+      }
+      /* v8 ignore next -- closed HistoryEntry union */
+      default: assertNever(entry)
+    }
+    leaving?.hide()
+    return true
+  }
+
+  private canReopen(target: SessionTarget): boolean {
+    const sessionId = mainSessionId(target)
+    if (this.workspaces.list.getSnapshot().archivedSessionIds.includes(sessionId)) return false
+    return typeof target !== 'string' || this.sessions.list.getSnapshot().byId[sessionId] !== undefined
+  }
+
+  /** @returns the entry for what the main area shows: the selected panel, else the main selection. */
+  private shownEntry(): HistoryEntry {
+    const panel = this.ctx.layout.panelInfo.getSnapshot().activePanelId
+    if (panel !== null) return { kind: 'panel', id: panel }
+    const selection = this.selection.getSnapshot()
+    return { kind: 'main', target: this.mainReference === undefined ? null : selection.subagentAddress ?? this.mainReference.sessionId }
+  }
+
+  private publishHistory(): void {
+    const { canGoBack, canGoForward } = this.visits
+    const state = this.historyState.getSnapshot()
+    if (state.canGoBack !== canGoBack || state.canGoForward !== canGoForward) this.historyState.set({ canGoBack, canGoForward })
+  }
+
+  /** Record each global panel the main area switches to, and the Conversation it returns to. */
+  private watchPanels(): () => void {
+    let panel = this.ctx.layout.panelInfo.getSnapshot().activePanelId
+    return this.ctx.layout.panelInfo.subscribe(() => {
+      const next = this.ctx.layout.panelInfo.getSnapshot().activePanelId
+      if (next === panel) return
+      panel = next
+      this.visit(this.shownEntry())
+    })
+  }
+
   private watchNavigation(): () => void {
     let initial: 'waiting' | 'connecting' | 'done' = 'waiting'
     const reconcile = (): void => {
@@ -528,6 +690,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     this.recentViews.show(undefined)
     previous?.release()
     this.ctx.layout.selectPanel(null)
+    this.visit({ kind: 'main', target: null })
   }
 
   private replaceMain(
@@ -561,9 +724,33 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     // Both main references are held here, so the previous Session moves to the recent views without a gap.
     this.recentViews.show(reference.sessionId)
     previous?.release()
-    if (panel === 'reveal') this.ctx.layout.selectPanel(null)
+    const entry: HistoryEntry = { kind: 'main', target: this.selection.getSnapshot().subagentAddress ?? reference.sessionId }
+    if (panel === 'reveal') {
+      this.ctx.layout.selectPanel(null)
+      this.visit(entry)
+    } else if (this.ctx.layout.panelInfo.getSnapshot().activePanelId === null) {
+      // Startup restoration and a superseding restore show the Session in place of the view recorded before it.
+      if (!this.replaying) this.visits.replace(entry)
+      this.publishHistory()
+    }
   }
 
+}
+
+/** @returns whether two history entries show the same view. */
+function sameEntry(left: HistoryEntry, right: HistoryEntry): boolean {
+  if (left.kind === 'main') {
+    if (right.kind !== 'main') return false
+    return left.target === null || right.target === null
+      ? left.target === right.target
+      : mainSessionId(left.target) === mainSessionId(right.target)
+  }
+  return left.kind === right.kind && left.id === right.id
+}
+
+/** @returns the Session a main target shows. */
+function mainSessionId(target: SessionTarget): SessionId {
+  return typeof target === 'string' ? target : target.childSessionId
 }
 
 /**

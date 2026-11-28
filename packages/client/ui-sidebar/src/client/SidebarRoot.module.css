@@ -57,6 +57,32 @@
   -webkit-app-region: no-drag;
 }
 
+/* Back and Forward follow the caption toggle; the caption menus start after them. Collapsed, New Session
+   sits between the toggle and them. */
+:global([data-windows-titlebar]) .history {
+  position: fixed;
+  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
+  left: 48px;
+  z-index: 30;
+  -webkit-app-region: no-drag;
+}
+
+:global([data-windows-titlebar]) .history[data-history='forward'] {
+  left: 84px;
+}
+
+:global([data-windows-titlebar]) .collapsed .history {
+  left: 84px;
+}
+
+:global([data-windows-titlebar]) .collapsed .history[data-history='forward'] {
+  left: 120px;
+}
+
+:global(html[data-windows-titlebar]) {
+  --dsh-windows-menu-start: 120px;
+}
+
 :global([data-windows-titlebar]) .root.collapsed .logoRow {
   height: 0;
 }
@@ -91,7 +117,7 @@
 }
 
 :global(html[data-windows-titlebar]:has([data-sidebar-collapsed='true'])) {
-  --dsh-windows-menu-start: 84px;
+  --dsh-windows-menu-start: 156px;
 }
 
 :global([data-windows-titlebar]) .collapsed .newSession {
@@ -234,7 +260,8 @@
   padding: 18px 0 18px 4px;
 }
 
-:global([data-fullscreen]) .darwinLogoRow > .toggle {
+:global([data-fullscreen]) .darwinLogoRow > .toggle,
+:global([data-fullscreen]) .darwinLogoRow > .history {
   order: -1;
 }
 
@@ -349,6 +376,13 @@
   .iconButton:hover {
     background-color: var(--dsw-alias-interactive-bg-hover);
   }
+}
+
+/* A direction without a view stays in place, dimmed and inert. */
+.iconButton.history:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+  background: transparent;
 }
 
 /* The toggle is flush with .logoRow, which clips its own overflow, so an outward ring loses

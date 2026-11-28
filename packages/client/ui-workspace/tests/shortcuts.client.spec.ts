@@ -59,6 +59,8 @@ async function bench(runtime: 'web' | 'desktop' = 'desktop', platform: ShortcutP
   const navigation = {
     startSession: vi.fn(), forkSession: vi.fn(async () => 'fork-child' as SessionId), archiveSession: vi.fn(async (_sessionId: SessionId) => {}),
     openSession: vi.fn<(id: SessionId) => void>(),
+    history: createSnapshotStore({ canGoBack: false, canGoForward: false }),
+    goBack: vi.fn(), goForward: vi.fn(),
   }
   // Rendered sidebar rows in display order; the node environment has no DOM.
   const rows = { ids: ['a', 'b'] }
@@ -109,17 +111,33 @@ describe('workspace shortcut ownership', () => {
     const b = await bench()
     expect(b.registry.catalog.getSnapshot().map(row => row.id)).toEqual([
       'session.new', 'session.search', 'workspace.add', 'session.rename', 'session.fork', 'session.archive',
-      'session.toggleRead', 'session.previous', 'session.next',
+      'session.toggleRead', 'session.previous', 'session.next', 'history.back', 'history.forward',
     ])
     expect(b.registry.catalog.getSnapshot().every(row => row.keys.length > 0)).toBe(true)
-    expect(b.registry.catalog.getSnapshot().slice(-2).map(row => row.aria)).toEqual(['Alt+Meta+[', 'Alt+Meta+]'])
+    expect(b.registry.catalog.getSnapshot().slice(-4).map(row => row.aria)).toEqual(['Alt+Meta+[', 'Alt+Meta+]', 'Meta+[', 'Meta+]'])
     const web = await bench('web')
     expect(web.registry.catalog.getSnapshot().map(row => row.aria)).toEqual([
       'Alt+Meta+N', 'Alt+Meta+K', 'Alt+Meta+O', 'Alt+Meta+G', 'Shift+Meta+F', 'Alt+Meta+A',
-      'Shift+Meta+U', 'Alt+Meta+[', 'Alt+Meta+]',
+      'Shift+Meta+U', 'Alt+Meta+[', 'Alt+Meta+]', 'Alt+Shift+Meta+[', 'Alt+Shift+Meta+]',
     ])
     await b.fiber.dispose()
     expect(b.registry.catalog.getSnapshot()).toEqual([])
+  })
+
+  it('steps through view history with Primary+[ and Primary+], over the sidebar drawer and Settings', async () => {
+    const b = await bench()
+    expect(b.registry.dispatch(key('BracketLeft'), context, vi.fn()).status).toBe('blocked')
+    expect(b.commands.get('history.back')!.resolve(context)).toMatchObject({ status: 'blocked', reason: en['shortcut.noBack'] })
+    expect(b.commands.get('history.forward')!.resolve(context)).toMatchObject({ status: 'blocked', reason: en['shortcut.noForward'] })
+    b.navigation.history.set({ canGoBack: true, canGoForward: true })
+    for (const modal of [null, 'sidebar', 'settings']) {
+      expect(b.registry.dispatch(key('BracketLeft'), { ...context, modal }, vi.fn()).status).toBe('handled')
+      expect(b.registry.dispatch(key('BracketRight'), { ...context, region: 'editable', modal }, vi.fn()).status).toBe('handled')
+    }
+    expect(b.navigation.goBack).toHaveBeenCalledTimes(3)
+    expect(b.navigation.goForward).toHaveBeenCalledTimes(3)
+    expect(b.commands.get('history.back')!.resolve({ ...context, modal: 'other' }))
+      .toMatchObject({ status: 'blocked', reason: en['shortcut.closeDialog'] })
   })
 
   it('opens the previous and next rendered sidebar Session with wrap-around', async () => {

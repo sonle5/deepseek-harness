@@ -9,7 +9,8 @@ import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 /** Registry commands the native application menu can invoke; each item shows its command's accepted binding. */
 export const MENU_COMMAND_IDS = ['page.close', 'settings.open', 'session.new', 'workspace.add', 'session.search',
   'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open', 'terminal.new', 'browser.new',
-  'session.previous', 'session.next', 'tab.previous', 'tab.next', 'account.signOut', 'feedback.open'] as const
+  'session.previous', 'session.next', 'tab.previous', 'tab.next', 'find.open', 'history.back', 'history.forward',
+  'account.signOut', 'feedback.open'] as const
 
 /** One registry command reachable from the native application menu. */
 export type MenuCommandId = typeof MENU_COMMAND_IDS[number]

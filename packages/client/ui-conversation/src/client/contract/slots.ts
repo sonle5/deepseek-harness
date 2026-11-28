@@ -493,6 +493,22 @@ export type WorkspaceSelectedHandler = (workspaceId: WorkspaceId, adopt: Workspa
 export interface ConversationShellInjected {
   /** Open the Workspace's blank Session as the main Session. */
   openWorkspace: WorkspaceSelectedHandler
+  /** Close the find bar. */
+  closeFind: () => void
+  /** Private reactive sources bound to framework selector hooks. */
+  hooks: {
+    /**
+     * Find bar requests: `open` is whether the bar shows, and `request` counts open requests, so a repeated
+     * request focuses the open bar again.
+     */
+    find: ObservableSnapshot<ConversationFindState>
+  }
+}
+
+/** Find bar state of the main Conversation. */
+export interface ConversationFindState {
+  readonly open: boolean
+  readonly request: number
 }
 
 /** Business callbacks injected into the shared Conversation content. */
@@ -728,6 +744,7 @@ export type ConversationSlotProps =
   PropsRuntime<'main.conversation'>
   & PropsRenderSlots<'conversation.header'>
   & PropsRenderFactories
+  & PropsLocale<'conversation'>
 
 /** Inputs shared by main and embedded Conversation content occurrences. */
 export interface ConversationContentInputProps {

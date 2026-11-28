@@ -47,11 +47,14 @@ function makeHeaderProps(): HeaderLeadingControlsProps {
     useEntryPins: selector => selector([]), useEntryActions: selector => selector(false),
     selectPanel: vi.fn(), setPinned: vi.fn(), toggleSidebar: vi.fn(),
     startSession: vi.fn(), trackEntryClick: vi.fn(), t,
+    goBack: vi.fn(), goForward: vi.fn(), useHistory: selector => selector({ canGoBack: false, canGoForward: false }),
     renderSlot: (() => null) as HeaderLeadingControlsProps['renderSlot'],
   }
 }
 
-function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content, productSeat }: {
+function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts = [], panels = [], content, productSeat,
+  history = { canGoBack: false, canGoForward: false } }: {
+  history?: { canGoBack: boolean; canGoForward: boolean }
   collapsed?: boolean
   width?: number
   drawer?: boolean
@@ -64,6 +67,8 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
   const trackEntryClick = vi.fn<SidebarRootComponentProps['trackEntryClick']>()
+  const goBack = vi.fn()
+  const goForward = vi.fn()
   let regionOwner: SidebarSectionOwnerProps | undefined
   let regionContext: SidebarSectionHookContext | undefined
   let settingsOwner: SidebarSettingsOwnerProps | undefined
@@ -85,6 +90,7 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={trackEntryClick} t={t}
+      goBack={goBack} goForward={goForward} useHistory={selector => selector(history)}
       renderFactorySlot={() => null}
       renderSlot={((
         key: string,
@@ -128,6 +134,8 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
     startSession,
     toggleSidebar,
     trackEntryClick,
+    goBack,
+    goForward,
     regionOwner: () => {
       if (regionOwner === undefined) throw new Error('region owner not rendered')
       return regionOwner
@@ -203,6 +211,7 @@ describe('SidebarRoot shell', () => {
     cleanup()
     document.documentElement.dataset.platform = 'darwin'
     render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderSlot={() => null}
       usePanelInfo={neverHook} useSessions={neverHook} useSessionStatus={neverHook}
       useSessionRetainInfo={neverHook} useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
@@ -215,6 +224,32 @@ describe('SidebarRoot shell', () => {
     fireEvent.focus(button)
     expect(Array.from(screen.getByRole('tooltip').querySelectorAll('kbd'), key => key.textContent)).toEqual(['Ctrl', 'N'])
   })
+  it('places Back and Forward after the sidebar toggle and disables a direction without a view', () => {
+    const back: ShortcutCatalogEntry = { id: 'history.back' as ShortcutCommandId, label: 'Back', aliases: [], keys: ['⌘', '['],
+      aria: 'Meta+[', binding: null, modified: false, conflicts: [], issue: null }
+    const b = mountShell({ history: { canGoBack: true, canGoForward: false }, shortcuts: [back] })
+    const row = screen.getByRole('button', { name: 'Collapse sidebar' }).parentElement!
+    expect(Array.from(row.querySelectorAll('button'), button => button.getAttribute('aria-label')).slice(-3))
+      .toEqual(['Collapse sidebar', 'Back', 'Forward'])
+    const backButton = screen.getByRole('button', { name: 'Back' }) as HTMLButtonElement
+    const forwardButton = screen.getByRole('button', { name: 'Forward' }) as HTMLButtonElement
+    expect([backButton.disabled, forwardButton.disabled]).toEqual([false, true])
+    expect(backButton.getAttribute('aria-keyshortcuts')).toBe('Meta+[')
+    fireEvent.click(backButton)
+    fireEvent.click(forwardButton)
+    expect(b.goBack).toHaveBeenCalledOnce()
+    expect(b.goForward).not.toHaveBeenCalled()
+    cleanup()
+    const forward = vi.fn()
+    render(<HeaderLeadingControls {...makeHeaderProps()} goForward={forward}
+      useHistory={select => select({ canGoBack: false, canGoForward: true })} />)
+    expect(screen.getAllByRole('button').slice(0, 3).map(button => button.getAttribute('aria-label')))
+      .toEqual(['Open sidebar', 'Back', 'Forward'])
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Back' }).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Forward' }))
+    expect(forward).toHaveBeenCalledOnce()
+  })
+
   it('routes New Session (capsule + wordmark) and the column toggle', () => {
     // Occupied brand slots keep New Session even when the build carries a version.
     vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
@@ -286,6 +321,7 @@ describe('SidebarRoot shell', () => {
       {...allowAllAccess}
       useRemoteAccess={useRemoteAccess}
       startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) => {
         if (key === 'sidebar.brand.mark') return <span data-testid="brand-mark">M</span>
@@ -319,6 +355,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
         // HOC layers hand the shell's own content in as `children`; a vacancy
@@ -346,6 +383,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
         // HOC layers hand the shell's own content in as `children`; a vacancy
@@ -377,6 +415,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={startSession} toggleSidebar={vi.fn()} trackEntryClick={trackEntryClick} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
         // HOC layers hand the shell's own content in as `children`; a vacancy
@@ -431,6 +470,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode; children?: ReactNode }) =>
         // HOC layers hand the shell's own content in as `children`; a vacancy
@@ -505,6 +545,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((key: string) => key === 'sidebar.toggle.badge'
         ? <Tooltip label="Update — V1.2.3"><span data-testid="badge" /></Tooltip>

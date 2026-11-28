@@ -72,7 +72,7 @@ describe('assembled shortcut command owners', () => {
     await start()
     const ids = catalog.map(definition => definition.id)
     expect(ids).toEqual(expect.arrayContaining(['page.close', 'terminal.new', 'session.previous', 'session.next',
-      'tab.previous', 'tab.next', 'sidebar.right.toggle', 'feedback.open']))
+      'tab.previous', 'tab.next', 'sidebar.right.toggle', 'feedback.open', 'history.back', 'history.forward', 'find.open']))
     expect(new Set(ids).size).toBe(ids.length)
     for (const runtime of ['desktop', 'web'] as const) {
       for (const platform of ['macos', 'windows', 'linux'] as const) {

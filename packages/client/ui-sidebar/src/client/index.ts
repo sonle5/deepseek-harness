@@ -42,6 +42,9 @@ const NS = 'sidebar'
 
 interface WorkspaceNavigation {
   startSession(workspaceId?: Parameters<SidebarRootInjected['startSession']>[0]): void
+  readonly history: SidebarRootInjected['hooks']['history']
+  goBack(): void
+  goForward(): void
 }
 
 /** Services required by the sidebar plugin. */
@@ -83,7 +86,9 @@ export function apply(ctx: ClientContext): void {
     selectPanel: (id) => { ctx.layout.selectPanel(id) },
     setPinned: panelPins.setPinned,
     trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },
-    hooks: { panels, shortcuts: ctx.shortcuts.catalog, entryPins: panelPins.unpinned, entryActions },
+    goBack: () => { workspaceNavigation.goBack() },
+    goForward: () => { workspaceNavigation.goForward() },
+    hooks: { panels, shortcuts: ctx.shortcuts.catalog, entryPins: panelPins.unpinned, entryActions, history: workspaceNavigation.history },
   })
   ctx.slots.inject('sidebar', function* () {
     yield ctx.slots.registerFactory({

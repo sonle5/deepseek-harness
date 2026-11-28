@@ -145,21 +145,21 @@
 /* Published while the shell.leading seat is mounted (same condition as the
    TSX mount: darwin with the sidebar collapsed — the collapse that hides the
    column entirely): the inline band the window chrome occupies, measured from
-   the frame's left edge — traffic lights to x 68, controls at x 88
-   (28 + 8 + 28), then 8px of air. Main panels whose content reaches the
+   the frame's left edge — traffic lights to x 68, four controls at x 88
+   (4 × 28 + 3 × 8), then 8px of air. Main panels whose content reaches the
    top-left corner pad by this. */
 :global([data-platform='darwin']) .frame[data-sidebar-collapsed] {
-  --dsh-frame-leading-clearance: 160px;
+  --dsh-frame-leading-clearance: 232px;
 }
 
 /* Fullscreen hides the traffic lights (preload mirrors the window state onto
    html[data-fullscreen]): the seat takes their band and the clearance keeps
-   only the controls (12 + 28 + 8 + 28 + 8). The 12px start matches the
+   only the controls (12 + 4 × 28 + 4 × 8). The 12px start matches the
    expanded sidebar title row's fullscreen control inset (ui-sidebar
    .darwinLogoRow), so
    collapsing never shifts the toggle. */
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-collapsed] {
-  --dsh-frame-leading-clearance: 84px;
+  --dsh-frame-leading-clearance: 156px;
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .leadingSeat {
@@ -247,13 +247,13 @@
 }
 
 .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 84px;
+  --dsh-frame-leading-clearance: 156px;
   overflow: clip;
 }
 
 :global(html:not([data-platform])) .frame[data-sidebar-drawer] {
-  /* 12px seat offset + 28px opener + 8px gap; Desktop keeps room for two controls. */
-  --dsh-frame-leading-clearance: 48px;
+  /* 12px seat offset + opener, Back and Forward (3 × 28px) + 3 × 8px gaps; Desktop keeps room for four controls. */
+  --dsh-frame-leading-clearance: 120px;
 }
 
 .frame[data-sidebar-drawer] .mainPanel[data-global-panel] {
@@ -306,7 +306,7 @@
 }
 
 :global([data-platform='darwin']) .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 160px;
+  --dsh-frame-leading-clearance: 232px;
 }
 
 :global([data-platform='darwin']) .frame[data-sidebar-drawer] .leadingSeat {
@@ -314,7 +314,7 @@
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 84px;
+  --dsh-frame-leading-clearance: 156px;
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-drawer] .leadingSeat {

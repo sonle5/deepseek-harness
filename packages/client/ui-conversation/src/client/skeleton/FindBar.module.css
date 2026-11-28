@@ -9,7 +9,7 @@
   gap: 4px;
   box-sizing: border-box;
   padding: 6px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  border: 0;
   border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-shadow-lv2);
@@ -59,11 +59,13 @@
   outline-offset: 1px;
 }
 
-/* Highlight names are global; the find module registers them for the transcript's text ranges. */
+/* css-selector-gate: highlight names are global and style the text ranges find.ts
+   registers, whose originating elements are any transcript text parent. */
 :global(::highlight(dsh-find)) {
   background-color: var(--dsw-alias-state-warn-tertiary);
 }
 
+/* css-selector-gate: the current match is a registered text range like the rule above. */
 :global(::highlight(dsh-find-current)) {
   background-color: var(--dsw-alias-state-warn-secondary);
 }

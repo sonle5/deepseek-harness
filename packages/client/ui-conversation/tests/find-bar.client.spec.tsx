@@ -43,6 +43,21 @@ describe('findText', () => {
     expect(findText(scroll, 'pha', COMPOSER)).toHaveLength(3)
     expect(findText(scroll, 'i', COMPOSER)).toEqual([])
   })
+
+  it('skips text the browser does not render, such as a closed details body', () => {
+    // jsdom has no layout; this stand-in reports what Chromium does for <details>.
+    Object.defineProperty(Element.prototype, 'checkVisibility', {
+      configurable: true,
+      value(this: Element) {
+        const details = this.closest('details')
+        return details === null || details.open || this.closest('summary') !== null
+      },
+    })
+    onTestFinished(() => { Reflect.deleteProperty(Element.prototype, 'checkVisibility') })
+    const root = transcript('<details><summary>alpha tool</summary><p>alpha output</p></details><details open><p>alpha open</p></details>')
+    expect(findText(root.querySelector('[data-conversation-scroll]')!, 'alpha', COMPOSER).map(range => range.startContainer.textContent))
+      .toEqual(['alpha tool', 'alpha open'])
+  })
 })
 
 describe('match painting', () => {
@@ -141,6 +156,23 @@ describe('FindBar', () => {
     root.querySelector('textarea')!.remove()
     fireEvent.click(screen.getByRole('button', { name: 'Close find' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('searches again for transcript changes but not for composer or bar changes', async () => {
+    const highlights = new Map<string, object>()
+    vi.stubGlobal('Highlight', FakeHighlight)
+    vi.stubGlobal('CSS', { highlights })
+    const { root, field } = mount('<p>beta</p><div data-conversation-region="composer"><p>beta</p></div>')
+    fireEvent.change(field, { target: { value: 'beta' } })
+    expect(count()).toBe('1 of 1')
+    const painted = highlights.get('dsh-find')
+    await act(async () => {
+      root.querySelector(`${COMPOSER} p`)!.append(' beta')
+      root.querySelector(`${COMPOSER} p`)!.firstChild!.textContent = 'beta beta'
+    })
+    expect(highlights.get('dsh-find')).toBe(painted)
+    await act(async () => { root.querySelector('p')!.firstChild!.textContent = 'beta beta' })
+    expect(count()).toBe('1 of 2')
   })
 
   it('finds nothing without a container or a transcript', () => {

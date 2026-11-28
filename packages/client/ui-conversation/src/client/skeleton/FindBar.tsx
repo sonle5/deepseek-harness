@@ -55,7 +55,11 @@ export function FindBar({ container, request, onClose, t }: FindBarProps) {
       setCurrent(index => Math.min(index, Math.max(found.length - 1, 0)))
     }
     search()
-    const observer = new MutationObserver(search)
+    // Composer edits and the bar's own count updates change no transcript text.
+    const observer = new MutationObserver((records) => {
+      const changed = records.some(({ target }) => (target instanceof Element ? target : target.parentElement)?.closest(EXCLUDED) == null)
+      if (changed) search()
+    })
     observer.observe(container, { childList: true, subtree: true, characterData: true })
     return () => { observer.disconnect() }
   }, [container, query])

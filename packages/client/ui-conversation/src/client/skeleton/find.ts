@@ -6,7 +6,9 @@ const CURRENT = 'dsh-find-current'
 
 /**
  * Find every occurrence of a query in an element's rendered text, in document order.
- * Matching ignores case; text inside an excluded subtree, hidden text, and text split across elements is not matched.
+ * Matching ignores case; text inside an excluded subtree, text that is not rendered (such as a closed `<details>` body or
+ * an element styled `display: none`), and text split across elements is not matched. Browsers without
+ * `Element.checkVisibility()` match text hidden only by style.
  * @param root - transcript container to search.
  * @param query - literal text to find; blank finds nothing.
  * @param exclude - selector of subtrees to skip, such as the composer.
@@ -17,8 +19,13 @@ export function findText(root: Element, query: string, exclude: string): Range[]
   if (needle === '') return []
   const document = root.ownerDocument
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: node => node.parentElement?.closest(`${exclude}, [hidden], [aria-hidden="true"]`) == null
-      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    acceptNode: (node) => {
+      // A text node below an element root always has a parent element.
+      const parent = node.parentElement as Element
+      return parent.closest(`${exclude}, [hidden], [aria-hidden="true"]`) === null
+        && (!('checkVisibility' in parent) || parent.checkVisibility())
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    },
   })
   const ranges: Range[] = []
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {

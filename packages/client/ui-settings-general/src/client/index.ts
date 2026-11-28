@@ -27,6 +27,8 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
+// Type-only: pulls the ctx.uiWorkspace merge for the optional history view.
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
@@ -230,6 +232,15 @@ export function apply(ctx: ClientContext): void {
         },
       })
 
+      // Back and Forward treat the open dialog as a view; history is optional where ui-workspace is absent.
+      const history = ctx.inject(['uiWorkspace'], (scope) => {
+        scope.effect(() => scope.uiWorkspace.registerHistoryView('settings', {
+          open: { getSnapshot: () => shellInstance.getSnapshot().open, subscribe: listener => shellInstance.subscribe(listener) },
+          show: () => { shellInstance.actions.open() },
+          hide: () => { shellInstance.actions.close() },
+        }), 'ui-settings-general: settings history view')
+      })
+
       const disposeSlot = ctx.slots.register({
         name: 'sidebar.settings',
         locale: NS,
@@ -246,7 +257,7 @@ export function apply(ctx: ClientContext): void {
         },
         inject: shellInjected,
       }, SettingsRoot)
-      return () => { disposeCommand(); disposeSlot() }
+      return () => { disposeCommand(); disposeSlot(); void history.dispose() }
     }))
 
   ctx.slots.inject('settings.trigger', () =>

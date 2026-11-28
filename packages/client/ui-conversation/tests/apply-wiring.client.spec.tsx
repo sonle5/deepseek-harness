@@ -8,6 +8,7 @@ import {
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { apply, inject, type ConversationShellInjected, type ViewTab } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 usePinnedBrowserLanguages('zh-CN')
@@ -46,6 +47,50 @@ function entry(
 ) {
   return runtime.slots.entries(key)[0] as { store?: unknown } | undefined
 }
+
+describe('find in conversation', () => {
+  it('opens the find bar from the main Conversation and the drawer, and yields to panels and other dialogs', async () => {
+    const runtime = await SlotTestRuntime.create()
+    runtime.ctx.provide('uiWorkspace', { openWorkspace: vi.fn(), openSession: vi.fn() } as never)
+    runtime.ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
+    const locale = new LocaleRuntime(runtime.ctx)
+    runtime.ctx.provide('locale', locale)
+    runtime.slots.installLocale(locale)
+    const commands: ShortcutCommand[] = []
+    runtime.ctx.provide('shortcuts', {
+      catalog: createSnapshotStore([]),
+      register: (definition: ShortcutCommand) => { commands.push(definition); return () => {} },
+      registerFixed: () => () => {},
+      describeBinding: () => ({ keys: [] }),
+      observeFixedInput: () => () => {},
+      stopSequenceMs: 500,
+    } as never)
+    const panelInfo = createSnapshotStore<{ activePanelId: string | null }>({ activePanelId: null })
+    runtime.ctx.provide('layout', { panelInfo } as never)
+    await runtime.mount({ inject: [...injectMenus], apply: applyMenus }, syncedConfig({ resolutionTimeoutMs: 1000 }))
+    await runtime.root.declare({ 'main': { kind: 'keyed', scope: 'root' } }, () => null)
+    await runtime.mount({ inject: [...inject], apply }, syncedConfig({ busyEnter: 'queue', maxConcurrentFileUploads: 2 }))
+    const find = commands.find(command => command.id === 'find.open')!
+    expect(find.defaults['desktop:macos']).toEqual({ code: 'KeyF', modifiers: ['primary'] })
+    expect(find.defaults['web:macos']).toEqual({ code: 'KeyF', modifiers: ['primary', 'alt'] })
+    const shell = (runtime.slots.spec('main.conversation') as { inject: ConversationShellInjected }).inject
+    const context = (modal: string | null) => ({ region: 'editable', modal }) as Parameters<ShortcutCommand['resolve']>[0]
+    const resolved = find.resolve(context(null))
+    if (resolved.status !== 'handled') throw new Error('expected find.open to run')
+    resolved.run()
+    expect(shell.hooks.find.getSnapshot()).toEqual({ open: true, request: 1 })
+    const drawer = find.resolve(context('sidebar'))
+    if (drawer.status !== 'handled') throw new Error('expected find.open to run over the drawer')
+    drawer.run()
+    expect(shell.hooks.find.getSnapshot()).toEqual({ open: true, request: 2 })
+    shell.closeFind()
+    expect(shell.hooks.find.getSnapshot()).toEqual({ open: false, request: 2 })
+    expect(find.resolve(context('settings'))).toMatchObject({ status: 'blocked' })
+    panelInfo.set({ activePanelId: 'plugins' })
+    expect(find.resolve(context(null))).toEqual({ status: 'pass' })
+    await runtime.dispose()
+  })
+})
 
 describe('target-neutral Conversation apply wiring', () => {
   it('hands every Session header the same in-memory View pins without restoring saved choices', async () => {

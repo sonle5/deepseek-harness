@@ -1665,4 +1665,147 @@ describe('UiWorkspaceService', () => {
       rpcError: { code: 'directory-picker/exists' },
     })
   })
+
+  describe('view history', () => {
+    const settingsView = () => {
+      const open = createSnapshotStore(false)
+      return {
+        open,
+        view: {
+          open,
+          show: vi.fn(() => { open.set(true) }),
+          hide: vi.fn(() => { open.set(false) }),
+        },
+      }
+    }
+    const panel = 'plugins' as MainPanelId
+    const shown = (b: ReturnType<typeof bench>) => ({
+      panel: b.layout.panelInfo.getSnapshot().activePanelId,
+      session: b.sessions.retained.filter(item => item.release.mock.calls.length === 0
+        && b.sessions.retain.mock.calls[b.sessions.retained.indexOf(item)]?.[1].source === 'mainView').at(-1)?.reference.sessionId,
+    })
+    const panelBench = (options: BenchOptions = {}) => {
+      const b = bench(options)
+      // The fake layout's actions do not write the panel store; this one does, so panel visits are observed.
+      const info = b.layout.panelInfo as ReturnType<typeof createSnapshotStore<{ activePanelId: MainPanelId | null }>>
+      b.selectPanel.mockImplementation((id) => { info.set({ activePanelId: id }) })
+      return b
+    }
+
+    it('steps back and forward through Sessions, panels, and the new-session page', () => {
+      const b = panelBench({ sessions: sessionState([summary('a'), summary('b')]), workspaces: workspaceState([workspace('w', [sid('a'), sid('b')])]) })
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: false, canGoForward: false })
+      b.uiWorkspace.openSession(sid('a'))
+      b.uiWorkspace.openSession(sid('b'))
+      b.layout.selectPanel(panel)
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: true, canGoForward: false })
+      b.uiWorkspace.goBack()
+      expect(shown(b)).toEqual({ panel: null, session: sid('b') })
+      b.uiWorkspace.goBack()
+      expect(shown(b)).toEqual({ panel: null, session: sid('a') })
+      b.uiWorkspace.goBack()
+      expect(shown(b)).toEqual({ panel: null, session: undefined })
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: false, canGoForward: true })
+      b.uiWorkspace.goBack()
+      b.uiWorkspace.goForward()
+      b.uiWorkspace.goForward()
+      b.uiWorkspace.goForward()
+      expect(shown(b)).toEqual({ panel, session: sid('b') })
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: true, canGoForward: false })
+    })
+
+    it('drops the forward views when a new view opens after going back', () => {
+      const b = panelBench({ sessions: sessionState([summary('a'), summary('b'), summary('c')]) })
+      b.uiWorkspace.openSession(sid('a'))
+      b.uiWorkspace.openSession(sid('b'))
+      b.uiWorkspace.goBack()
+      b.uiWorkspace.openSession(sid('c'))
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: true, canGoForward: false })
+      b.uiWorkspace.goBack()
+      expect(shown(b).session).toBe(sid('a'))
+    })
+
+    it('skips archived and removed Sessions and panels that left', () => {
+      const b = panelBench({ sessions: sessionState([summary('a'), summary('b'), summary('c')]) })
+      b.uiWorkspace.openSession(sid('a'))
+      b.layout.selectPanel(panel)
+      b.uiWorkspace.openSession(sid('b'))
+      b.uiWorkspace.openSession(sid('c'))
+      b.workspaces.list.set(workspaceState([], [sid('b')]))
+      const info = b.layout.panelInfo as ReturnType<typeof createSnapshotStore<{ activePanelId: MainPanelId | null }>>
+      b.selectPanel.mockImplementation((id) => {
+        if (id !== null) throw new Error('layout.selectPanel: main panel "plugins" is not registered')
+        info.set({ activePanelId: id })
+      })
+      b.uiWorkspace.goBack()
+      expect(shown(b).session).toBe(sid('a'))
+      b.sessions.list.set(sessionState([summary('a')]))
+      b.uiWorkspace.goForward()
+      expect(shown(b).session).toBe(sid('a'))
+    })
+
+    it('returns from a panel to the Session it covered without reopening it', () => {
+      const b = panelBench({ sessions: sessionState([summary('a')]) })
+      b.uiWorkspace.openSession(sid('a'))
+      b.layout.selectPanel(panel)
+      const retains = b.sessions.retain.mock.calls.length
+      b.uiWorkspace.goBack()
+      expect(shown(b)).toEqual({ panel: null, session: sid('a') })
+      expect(b.sessions.retain.mock.calls.length).toBe(retains)
+    })
+
+    it('records the settings view, returns to the covered view on close, and closes it on Back', () => {
+      const b = panelBench({ sessions: sessionState([summary('a'), summary('b')]) })
+      const settings = settingsView()
+      const dispose = b.uiWorkspace.registerHistoryView('settings', settings.view)
+      expect(() => b.uiWorkspace.registerHistoryView('settings', settings.view)).toThrow('already registered')
+      b.uiWorkspace.openSession(sid('a'))
+      settings.open.set(true)
+      settings.open.set(true)
+      settings.open.set(false)
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: true, canGoForward: true })
+      b.uiWorkspace.goForward()
+      expect(settings.view.show).toHaveBeenCalledOnce()
+      b.uiWorkspace.goBack()
+      expect(settings.view.hide).toHaveBeenCalledOnce()
+      expect(shown(b).session).toBe(sid('a'))
+      b.uiWorkspace.goForward()
+      b.uiWorkspace.openSession(sid('b'))
+      expect(settings.view.hide).toHaveBeenCalledTimes(1)
+      settings.open.set(false)
+      b.uiWorkspace.goBack()
+      expect(settings.view.show).toHaveBeenCalledTimes(3)
+      b.uiWorkspace.goBack()
+      expect(settings.view.hide).toHaveBeenCalledTimes(2)
+      expect(shown(b).session).toBe(sid('a'))
+      dispose()
+      dispose()
+      b.uiWorkspace.goForward()
+      expect(shown(b).session).toBe(sid('b'))
+    })
+
+    it('moves between two registered views', () => {
+      const b = panelBench({ sessions: sessionState([summary('a')]) })
+      const first = settingsView()
+      const second = settingsView()
+      b.uiWorkspace.registerHistoryView('first', first.view)
+      b.uiWorkspace.registerHistoryView('second', second.view)
+      b.uiWorkspace.openSession(sid('a'))
+      first.open.set(true)
+      second.open.set(true)
+      b.uiWorkspace.goBack()
+      expect(second.view.hide).toHaveBeenCalledOnce()
+      expect(first.view.show).toHaveBeenCalledOnce()
+    })
+
+    it('records the new-session page and does not record restoration of the saved Session', async () => {
+      persistSelection({ sessionId: sid('saved') })
+      const b = panelBench({ sessions: sessionState([summary('saved')]), workspaces: workspaceState([workspace('w', [sid('saved')])]) })
+      await vi.waitFor(() => { expect(shown(b).session).toBe(sid('saved')) })
+      expect(b.uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: false, canGoForward: false })
+      b.layout.selectPanel(panel)
+      b.uiWorkspace.goBack()
+      expect(shown(b)).toEqual({ panel: null, session: sid('saved') })
+    })
+  })
 })

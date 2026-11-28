@@ -289,8 +289,14 @@ export type SidebarRootInjected = {
   setPinned: (id: string, pinned: boolean) => void
   /** Record activation of an official navigation control without changing navigation. */
   trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void
+  /** Show the previous view of this window's history. */
+  goBack: () => void
+  /** Show the next view of this window's history. */
+  goForward: () => void
   /** Private reactive sources bound to framework selector hooks. */
   hooks: {
+    /** Whether this window's view history has a view before or after the one shown. */
+    history: ObservableSnapshot<{ readonly canGoBack: boolean; readonly canGoForward: boolean }>
     panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>
     shortcuts: ObservableSnapshot<readonly ShortcutCatalogEntry[]>
     /** Ids of unpinned panel launchers held in memory until plugin reload. */

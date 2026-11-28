@@ -11,6 +11,7 @@ import { createClientTest, type TestClient, webApp } from '@deepseek-ai/dsh-clie
 import { inject } from '../src/client/index.ts'
 import type { SettingsRootInjected } from '../src/client/shell-contract.ts'
 import { SettingsRoot } from '../src/client/SettingsRoot.tsx'
+import type { createSettingsShellStore } from '../src/client/shell-store.ts'
 import type { DesktopUpdatePresentation } from '../src/types.ts'
 
 const SELF = '@deepseek-ai/dsh-client-ui-settings-general'
@@ -174,6 +175,25 @@ describe('ui-settings-general shell', () => {
     expect(c.ctx.slots.entries('sidebar.settings')[0]).not.toBe(before)
     for (const name of CHILD_NAMES) expect(c.ctx.slots.spec(name)).toEqual(CHILD_SPECS[name])
   })
+
+  it('records the open dialog as a Back and Forward view and withdraws it on unload', async ({ start }) => {
+    const c = await start()
+    const { uiWorkspace } = c.ctx
+    const shell = (c.ctx.slots.entries('sidebar.settings')[0]!.store as ReturnType<typeof createSettingsShellStore>).create()
+    await c.flush()
+    const before = uiWorkspace.history.getSnapshot().canGoBack
+    shell.actions.open()
+    expect(uiWorkspace.history.getSnapshot().canGoBack).toBe(true)
+    uiWorkspace.goBack()
+    expect(shell.getSnapshot().open).toBe(false)
+    expect(uiWorkspace.history.getSnapshot()).toEqual({ canGoBack: before, canGoForward: true })
+    uiWorkspace.goForward()
+    expect(shell.getSnapshot().open).toBe(true)
+    await c.unload(SELF)
+    await c.flush()
+    // The unloaded package released the view id, so another owner may claim it.
+    uiWorkspace.registerHistoryView('settings', { open: { getSnapshot: () => false, subscribe: () => () => {} }, show: vi.fn(), hide: vi.fn() })()
+  }, COLD_BOOT_TIMEOUT_MS)
 
   it('unregisters the shell and collapses every child slot when its row unloads', async ({ start }) => {
     const c = await start()

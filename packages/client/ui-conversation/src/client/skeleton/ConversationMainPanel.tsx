@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { ConversationSlotProps } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { ConversationWidthControls } from './ConversationWidthControls.tsx'
+import { FindBar } from './FindBar.tsx'
 import css from './ConversationRoot.module.css'
 
 const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
@@ -8,10 +10,12 @@ const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
 /**
  * Render the existing main Conversation frame around the extracted content.
  * @param props - the original `main.conversation` Slot props.
- * @returns the unchanged root, Header, content, and width-control subtree.
+ * @returns the root, Header, content, and width-control subtree, with the find bar while it is open.
  */
 export function ConversationMainPanel(props: ConversationSlotProps) {
-  const { sessionId, useSession, useSessions, useConversation, renderSlot, renderFactorySlot, openWorkspace } = props
+  const { sessionId, useSession, useSessions, useConversation, renderSlot, renderFactorySlot, openWorkspace, useFind, closeFind, t } = props
+  const find = useFind(state => state)
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
   const shellPhase = session === undefined || conversation === undefined
@@ -35,8 +39,9 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
   const phase = settling ? 'settling' : hero ? 'hero' : 'active'
 
   return (
-    <div className={css.root} data-phase={phase}>
+    <div ref={setRoot} className={css.root} data-phase={phase}>
       {renderSlot('conversation.header', {})}
+      {find.open && <FindBar container={root} request={find.request} onClose={closeFind} t={t} />}
       {renderFactorySlot('conversation.content', {
         variant: 'main',
         phase,

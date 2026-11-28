@@ -52,6 +52,7 @@ type SidebarRows = { querySelectorAll(selector: string): Iterable<{ readonly dat
 /**
  * Register navigation commands against the existing workspace owner.
  * Rename requires a nonblank main Conversation with no modal other than the navigation drawer obscuring it.
+ * Back and Forward also run over the settings dialog, which is itself a view in the window's history.
  * @param ctx - plugin context with the shortcut, locale, and model services.
  * @param navigation - session creation and forking from the pointer controls' navigation service.
  * @param controls - browser-owned opening requests.
@@ -62,7 +63,7 @@ type SidebarRows = { querySelectorAll(selector: string): Iterable<{ readonly dat
  */
 export function installWorkspaceShortcuts(
   ctx: Context,
-  navigation: Pick<UiWorkspace, 'startSession' | 'forkSession' | 'openSession'>,
+  navigation: Pick<UiWorkspace, 'startSession' | 'forkSession' | 'openSession' | 'history' | 'goBack' | 'goForward'>,
   controls: ReturnType<typeof createWorkspaceShortcutControls>,
   archiveSession: (sessionId: SessionId) => void,
   reportForkFailure: (reason: 'unavailable' | 'failed') => void,
@@ -164,5 +165,24 @@ export function installWorkspaceShortcuts(
         if (target === undefined) return { status: 'blocked', reason: t('shortcut.noSidebarSessions') }
         return { status: 'handled', run: () => { if (target !== current()?.id) navigation.openSession(target) } }
       })
+  }
+  for (const [id, step, code] of [['history.back', -1, 'BracketLeft'], ['history.forward', 1, 'BracketRight']] as const) {
+    const binding = { code, modifiers: ['primary'] } as const
+    // Browsers keep Primary+[ and Primary+] for their own history, and Primary+Alt and Primary+Shift name Session and tab steps.
+    const web = { code, modifiers: ['primary', 'alt', 'shift'] } as const
+    ctx.effect(() => ctx.shortcuts.register({
+      id: id as ShortcutCommandId, label: () => t(step < 0 ? 'shortcut.back' : 'shortcut.forward'),
+      aliases: step < 0 ? ['back', 'go back', 'previous view'] : ['forward', 'go forward', 'next view'],
+      defaults: { 'desktop:macos': binding, 'desktop:windows': binding, 'desktop:linux': binding, 'web:macos': web, 'web:windows': web },
+      regions: ['page', 'editable'], modals: ['sidebar', 'settings'],
+      resolve: (context) => {
+        if (context.modal !== null && context.modal !== 'sidebar' && context.modal !== 'settings') {
+          return { status: 'blocked', reason: t('shortcut.closeDialog') }
+        }
+        const { canGoBack, canGoForward } = navigation.history.getSnapshot()
+        if (!(step < 0 ? canGoBack : canGoForward)) return { status: 'blocked', reason: t(step < 0 ? 'shortcut.noBack' : 'shortcut.noForward') }
+        return { status: 'handled', run: () => { if (step < 0) navigation.goBack(); else navigation.goForward() } }
+      },
+    }), `ui-workspace: ${id}`)
   }
 }

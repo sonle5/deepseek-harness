@@ -49,6 +49,7 @@ function mountColumn(): { column: HTMLElement; quiet: () => boolean } {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      goBack={vi.fn()} goForward={vi.fn()} useHistory={select => select({ canGoBack: false, canGoForward: false })}
       renderFactorySlot={() => null}
       renderSlot={((_key: string, owner: SidebarSectionOwnerProps) =>
         <div data-testid="region" data-wide={owner.wide} />) as SidebarRootComponentProps['renderSlot']}

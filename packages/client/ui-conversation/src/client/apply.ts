@@ -23,7 +23,7 @@ import { collapseWhitespaceRule, trimWhitespaceRule } from './user-text/whitespa
 import type { ViewTab } from './contract/views.ts'
 import { inputBarChildren } from './contract/slots.ts'
 import type {
-  ComposerBarInjected, ConversationInjected, ConversationSessionHeaderInjected, ConversationShellInjected,
+  ComposerBarInjected, ConversationFindState, ConversationInjected, ConversationSessionHeaderInjected, ConversationShellInjected,
   ConversationSessionInjected, DraftFileUploads, UserTextInjected,
 } from './contract/slots.ts'
 import type { InputNotice } from './contract/input.ts'
@@ -265,7 +265,25 @@ export function apply(ctx: Context, config: SyncedConfig<ConversationConfig>): v
     })
   }
   const stopShortcut = createSnapshotStore<readonly string[]>([])
+  const find = createSnapshotStore<ConversationFindState>({ open: false, request: 0 })
   ctx.inject(['shortcuts'], (scope) => {
+    // Browsers keep Primary+F for page search; Primary+Shift+F forks the Session there.
+    const findBinding = { code: 'KeyF', modifiers: ['primary'] } as const
+    const webFindBinding = { code: 'KeyF', modifiers: ['primary', 'alt'] } as const
+    scope.effect(() => scope.shortcuts.register({
+      id: 'find.open' as ShortcutCommandId, label: () => t('find.open'), aliases: ['find', 'search conversation', 'find in page'],
+      defaults: {
+        'desktop:macos': findBinding, 'desktop:windows': findBinding, 'desktop:linux': findBinding,
+        'web:macos': webFindBinding, 'web:windows': webFindBinding,
+      },
+      regions: ['page', 'editable'], modals: ['sidebar'],
+      resolve: (context) => {
+        if (context.modal !== null && context.modal !== 'sidebar') return { status: 'blocked', reason: t('find.closeDialog') }
+        // A global panel replaces the Conversation, which leaves nothing to search.
+        if ((ctx.get('layout')?.panelInfo.getSnapshot().activePanelId ?? null) !== null) return { status: 'pass' }
+        return { status: 'handled', run: () => { find.set({ open: true, request: find.getSnapshot().request + 1 }) } }
+      },
+    }), 'ui-conversation: find.open')
     const fixedInputs: readonly ShortcutFixedCommand[] = [
       { id: 'fixed.send' as ShortcutCommandId, label: () => t('input.send'), keys: ['Enter'],
         bindings: [{ code: 'Enter', modifiers: [] }], group: 'input' },
@@ -332,10 +350,13 @@ export function apply(ctx: Context, config: SyncedConfig<ConversationConfig>): v
 
   const shellInjected: ConversationShellInjected = {
     openWorkspace: (workspaceId, adopt) => workspaceNavigation.openWorkspace(workspaceId, adopt),
+    closeFind: () => { find.set({ ...find.getSnapshot(), open: false }) },
+    hooks: { find },
   }
 
   const registerConversationRoot = () => slots.register({
     name: 'main.conversation',
+    locale: NS,
     children: {
       'conversation.header': { kind: 'single', scope: 'session-maybe' },
     },

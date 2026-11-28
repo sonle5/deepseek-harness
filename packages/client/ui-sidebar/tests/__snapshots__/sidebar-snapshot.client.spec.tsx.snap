@@ -32,6 +32,36 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           style="display: contents;"
         />
       </button>
+      <button
+        aria-label="Back"
+        class="iconButton history"
+        data-history="back"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="06ac9ef3"
+          data-icon="dsw-icon-chevron-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="Forward"
+        class="iconButton history"
+        data-history="forward"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="a4e8349c"
+          data-icon="dsw-icon-chevron-right-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
     </div>
     <div
       data-slot="sidebar.navigation"
@@ -194,6 +224,36 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           class="panelIcon"
           data-content="d95b7908"
           data-icon="dsw-icon-panel-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="Back"
+        class="iconButton history"
+        data-history="back"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="06ac9ef3"
+          data-icon="dsw-icon-chevron-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="Forward"
+        class="iconButton history"
+        data-history="forward"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="a4e8349c"
+          data-icon="dsw-icon-chevron-right-outline-regular"
           height="16"
           width="16"
         />
@@ -500,6 +560,36 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
           width="16"
         />
       </button>
+      <button
+        aria-label="Back"
+        class="iconButton history"
+        data-history="back"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="06ac9ef3"
+          data-icon="dsw-icon-chevron-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="Forward"
+        class="iconButton history"
+        data-history="forward"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="a4e8349c"
+          data-icon="dsw-icon-chevron-right-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
     </div>
     <div
       data-slot="sidebar.navigation"
@@ -668,6 +758,36 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           class="panelIcon"
           data-content="d95b7908"
           data-icon="dsw-icon-panel-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="后退"
+        class="iconButton history"
+        data-history="back"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="06ac9ef3"
+          data-icon="dsw-icon-chevron-left-outline-regular"
+          height="16"
+          width="16"
+        />
+      </button>
+      <button
+        aria-label="前进"
+        class="iconButton history"
+        data-history="forward"
+        disabled=""
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          data-content="a4e8349c"
+          data-icon="dsw-icon-chevron-right-outline-regular"
           height="16"
           width="16"
         />

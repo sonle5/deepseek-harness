@@ -32,6 +32,7 @@ import type {
   SidebarSectionOwnerProps,
 } from './contract/slots.ts'
 import { FIXED_PANEL_ID } from './panel-pins.ts'
+import { HistoryButtons } from './HistoryButtons.tsx'
 import { createScrollHandoff } from './scroll-handoff.ts'
 import css from './SidebarRoot.module.css'
 
@@ -153,6 +154,9 @@ export function SidebarRoot({
   selectPanel,
   setPinned,
   trackEntryClick,
+  goBack,
+  goForward,
+  useHistory,
   useRemoteAccess,
   usePanels,
   useEntryPins,
@@ -169,6 +173,10 @@ export function SidebarRoot({
   const hasEntryActions = useEntryActions(registered => registered)
   const shortcut = useShortcuts(rows => rows.find(row => row.id === 'sidebar.left.toggle'))
   const newShortcut = useShortcuts(rows => rows.find(row => row.id === 'session.new'))
+  const backShortcut = useShortcuts(rows => rows.find(row => row.id === 'history.back'))
+  const forwardShortcut = useShortcuts(rows => rows.find(row => row.id === 'history.forward'))
+  const canGoBack = useHistory(state => state.canGoBack)
+  const canGoForward = useHistory(state => state.canGoForward)
   // A page whose access snapshot excludes starting a Session offers no New Session affordance.
   const canStartSession = useRemoteAccess('session/create')
   const toggleLabel = collapsed ? t('toggle.open') : t('toggle.collapse')
@@ -273,6 +281,24 @@ export function SidebarRoot({
         {!wide && renderSlot('sidebar.toggle.badge', {})}
       </button>
     </Tooltip>
+  )
+
+  // Back and Forward follow the toggle wherever it sits: the logo row, or the Windows caption. The
+  // settled rail has no room for them; collapsed macOS and drawer shells show them in the frame's leading seat.
+  const history = (wide || windowsTitlebar) && (
+    <HistoryButtons
+      canGoBack={canGoBack}
+      canGoForward={canGoForward}
+      goBack={goBack}
+      goForward={goForward}
+      backShortcut={backShortcut}
+      forwardShortcut={forwardShortcut}
+      backLabel={t('history.back')}
+      forwardLabel={t('history.forward')}
+      className={clsx(css.iconButton, css.history)}
+      side={captionTooltipSide}
+      portal={drawer}
+    />
   )
 
   // The browsing region below the logo row, built once and offered to the
@@ -462,6 +488,7 @@ export function SidebarRoot({
           )
         })()}
         {toggle}
+        {history}
       </div>
 
       {/* Everything below the logo row is the browsing region: the New-session

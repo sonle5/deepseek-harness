@@ -17,7 +17,7 @@ Status: implemented
 仓库变量选择端点：
 
 - `DSH_E2E_PROTOCOL`：`anthropic-messages`（默认）或 `openai-completions`。其他值会让 preflight 失败。
-- `DSH_E2E_BASE_URL`：默认 `https://api.deepseek.com/anthropic`。
+- `DSH_E2E_BASE_URL`：`anthropic-messages` 下默认 `https://api.deepseek.com/anthropic`；`openai-completions` 下必填，因为该 DeepSeek URL 不是 Chat Completions 端点。
 - `DSH_E2E_MODEL`：`openai-completions` 下必填；`anthropic-messages` 下它替换 headless 套件和 Python 真实 API 冒烟测试中的 `deepseek-v4-flash`。
 
 密钥为 `secrets.DSH_E2E_API_KEY`，回退到 `DEEPSEEK_API_KEY_EXTERNAL`。只有测试步骤以 `DSH_E2E_API_KEY` 接收它。`anthropic-messages` 下该步骤把它连同 `DEEPSEEK_BASE_URL` 导出为 `DEEPSEEK_API_KEY`，因此每个 DeepSeek 套件照旧运行。

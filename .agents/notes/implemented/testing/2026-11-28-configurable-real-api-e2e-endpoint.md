@@ -17,7 +17,7 @@ A missing key skips the real-API steps visibly instead of failing the job. The p
 Repository variables select the endpoint:
 
 - `DSH_E2E_PROTOCOL`: `anthropic-messages` (default) or `openai-completions`. Any other value fails the preflight.
-- `DSH_E2E_BASE_URL`: default `https://api.deepseek.com/anthropic`.
+- `DSH_E2E_BASE_URL`: default `https://api.deepseek.com/anthropic` under `anthropic-messages`; required under `openai-completions`, where the DeepSeek URL is not a Chat Completions endpoint.
 - `DSH_E2E_MODEL`: required under `openai-completions`; under `anthropic-messages` it replaces `deepseek-v4-flash` in the headless suites and the Python live smoke.
 
 The key is `secrets.DSH_E2E_API_KEY`, falling back to `DEEPSEEK_API_KEY_EXTERNAL`. Only the test step receives it, as `DSH_E2E_API_KEY`. Under `anthropic-messages` the step exports it as `DEEPSEEK_API_KEY` with `DEEPSEEK_BASE_URL`, so every DeepSeek suite runs as before.

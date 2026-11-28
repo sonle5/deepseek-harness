@@ -1527,12 +1527,14 @@ describe('DeepSeek e2e workflow', () => {
     expect(test.env).toMatchObject({
       DSH_E2E_API_KEY: '${{ secrets.DSH_E2E_API_KEY || secrets.DEEPSEEK_API_KEY_EXTERNAL }}',
       DSH_E2E_PROTOCOL: "${{ vars.DSH_E2E_PROTOCOL || 'anthropic-messages' }}",
-      DSH_E2E_BASE_URL: "${{ vars.DSH_E2E_BASE_URL || 'https://api.deepseek.com/anthropic' }}",
+      DSH_E2E_BASE_URL: "${{ vars.DSH_E2E_BASE_URL || ((vars.DSH_E2E_PROTOCOL || 'anthropic-messages') == 'anthropic-messages' && 'https://api.deepseek.com/anthropic' || '') }}",
       DSH_E2E_MODEL: '${{ vars.DSH_E2E_MODEL }}',
     })
     for (const [vars, expected] of [
       [{}, ['anthropic-messages', 'https://api.deepseek.com/anthropic']],
       [{ DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: 'https://catalog.onenexus.cloud/v1' }, ['openai-completions', 'https://catalog.onenexus.cloud/v1']],
+      // The DeepSeek Anthropic URL is not a Chat Completions endpoint, so it is no default there.
+      [{ DSH_E2E_PROTOCOL: 'openai-completions' }, ['openai-completions', '']],
     ] as const) {
       expect([test.env.DSH_E2E_PROTOCOL, test.env.DSH_E2E_BASE_URL].map(value => evaluateRunsOn(value, { vars }))).toEqual(expected)
     }
@@ -1592,7 +1594,10 @@ describe('DeepSeek e2e workflow', () => {
     expect(keyed.status).toBe(0)
     expect(keyed.output).toBe('present=true\n')
     expect(keyed.summary).toContain('https://catalog.onenexus.cloud/v1 over openai-completions with model dsv41f')
-    expect(outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions' }).status).toBe(1)
+    expect(outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: 'https://catalog.onenexus.cloud/v1' }).status).toBe(1)
+    const noBaseUrl = outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: '', DSH_E2E_MODEL: 'dsv41f' })
+    expect(noBaseUrl.status).toBe(1)
+    expect(noBaseUrl.stdout).toContain('requires the repository variables DSH_E2E_BASE_URL and DSH_E2E_MODEL')
     expect(outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'grpc' }).status).toBe(1)
   })
 })

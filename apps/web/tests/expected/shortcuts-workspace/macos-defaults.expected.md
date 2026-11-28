@@ -68,10 +68,10 @@
         - text: Toggle read/unread ⇧ ⌘ U
       - listitem:
         - button "Edit shortcut for Next tab"
-        - text: Next tab ⇧ ⌘ ]
+        - text: Next tab No shortcut
       - listitem:
         - button "Edit shortcut for Previous tab"
-        - text: Previous tab ⇧ ⌘ [
+        - text: Previous tab No shortcut
   - region "Message input":
     - heading "Message input" [level=3]
     - list:

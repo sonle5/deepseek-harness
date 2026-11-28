@@ -574,7 +574,7 @@ describe('sidebar keyboard commands', () => {
   })
 
   it.each([
-    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined, 'Shift+Meta+[', 'Shift+Meta+]'] },
+    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined, undefined, undefined] },
     { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R', 'Control+Shift+[', 'Control+Shift+]'] },
     { platform: 'linux', keys: [undefined, undefined, undefined, undefined, undefined, undefined, undefined] },
   ] as const)('publishes the Web defaults and unbound commands on $platform', ({ platform, keys }) => {

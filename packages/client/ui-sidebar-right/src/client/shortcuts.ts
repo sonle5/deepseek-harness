@@ -102,7 +102,7 @@ export function registerSidebarShortcuts(shortcuts: Pick<Shortcuts, 'register' |
       id: id as ShortcutCommandId, label: () => t(step < 0 ? 'command.previousTab' : 'command.nextTab'),
       aliases: [step < 0 ? 'previous tab' : 'next tab', 'switch tab'],
       defaults: { 'desktop:macos': binding, 'desktop:windows': binding, 'desktop:linux': binding,
-        'web:macos': binding, 'web:windows': binding },
+        'web:windows': binding },
       regions: ['page', 'editable', 'terminal'], modals: [],
       resolve: ({ target: element }) => {
         const target = sidebar.commandTarget(element)

@@ -68,10 +68,10 @@
         - text: 切换已读/未读 ⇧ ⌘ U
       - listitem:
         - button "修改下一个标签页快捷键"
-        - text: 下一个标签页 ⇧ ⌘ ]
+        - text: 下一个标签页 暂无快捷键
       - listitem:
         - button "修改上一个标签页快捷键"
-        - text: 上一个标签页 ⇧ ⌘ [
+        - text: 上一个标签页 暂无快捷键
   - region "消息输入":
     - heading "消息输入" [level=3]
     - list:

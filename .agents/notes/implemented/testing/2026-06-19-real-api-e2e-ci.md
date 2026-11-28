@@ -12,7 +12,7 @@ The default gate ([.github/workflows/ci.yml](../../../../.github/workflows/ci.ym
 
 ## Decision
 
-A dedicated workflow, [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml), separate from ci.yml, runs only `pnpm run test:e2e` against the external API using a repo secret, on trusted events, with a preflight that converts a missing secret into a loud failure instead of a false green. The keyless workflow remains separate so forkable quality gates and secret-consuming real-API gates keep different trigger and credential policies.
+A dedicated workflow, [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml), separate from ci.yml, runs only `pnpm run test:e2e` against the external API using a repo secret, on trusted events, with a preflight that turns a missing secret into a visible skip instead of a false green ([keyless-skip and configurable-endpoint Agent Note](2026-11-28-configurable-real-api-e2e-endpoint.md)). The keyless workflow remains separate so forkable quality gates and secret-consuming real-API gates keep different trigger and credential policies.
 
 ### A separate workflow, not a job in ci.yml
 
@@ -28,29 +28,30 @@ Internal inference cost is not the limiting constraint, so the workflow optimize
 
 ### The untrusted-PR gate
 
-GitHub withholds repo secrets from two kinds of PR: those from **forks**, and **Dependabot** PRs (same-repo branch, so `head.repo.fork == false`, but secrets are still withheld). A job-level `if:` skips the whole job for both:
+GitHub withholds repo secrets from two kinds of PR: those from **forks**, and **Dependabot** PRs (same-repo branch, so `head.repo.fork == false`, but secrets are still withheld). A job-level `if:` skips the whole job for both. It matches the head repository against `github.repository` rather than reading `head.repo.fork`, because `head.repo.fork` is true for every PR, same-repository branches included, when the repository is itself a fork:
 
 ```
 github.event_name != 'pull_request'
-  || !(github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]')
+  || (github.event.pull_request.head.repo.full_name == github.repository
+    && github.event.pull_request.user.login != 'dependabot[bot]')
 ```
 
 The Dependabot clause keys on the PR **author** (`pull_request.user.login`), not `github.actor` (the run trigger): a maintainer who reopens or re-runs a Dependabot PR would make `github.actor` a human while the PR is still keyless, and an author-based test stays correct across that. A job skipped by a **job-level** `if:` reports as a *successful* check (unlike a workflow/trigger-level skip, which stays pending), so this workflow is safe to mark as a required status check if desired — a fork/Dependabot PR's skipped-but-green check does not block the merge.
 
 The gate is a *clean-skip nicety*, not the secret's security boundary (see § Security — the boundary is GitHub's own fork-secret withholding under `pull_request`). Without the gate, forks still could not read the key; they would just hit a confusing preflight hard-fail and waste compute.
 
-### Preflight: fail loud, never false-green
+### Preflight: never false-green
 
-Because the job only runs on trusted events where the secret is expected, the preflight is an unconditional presence check: empty key → `exit 1` with a `::error::` annotation naming the secret to configure. This is the crux that makes a self-skipping suite safe to gate on. Without it, a deleted/renamed/misconfigured secret would make `test:e2e` skip every real suite and report all-green — a silent regression of the entire safety net. The guard turns "secret missing" from an invisible false pass into a visible failure. (Its correctness was verified live: the run before the secret existed failed at exactly this step.)
+Without the preflight, a deleted/renamed/misconfigured secret would make `test:e2e` skip every real suite and report all-green — a silent regression of the entire safety net. The preflight skips the build and test steps instead and says in a `::notice::` and the step summary that the real-API tests did not run; the [keyless-skip and configurable-endpoint Agent Note](2026-11-28-configurable-real-api-e2e-endpoint.md) records why this replaced an `exit 1` failure.
 
 ### Secret mapping and hygiene
 
-The repo secret is named `DEEPSEEK_API_KEY_EXTERNAL`; it is mapped to the `DEEPSEEK_API_KEY` env var the adapters and tests read (`process.env.DEEPSEEK_API_KEY`). The distinct secret name documents intent (this is the *external* public-API key, not an internal-endpoint key) and lets an internal-endpoint key coexist later without collision. Hygiene choices, each defensive:
+The repo secret is `DSH_E2E_API_KEY`, falling back to `DEEPSEEK_API_KEY_EXTERNAL`; under the default `anthropic-messages` protocol it is mapped to the `DEEPSEEK_API_KEY` env var the adapters and tests read (`process.env.DEEPSEEK_API_KEY`). The distinct secret name documents intent (this is the *external* public-API key, not an internal-endpoint key) and lets an internal-endpoint key coexist later without collision. Hygiene choices, each defensive:
 
-- **Step-scoped secret.** `DEEPSEEK_API_KEY` is set in the `env:` of only the preflight and e2e steps, never job-level — so checkout/setup-node/install never see it. A compromised install-time lifecycle script in a dependency cannot read a secret that isn't in its environment.
+- **Step-scoped secret.** The key is set in the `env:` of only the e2e test step, never job-level; the preflight receives only whether it exists — so checkout/setup-node/install never see it. A compromised install-time lifecycle script in a dependency cannot read a secret that isn't in its environment.
 - **`permissions: contents: read`.** The job only reads the repo to run tests; it needs no write scopes (no PR comments, no status writes), so the `GITHUB_TOKEN` is dropped to least privilege.
-- **`DEEPSEEK_BASE_URL` pinned** to `https://api.deepseek.com/anthropic` on the e2e step. The adapter would default to this when unset ([packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`), but pinning is self-documenting and hermetic — a stray repo-root `.env` (which `vitest.e2e.config.ts` loads if present) cannot silently redirect the run to another endpoint.
-- **No secret echoed.** The preflight prints only `DEEPSEEK_API_KEY present.` — not the value or its length.
+- **`DEEPSEEK_BASE_URL` pinned** on the e2e step to the `DSH_E2E_BASE_URL` repository variable, default `https://api.deepseek.com/anthropic`. The adapter would default to this when unset ([packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`), but pinning is self-documenting and hermetic — a stray repo-root `.env` (which `vitest.e2e.config.ts` loads if present) cannot silently redirect the run to another endpoint.
+- **No secret echoed.** The preflight never sees the value; its summary names only the endpoint, protocol and model.
 
 ### Scope, runtime shape
 
@@ -93,7 +94,7 @@ None of these require changing the workflow to go public; they are operational s
 
 ## Consequences
 
-A second CI workflow and the first repo secret to maintain. The real-API suite now gates merges (pre-merge on trusted PRs, post-merge on the main branch) and runs nightly, so a real break in the agent's interaction with the external API surfaces in CI rather than only in a developer's local run — at the cost of real (but internally free) API calls on every trusted PR and merge. The preflight makes secret misconfiguration self-announcing instead of silently disabling the net.
+A second CI workflow and the first repo secret to maintain. The real-API suite now gates merges (pre-merge on trusted PRs, post-merge on the main branch) and runs nightly, so a real break in the agent's interaction with the external API surfaces in CI rather than only in a developer's local run — at the cost of real (but internally free) API calls on every trusted PR and merge. The preflight makes secret misconfiguration self-announcing through its notice instead of silently disabling the net.
 
 The design carries a documented constraint surface: the `pull_request` trigger's key-exposure tradeoff (drop it to harden), the `if:` gate's dependence on the author-based Dependabot test, and the hard prohibition on `pull_request_target`. The going-public checklist above is the operational companion — this Agent Note is the place a future maintainer should re-read before changing the trigger set or flipping repo visibility, rather than re-deriving the fork/secret model from scratch.
 

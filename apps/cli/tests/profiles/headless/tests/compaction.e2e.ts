@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { codingHarness, finalText, SYSTEM_PROMPT, waitForIdle } from './harness.ts'
+import { codingHarness, e2eRoute, finalText, SYSTEM_PROMPT, waitForIdle } from './harness.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
@@ -25,7 +25,7 @@ afterEach(async () => {
   workdir = undefined
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('compaction: a long session compacts mid-flight and keeps running', () => {
+describe.skipIf(e2eRoute === undefined)('compaction: a long session compacts mid-flight and keeps running', () => {
   it('summarizes older history into a checkpoint without breaking the task', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-compaction-'))
     // An older file result must exceed the framed checkpoint's fixed sections.
@@ -51,7 +51,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('compaction: a long session compa
       persistenceRoot: join(workdir, '.sessions'),
     })
     expect(ctx.get('compaction'), 'the compaction service is active before model requests').toBeDefined()
-    const agent = await ctx.agentLoop.create(brandString<SessionId>('e2e-compaction'), { provider: 'deepseek-official', model: 'deepseek-v4-flash' }, { cwd: workdir })
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('e2e-compaction'), e2eRoute, { cwd: workdir })
 
     // Completed read turns cannot collapse into one retained parallel tool group.
     for (let i = 1; i <= 4; i++) {

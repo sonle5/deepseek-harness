@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { codingHarness, finalText, SYSTEM_PROMPT, waitForIdle } from './harness.ts'
+import { codingHarness, e2eRoute, finalText, SYSTEM_PROMPT, waitForIdle } from './harness.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
@@ -45,7 +45,7 @@ afterEach(async () => {
   workdir = undefined
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('coding task: fix a failing test via bash', () => {
+describe.skipIf(e2eRoute === undefined)('coding task: fix a failing test via bash', () => {
   it('repairs add.js so node add.test.js passes', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-coding-task-'))
     await writeFile(join(workdir, 'add.js'), BUGGY_ADD)
@@ -56,7 +56,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('coding task: fix a failing test 
     expect(before.status).not.toBe(0)
 
     ctx = await codingHarness(workdir, { personaPrefix: SYSTEM_PROMPT })
-    const agent = await ctx.agentLoop.create(brandString<SessionId>('e2e-task'), { provider: 'deepseek-official', model: 'deepseek-v4-flash' }, { cwd: workdir })
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('e2e-task'), e2eRoute, { cwd: workdir })
 
     agent.followup(createUserMessage({
       content: [{

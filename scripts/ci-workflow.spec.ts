@@ -1233,6 +1233,7 @@ describe('CI workflow', () => {
       with: { targets: 'node24-linux-x64,node24-win-x64', ci: true },
       secrets: {
         DEEPSEEK_API_KEY_EXTERNAL: '${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}',
+        DSH_E2E_API_KEY: '${{ secrets.DSH_E2E_API_KEY }}',
       },
     })
     expect(aggregate.needs).toEqual(['python-sdk', 'python-runtime'])
@@ -1508,6 +1509,104 @@ describe('DeepSeek e2e workflow', () => {
     const step = e2e.steps.filter(isRecord).find(candidate => candidate.name === 'E2E tests (real DeepSeek API)')
     expect(step).toMatchObject({ env: { DSH_E2E_MAX_WORKERS: 6 } })
   })
+
+  function e2eSteps(): Record<string, unknown>[] {
+    const e2e = workflowJob(loadWorkflow('.github/workflows/e2e.yml'), 'e2e')
+    if (!Array.isArray(e2e.steps)) throw new TypeError('DeepSeek e2e workflow must define steps')
+    return e2e.steps.filter(isRecord)
+  }
+
+  function e2eStep(name: string): { id: unknown; env: Record<string, unknown>; run: string } {
+    const step = e2eSteps().find(candidate => candidate.name === name)
+    if (!isRecord(step) || !isRecord(step.env) || typeof step.run !== 'string') throw new TypeError(`e2e must run ${name} with env`)
+    return { id: step.id, env: step.env, run: step.run }
+  }
+
+  it('reads the endpoint, model and protocol from repository variables, defaulting to the DeepSeek API', () => {
+    const test = e2eStep('E2E tests (real DeepSeek API)')
+    expect(test.env).toMatchObject({
+      DSH_E2E_API_KEY: '${{ secrets.DSH_E2E_API_KEY || secrets.DEEPSEEK_API_KEY_EXTERNAL }}',
+      DSH_E2E_PROTOCOL: "${{ vars.DSH_E2E_PROTOCOL || 'anthropic-messages' }}",
+      DSH_E2E_BASE_URL: "${{ vars.DSH_E2E_BASE_URL || ((vars.DSH_E2E_PROTOCOL || 'anthropic-messages') == 'anthropic-messages' && 'https://api.deepseek.com/anthropic' || '') }}",
+      DSH_E2E_MODEL: '${{ vars.DSH_E2E_MODEL }}',
+    })
+    for (const [vars, expected] of [
+      [{}, ['anthropic-messages', 'https://api.deepseek.com/anthropic']],
+      [{ DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: 'https://catalog.onenexus.cloud/v1' }, ['openai-completions', 'https://catalog.onenexus.cloud/v1']],
+      // The DeepSeek Anthropic URL is not a Chat Completions endpoint, so it is no default there.
+      [{ DSH_E2E_PROTOCOL: 'openai-completions' }, ['openai-completions', '']],
+    ] as const) {
+      expect([test.env.DSH_E2E_PROTOCOL, test.env.DSH_E2E_BASE_URL].map(value => evaluateRunsOn(value, { vars }))).toEqual(expected)
+    }
+    expect(JSON.stringify(e2eSteps())).not.toContain('DEEPSEEK_API_KEY:')
+  })
+
+  it('scopes the API key secret to the test step and gives the preflight only its presence', () => {
+    const steps = e2eSteps()
+    const withSecret = steps.filter(step => JSON.stringify(step).includes('secrets.')).map(step => step.name)
+    expect(withSecret).toEqual(['Preflight (real-API key and endpoint)', 'E2E tests (real DeepSeek API)'])
+    const preflight = e2eStep('Preflight (real-API key and endpoint)')
+    expect(preflight.env.E2E_KEY_PRESENT).toBe("${{ secrets.DSH_E2E_API_KEY != '' || secrets.DEEPSEEK_API_KEY_EXTERNAL != '' }}")
+    for (const [secrets, present] of [[{ DSH_E2E_API_KEY: '', DEEPSEEK_API_KEY_EXTERNAL: '' }, false], [{ DSH_E2E_API_KEY: 'k', DEEPSEEK_API_KEY_EXTERNAL: '' }, true], [{ DSH_E2E_API_KEY: '', DEEPSEEK_API_KEY_EXTERNAL: 'k' }, true]] as const) {
+      expect(evaluateRunsOn(preflight.env.E2E_KEY_PRESENT, { secrets })).toBe(present)
+    }
+    const test = e2eStep('E2E tests (real DeepSeek API)')
+    for (const [secrets, key] of [[{ DSH_E2E_API_KEY: 'onenexus', DEEPSEEK_API_KEY_EXTERNAL: 'deepseek' }, 'onenexus'], [{ DSH_E2E_API_KEY: '', DEEPSEEK_API_KEY_EXTERNAL: 'deepseek' }, 'deepseek']] as const) {
+      expect(evaluateRunsOn(test.env.DSH_E2E_API_KEY, { secrets })).toBe(key)
+    }
+    const workflow = loadWorkflow('.github/workflows/e2e.yml')
+    expect(Object.keys(workflow.on as Record<string, unknown>).sort()).toEqual(['pull_request', 'push', 'schedule', 'workflow_dispatch'])
+    // A fork repository reports head.repo.fork for its own branches, so the
+    // same-repository head is what admits a PR.
+    const runs = (github: Record<string, unknown>) => evaluateRunsOn(`\${{ ${String(workflowJob(workflow, 'e2e').if)} }}`, { github: { repository: 'owner/repo', ...github } })
+    const pullRequest = (login: string, head: string) => ({ event_name: 'pull_request', event: { pull_request: { user: { login }, head: { repo: { full_name: head, fork: true } } } } })
+    expect(runs(pullRequest('maintainer', 'owner/repo'))).toBe(true)
+    expect(runs(pullRequest('outsider', 'outsider/repo'))).toBe(false)
+    expect(runs(pullRequest('dependabot[bot]', 'owner/repo'))).toBe(false)
+    for (const event_name of ['push', 'schedule', 'workflow_dispatch']) expect(runs({ event_name })).toBe(true)
+  })
+
+  it('skips the build and test steps with a notice and step summary when no key is set', () => {
+    const steps = e2eSteps()
+    const preflight = steps.findIndex(step => step.name === 'Preflight (real-API key and endpoint)')
+    expect(steps[preflight]?.id).toBe('key')
+    const gated = steps.slice(preflight + 1)
+    expect(gated.map(step => step.name)).toEqual(['Build (lib for the e2e example bins)', 'Prepare Office runtime', 'E2E tests (real DeepSeek API)'])
+    for (const step of gated) expect(step.if).toBe("steps.key.outputs.present == 'true'")
+    if (process.platform === 'win32') return
+    const { run } = e2eStep('Preflight (real-API key and endpoint)')
+    const outcome = (env: Record<string, string>) => {
+      const dir = mkdtempSync(join(tmpdir(), 'dsh-e2e-preflight-'))
+      try {
+        const output = join(dir, 'output')
+        const summary = join(dir, 'summary')
+        writeFileSync(output, '')
+        writeFileSync(summary, '')
+        const child = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', run], {
+          env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, DSH_E2E_PROTOCOL: 'anthropic-messages', DSH_E2E_BASE_URL: 'https://api.deepseek.com/anthropic', DSH_E2E_MODEL: '', ...env },
+          encoding: 'utf8',
+          timeout: 10_000,
+        })
+        return { status: child.status, stdout: child.stdout, output: readFileSync(output, 'utf8'), summary: readFileSync(summary, 'utf8') }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+    const keyless = outcome({ E2E_KEY_PRESENT: 'false' })
+    expect(keyless.status).toBe(0)
+    expect(keyless.output).toBe('present=false\n')
+    expect(keyless.stdout).toContain('::notice title=Real-API e2e skipped::')
+    expect(keyless.summary).toContain('Real-API e2e tests did not run')
+    const keyed = outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: 'https://catalog.onenexus.cloud/v1', DSH_E2E_MODEL: 'dsv41f' })
+    expect(keyed.status).toBe(0)
+    expect(keyed.output).toBe('present=true\n')
+    expect(keyed.summary).toContain('https://catalog.onenexus.cloud/v1 over openai-completions with model dsv41f')
+    expect(outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: 'https://catalog.onenexus.cloud/v1' }).status).toBe(1)
+    const noBaseUrl = outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'openai-completions', DSH_E2E_BASE_URL: '', DSH_E2E_MODEL: 'dsv41f' })
+    expect(noBaseUrl.status).toBe(1)
+    expect(noBaseUrl.stdout).toContain('requires the repository variables DSH_E2E_BASE_URL and DSH_E2E_MODEL')
+    expect(outcome({ E2E_KEY_PRESENT: 'true', DSH_E2E_PROTOCOL: 'grpc' }).status).toBe(1)
+  })
 })
 
 describe('Python release workflows', () => {
@@ -1627,6 +1726,7 @@ describe('Python release workflows', () => {
     })
     expect(call.secrets).toMatchObject({
       DEEPSEEK_API_KEY_EXTERNAL: { required: false },
+      DSH_E2E_API_KEY: { required: false },
     })
     expect(workflow.concurrency).toMatchObject({
       group: 'build-single-exe-${{ github.workflow }}-${{ github.ref }}',
@@ -1669,21 +1769,45 @@ describe('Python release workflows', () => {
     expect(installedKeylessWindows).toMatchObject({ if: "runner.os == 'Windows'", shell: 'pwsh' })
     expect(cleanVenvWindows).toMatchObject({ if: "runner.os == 'Windows'", shell: 'pwsh' })
     expect(JSON.stringify(cleanVenvWindows)).toContain('Scripts\\\\python.exe')
-    expect(realApiPreflightPosix).toMatchObject({
-      env: { DEEPSEEK_API_KEY: '${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}' },
-    })
-    expect(String(realApiPreflightPosix.if)).toContain('inputs.ci')
-    expect(String(realApiPreflightPosix.if)).toContain('head.repo.fork')
-    expect(String(realApiPreflightPosix.if)).toContain('dependabot[bot]')
-    expect(realApiPreflightWindows).toMatchObject({ shell: 'pwsh' })
+    for (const preflight of [realApiPreflightPosix, realApiPreflightWindows]) {
+      // The preflight sees whether a key exists, never its value.
+      expect(preflight).toMatchObject({
+        env: {
+          E2E_KEY_PRESENT: "${{ secrets.DSH_E2E_API_KEY != '' || secrets.DEEPSEEK_API_KEY_EXTERNAL != '' }}",
+          DSH_E2E_PROTOCOL: "${{ vars.DSH_E2E_PROTOCOL || 'anthropic-messages' }}",
+        },
+      })
+      expect(String(preflight.if)).toContain('inputs.ci')
+      // A fork repository reports head.repo.fork for its own branches, so the
+      // same-repository head is what admits a PR.
+      const runs = (github: Record<string, unknown>) => evaluateRunsOn(`\${{ ${String(preflight.if)} }}`, { inputs: { ci: true }, runner: { os: preflight.shell === 'pwsh' ? 'Windows' : 'Linux' }, github: { repository: 'owner/repo', ...github } })
+      const pullRequest = (login: string, head: string) => ({ event_name: 'pull_request', event: { pull_request: { user: { login }, head: { repo: { full_name: head, fork: true } } } } })
+      expect(runs(pullRequest('maintainer', 'owner/repo'))).toBe(true)
+      expect(runs(pullRequest('outsider', 'outsider/repo'))).toBe(false)
+      expect(runs(pullRequest('dependabot[bot]', 'owner/repo'))).toBe(false)
+      expect(runs({ event_name: 'push' })).toBe(true)
+      expect(JSON.stringify(preflight)).toContain('::notice title=Installed-wheel real API test skipped::')
+      expect(JSON.stringify(preflight)).toContain('GITHUB_STEP_SUMMARY')
+    }
+    expect(realApiPreflightPosix.id).toBe('live-preflight-posix')
+    expect(realApiPreflightWindows).toMatchObject({ id: 'live-preflight-windows', shell: 'pwsh' })
+    expect(installedRealApiPosix.if).toBe("steps.live-preflight-posix.outputs.run == 'true'")
+    expect(installedRealApiWindows.if).toBe("steps.live-preflight-windows.outputs.run == 'true'")
     for (const step of [installedRealApiPosix, installedRealApiWindows]) {
       expect(step).toMatchObject({
         env: {
-          DEEPSEEK_API_KEY: '${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}',
-          DEEPSEEK_BASE_URL: 'https://api.deepseek.com/anthropic',
+          DEEPSEEK_API_KEY: '${{ secrets.DSH_E2E_API_KEY || secrets.DEEPSEEK_API_KEY_EXTERNAL }}',
+          DEEPSEEK_BASE_URL: "${{ vars.DSH_E2E_BASE_URL || 'https://api.deepseek.com/anthropic' }}",
+          DSH_E2E_MODEL: '${{ vars.DSH_E2E_MODEL }}',
         },
       })
     }
+    expect(buildSteps.filter(step => JSON.stringify(step).includes('secrets.')).map(step => isRecord(step) ? step.name : step)).toEqual([
+      'Preflight installed-wheel real API test (POSIX)',
+      'Preflight installed-wheel real API test (Windows)',
+      'Run installed-wheel real API black-box test (POSIX)',
+      'Run installed-wheel real API black-box test (Windows)',
+    ])
     expect(JSON.stringify(installedRealApiPosix)).toContain('--scenario sdk-live')
     expect(JSON.stringify(installedRealApiPosix)).toContain('-u DSH_RUNTIME_MODE')
     expect(installedRealApiWindows).toMatchObject({ shell: 'pwsh' })

@@ -1,0 +1,55 @@
+name: Icon evidence (Issue 33, temporary)
+
+on:
+  pull_request:
+    branches: [agent/fix-icon-grid-b1cb57d77621]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [before, after]
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Keep the capture script
+        run: cp -R .github/icon-evidence "$RUNNER_TEMP/scripts"
+      - name: Select source
+        run: |
+          if [ "${{ matrix.label }}" = before ]; then git checkout --detach "$BEFORE_SHA"; else git checkout --detach "$AFTER_SHA"; fi
+          git log --oneline -1
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/source-sha.txt"
+        env:
+          BEFORE_SHA: 3f796368cb9a6f799a4195a5215b2083a349a59a
+          AFTER_SHA: c4cfdb87fc9c0820db7642d9bfd99e470c261316
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '^24.22.3'
+      - run: pnpm install --frozen-lockfile
+      - name: Omit the internal Composer release this repository cannot download
+        run: |
+          node -e "const f='apps/desktop/scripts/composer/lock.json';const fs=require('fs');const l=JSON.parse(fs.readFileSync(f,'utf8'));l.targets['darwin-arm64']={available:false};fs.writeFileSync(f,JSON.stringify(l,null,2)+'\n')"
+      - name: Package unsigned arm64 DMG
+        run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: Capture Dock, Finder and DMG
+        if: always()
+        run: bash "$RUNNER_TEMP/scripts/capture.sh" "${{ matrix.label }}" "$RUNNER_TEMP/evidence"
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: icon-evidence-${{ matrix.label }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 7

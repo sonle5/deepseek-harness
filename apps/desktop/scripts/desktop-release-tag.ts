@@ -13,6 +13,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { desktopReleaseTag } from '../src/release.ts'
+
+export { desktopReleaseTag }
 
 /** What tagging one uploaded release did, or why it did nothing. */
 export interface DesktopReleaseTagResult {
@@ -21,15 +24,6 @@ export interface DesktopReleaseTagResult {
   /** Commands that finish the tagging a failure interrupted, in order. */
   readonly recovery?: readonly string[]
   readonly detail?: string
-}
-
-/**
- * Name the tag one published version carries.
- * @param version - Version the release published.
- * @returns The tag name, distinct from the `dsh-v*` tags the npm family publishes from.
- */
-export function desktopReleaseTag(version: string): string {
-  return `desktop-v${version}`
 }
 
 /**

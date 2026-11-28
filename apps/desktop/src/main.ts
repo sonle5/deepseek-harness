@@ -66,6 +66,7 @@ import { readDesktopSettings } from './settings.ts'
 import { readDesktopLocaleCache, writeDesktopLocaleCache } from './locale-cache.ts'
 import { DesktopUpdateDialog, type UpdateDialogOptions } from './update-dialog.ts'
 import { readDesktopRuntime } from './runtime-tree.ts'
+import { desktopReleaseTag } from './release.ts'
 import { DesktopBrowserGuests } from './browser-guests.ts'
 import { installDesktopShortcuts, type MenuCommandId } from './keyboard.ts'
 import { DesktopUpdateOverlays } from './update-overlay.ts'
@@ -1359,11 +1360,26 @@ async function main(): Promise<void> {
     zoomItem(messages.zoomOutMenu, level => level - 0.5),
     ...composerSwitcher.available ? [{ type: 'separator' as const }, ...composerProductItems()] : [],
   ] })
-  // Help links: release notes, the project documentation and this repository's new-issue page.
-  const documentationUrl = 'https://deepseek-harness.github.io/deepseek-harness/'
-  const newIssueUrl = 'https://github.com/sonle5/deepseek-harness/issues/new'
-  // Release tags are dsh-v<version>; the notes of the running build live on its release page.
-  const releaseNotesUrl = (): string => `https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v${app.getVersion()}`
+  // Help links all point into the product repository: its README documents the product until it has its own site.
+  const productRepository = 'sonle5/deepseek-harness'
+  const productRepositoryUrl = `https://github.com/${productRepository}`
+  const documentationUrl = `${productRepositoryUrl}#readme`
+  const newIssueUrl = `${productRepositoryUrl}/issues/new`
+  const releasesUrl = `${productRepositoryUrl}/releases`
+  // The running version's release page when its GitHub release exists, otherwise the releases list.
+  const releaseNotesUrl = async (): Promise<string> => {
+    const tag = encodeURIComponent(desktopReleaseTag(app.getVersion()))
+    try {
+      const response = await fetch(`https://api.github.com/repos/${productRepository}/releases/tags/${tag}`, {
+        headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(5000),
+      })
+      await response.body?.cancel()
+      return response.ok ? `${releasesUrl}/tag/${tag}` : releasesUrl
+    } catch (error) {
+      console.warn('desktop help: could not look up the release of this version', error)
+      return releasesUrl
+    }
+  }
   const copyDiagnostics = (): void => {
     void clipboard.writeText([`${app.name} ${app.getVersion()}`, `Electron ${process.versions.electron}`,
       `${process.platform} ${process.arch} ${osRelease()}`, readDeviceInfo()].join('\n'))
@@ -1375,7 +1391,7 @@ async function main(): Promise<void> {
   const macHelpMenu = (messages: DesktopMessages): MenuItemConstructorOptions => ({ role: 'help', label: messages.helpMenu, submenu: [
     productCommand('shortcuts.open', messages.keyboardShortcutsMenu),
     { type: 'separator' },
-    { label: messages.whatsNewMenu, click: () => { openPublicPage(releaseNotesUrl()) } },
+    { label: messages.whatsNewMenu, click: () => { void releaseNotesUrl().then(openPublicPage) } },
     { label: messages.documentationMenu, click: () => { openPublicPage(documentationUrl) } },
     { type: 'separator' },
     productCommand('feedback.open', messages.sendFeedbackMenu),

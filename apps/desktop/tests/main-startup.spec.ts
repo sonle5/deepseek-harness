@@ -255,7 +255,7 @@ const harness = await vi.hoisted(async () => {
     get publishUpdate() { return publishUpdate! },
     set publishUpdate(value: (state: DesktopUpdateState) => DesktopUpdateState) { publishUpdate = value },
     dialog: { showOpenDialog: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn() },
-    openExternal: vi.fn(async () => {}),
+    openExternal: vi.fn(async (_url: string) => {}),
     showItemInFolder: vi.fn(),
     openPath: vi.fn<(path: string) => Promise<string>>(async () => ''),
     clipboard: { writeText: vi.fn<(text: string) => Promise<void>>(async () => {}) },
@@ -1475,7 +1475,7 @@ describe('desktop main startup', () => {
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 
-  it('opens release notes, the logs folder, and copies diagnostics from the macOS Help menu', async () => {
+  it('opens product release notes, documentation, issues and the logs folder, and copies diagnostics from the macOS Help menu', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -1485,9 +1485,30 @@ describe('desktop main startup', () => {
     const click = (items: MenuItemConstructorOptions[], label: string) => {
       ;(items.find(item => item.label === label)!.click as () => void)()
     }
+    const releases = 'https://github.com/sonle5/deepseek-harness/releases'
+    const tag = `desktop-v${harness.app.getVersion()}`
+    const lookup = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ tag_name: tag }))
+      .mockResolvedValueOnce(Response.json({ message: 'Not Found' }, { status: 404 }))
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+    vi.stubGlobal('fetch', lookup)
+    const warn = vi.mocked(console.warn)
     click(help, en.whatsNewMenu)
-    expect(harness.openExternal).toHaveBeenLastCalledWith(
-      `https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v${harness.app.getVersion()}`)
+    await vi.waitFor(() => { expect(harness.openExternal).toHaveBeenLastCalledWith(`${releases}/tag/${tag}`) })
+    expect(lookup.mock.lastCall![0]).toBe(`https://api.github.com/repos/sonle5/deepseek-harness/releases/tags/${tag}`)
+    // A version without a published release, or a failed lookup, opens the releases list.
+    for (const count of [2, 3]) {
+      click(help, en.whatsNewMenu)
+      await vi.waitFor(() => { expect(harness.openExternal).toHaveBeenCalledTimes(count) })
+      expect(harness.openExternal).toHaveBeenLastCalledWith(releases)
+    }
+    expect(warn).toHaveBeenCalledWith('desktop help: could not look up the release of this version', expect.any(TypeError))
+    click(help, en.documentationMenu)
+    expect(harness.openExternal).toHaveBeenLastCalledWith('https://github.com/sonle5/deepseek-harness#readme')
+    click(help, en.reportIssueMenu)
+    expect(harness.openExternal).toHaveBeenLastCalledWith('https://github.com/sonle5/deepseek-harness/issues/new')
+    const opened = harness.openExternal.mock.calls.map(call => call[0])
+    expect(opened).toHaveLength(5)
+    for (const url of opened) expect(url).not.toMatch(/deepseek-ai\/|deepseek-harness\.github\.io/u)
     const troubleshooting = help.find(item => item.label === en.troubleshootingMenu)!.submenu as MenuItemConstructorOptions[]
     expect(troubleshooting.map(item => item.label)).toEqual([en.openLogsFolderMenu, en.copyDiagnosticsMenu])
     click(troubleshooting, en.openLogsFolderMenu)

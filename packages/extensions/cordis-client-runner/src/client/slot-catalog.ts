@@ -6087,6 +6087,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'sidebar\' (client-ui-sidebar), so it exists while that entry is mounted',
     occupants: [
+      'client-ui-workspace SessionSearchAction id \'workspace.search\'',
       'deepseek-chat-import ImportSessionsAction id \'deepseek-chat-import\'',
     ],
     replaceRisk: 'wraps-owner-content',

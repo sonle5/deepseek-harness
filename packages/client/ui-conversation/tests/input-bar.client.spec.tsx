@@ -2182,14 +2182,16 @@ describe('strips and variants', () => {
       inert: true,
       onRequestWorkspace,
       placeholder: '选择一个工作区开始',
-      accessory: <button type="button">strip</button>,
+      accessory: <><button type="button">strip</button>{createPortal(<button type="button">dialog</button>, document.body)}</>,
     })
     const card = view.container.querySelector('[data-composer-card]') as HTMLElement
     const strip = view.getByRole('button', { name: 'strip' })
     expect(card.contains(strip)).toBe(true)
     expect(strip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // The strip's own controls own their clicks; the rest of the capsule still opens the picker.
+    // The strip's own controls own their clicks, as does content a strip control portals out,
+    // such as a picker dialog; the rest of the capsule still opens the picker.
     fireEvent.click(strip)
+    fireEvent.click(view.getByRole('button', { name: 'dialog' }))
     expect(onRequestWorkspace).not.toHaveBeenCalled()
     fireEvent.click(card)
     expect(onRequestWorkspace).toHaveBeenCalledTimes(1)

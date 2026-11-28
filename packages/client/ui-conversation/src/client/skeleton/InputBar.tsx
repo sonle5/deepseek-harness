@@ -354,8 +354,11 @@ export const InputBar = memo(function InputBar({
   }
 
   // The tab strip's own controls handle their clicks; only the rest of the
-  // capsule opens the Workspace picker.
+  // capsule opens the Workspace picker. React bubbles clicks from portaled
+  // content, such as a strip picker's dialog, so only targets inside the
+  // card's own DOM count.
   const onWorkspaceCardClick = (e: MouseEvent<HTMLDivElement>): void => {
+    if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
     if (e.target instanceof Element && e.target.closest('[data-composer-accessory]') !== null) return
     onRequestWorkspace?.()
   }

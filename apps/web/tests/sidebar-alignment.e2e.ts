@@ -25,7 +25,7 @@ const ACTION_TRAILING_INSET = 7
 const SEARCH_HEIGHT = 32
 const SEARCH_TRANSITION_MS = 180
 const HEADER_LABEL_OFFSET = 7
-const HEADER_ACTION_RIGHT_OFFSETS = { search: -61, view: -29, add: 3 }
+const HEADER_ACTION_RIGHT_OFFSETS = { view: -29, add: 3 }
 
 /**
  * Measure painted glyphs and pointer targets independently of the row's layout cells.
@@ -143,12 +143,13 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
     try { await browser?.close() } finally { await scaffold?.close() }
   })
 
-  it('aligns the 32px expanded search with both edges of New session', async () => {
+  it('aligns the 32px expanded search with both edges of the New session row', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-search-alignment'))
     const searchButton = page.getByRole('button', { name: 'Search sessions', exact: true })
     const input = page.getByPlaceholder('Search session names', { exact: true })
     const search = input.locator('..')
-    const newSession = page.locator('button[class*="newSession"]')
+    // The row holds New session and, at its trailing edge, the search control.
+    const newSession = page.locator('[class*="newSessionRow"]')
     const measure = async () => {
       const searchBox = await search.boundingBox()
       const newSessionBox = await newSession.boundingBox()
@@ -164,7 +165,7 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
       await expect.poll(async () => {
         const reference = await newSession.boundingBox()
         if (reference === null) throw new Error('New session has no layout box')
-        const controls = [searchButton, page.getByRole('button', { name: 'View options', exact: true }), page.getByRole('button', { name: 'Add workspace', exact: true })]
+        const controls = [page.getByRole('button', { name: 'View options', exact: true }), page.getByRole('button', { name: 'Add workspace', exact: true })]
         const boxes = await Promise.all(controls.map(control => control.boundingBox()))
         return boxes.map(box => box === null ? null : box.x + box.width - reference.x - reference.width)
       }).toEqual(Object.values(HEADER_ACTION_RIGHT_OFFSETS))
@@ -172,12 +173,16 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
       const referenceBox = await newSession.boundingBox()
       if (labelBox === null || referenceBox === null) throw new Error('Sidebar heading has no layout box')
       expect(labelBox.x - referenceBox.x).toBe(HEADER_LABEL_OFFSET)
+      const searchBox = await searchButton.boundingBox()
+      const rowBox = await newSession.boundingBox()
+      if (searchBox === null || rowBox === null) throw new Error('New session row controls have no layout box')
+      expect(searchBox.x + searchBox.width - rowBox.x - rowBox.width).toBe(0)
       await searchButton.click()
-      await expect.poll(() => searchButton.getAttribute('aria-expanded')).toBe('true')
+      await input.waitFor({ state: 'visible' })
       await expect.poll(measure, { timeout: 10_000 }).toEqual({ height: SEARCH_HEIGHT, leftOffset: 0, rightOffset: 0 })
       expect(await input.evaluate(element => element === document.activeElement)).toBe(true)
       await input.press('Escape')
-      await expect.poll(() => searchButton.getAttribute('aria-expanded')).toBe('false')
+      await input.waitFor({ state: 'hidden' })
     }
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
@@ -223,10 +228,10 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
 
   it('interpolates header spacing with the search expansion and collapse', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-search-transition'))
-    const header = page.locator('[class*="sectionHeader"]').filter({ has: page.getByRole('button', { name: 'Search sessions', exact: true }) })
+    const header = page.locator('[data-sidebar-workspace-header]')
     for (const expand of [true, false]) {
       const samples = await header.evaluate(async (element, { expand, duration }) => {
-        const button = element.querySelector<HTMLButtonElement>('button[aria-label="Search sessions"]')
+        const button = document.querySelector<HTMLButtonElement>('[data-session-search-trigger]')
         const input = element.querySelector<HTMLInputElement>('input')
         if (button === null || input === null) throw new Error('Search controls are missing')
         // Pause transitions at their first frame, before scheduler delays can consume their duration.
@@ -326,7 +331,7 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
           paddingLeft: Number.parseFloat(style.paddingLeft), paddingRight: Number.parseFloat(style.paddingRight),
           gap: Number.parseFloat(style.columnGap),
           transitionDuration: style.transitionDuration,
-          searchExpanded: header.querySelector('button[aria-label="Search sessions"]')?.getAttribute('aria-expanded'),
+          searchExpanded: header.querySelector('input')?.closest('[hidden]') === null,
         }
       }
       const first = await new Promise<ReturnType<typeof measure>>((resolve) => {
@@ -338,7 +343,7 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
         })
         observer.observe(root, { attributes: true, attributeFilter: ['class'] })
         const trigger = entry === 'search'
-          ? root.querySelector<HTMLButtonElement>('button[aria-label="Search sessions"]')
+          ? document.querySelector<HTMLButtonElement>('[data-session-search-trigger]')
           : document.querySelector<HTMLButtonElement>('button[aria-label="Open sidebar"]')
         if (trigger === null) { observer.disconnect(); throw new Error('Rail expansion trigger is missing') }
         trigger.click()
@@ -359,8 +364,8 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
     expect(samples.first.transitionDuration).toBe('0s')
     expect(samples.first).toEqual(samples.last)
     expect(samples.first).toMatchObject(entry !== 'toggle'
-      ? { marginRight: 0, paddingLeft: 4, paddingRight: 4, gap: 0, searchExpanded: 'true' }
-      : { marginRight: -4, paddingLeft: 12, paddingRight: 1, gap: 4, searchExpanded: 'false' })
+      ? { marginRight: 0, paddingLeft: 4, paddingRight: 4, gap: 0, searchExpanded: true }
+      : { marginRight: -4, paddingLeft: 12, paddingRight: 1, gap: 4, searchExpanded: false })
     expect(samples.sameHeader).toBe(true)
     expect(samples.sameAdd).toBe(true)
     if (entry === 'search') {
@@ -533,7 +538,9 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
       const measure = () => accountButton.evaluate((element) => {
         const button = element.getBoundingClientRect()
         const style = getComputedStyle(element)
-        const newSession = document.querySelector('button[class*="newSession"]')
+        // Wide, the row spans New session and the search control beside it; on the rail, New session alone.
+        const collapsed = element.getAttribute('data-collapsed') === 'true'
+        const newSession = document.querySelector(collapsed ? 'button[class*="newSession"]' : '[class*="newSessionRow"]')
         if (newSession === null) throw new Error('New session reference is missing')
         const reference = newSession.getBoundingClientRect()
         const footer = element.closest('[class*="footArea"]')?.getBoundingClientRect()

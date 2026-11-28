@@ -6,7 +6,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Browser, Page, Route } from 'playwright'
+import type { Browser, Locator, Page, Route } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -309,14 +309,22 @@ async function loadedFlowRows(page: Page): Promise<number> {
   return page.locator('[data-chat-flow-key]').count()
 }
 
-async function openSeed(page: Page, fixture: ChatScrollFixture, tailMarker?: string): Promise<void> {
+/**
+ * Open the sidebar search field, which the search control beside New session reveals.
+ * @param page - the scenario page.
+ * @returns the search field.
+ */
+async function openSessionSearch(page: Page): Promise<Locator> {
   if (await page.locator('[data-sidebar-drawer][data-sidebar-collapsed]').count() > 0) {
     await page.locator('[data-shell-leading]').getByRole('button', { name: 'Open sidebar', exact: true }).click()
   }
-  // Search collapsed into a header action; expand it before filling.
-  const searchButton = page.getByRole('button', { name: 'Search sessions' })
-  if (await searchButton.getAttribute('aria-expanded') !== 'true') await searchButton.click()
   const search = page.getByRole('textbox', { name: 'Search session names', exact: true })
+  if (!await search.isVisible()) await page.getByRole('button', { name: 'Search sessions' }).click()
+  return search
+}
+
+async function openSeed(page: Page, fixture: ChatScrollFixture, tailMarker?: string): Promise<void> {
+  const search = await openSessionSearch(page)
   // Cold summaries initially show the temporary workspace basename, so the
   // persisted first-prompt marker is the stable user-facing identity. The
   // query itself triggers lazy content-index reconciliation; no transient
@@ -1126,7 +1134,7 @@ describe('web e2e: long Chat scroll contract', () => {
       }
       const sampleReturn = async (marker: string): Promise<ReturnFrame[]> => {
         await openSeed(page, fixtureB, fixtureB.markers.assistant(fixtureB.turns))
-        await page.getByRole('textbox', { name: 'Search session names', exact: true }).fill(fixtureA.markers.user(1))
+        await (await openSessionSearch(page)).fill(fixtureA.markers.user(1))
         const result = page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem')
         await expect.poll(() => result.count()).toBe(1)
         // Start before the click; the first visible A frame is part of the assertion, not a setup wait.

@@ -313,6 +313,8 @@ export interface LaunchOptions {
   openInAppEnvironment?: LaunchEnvironmentSnapshot
   /** Keep the shipped personalized recommendation rows, whose two card skills enter the model-visible skill catalog. */
   actionCards?: true
+  /** Sessions the sidebar's Recents section lists; scenarios omit the section unless they set this. */
+  recentSessionLimit?: number
   /** Compare the replayed root Session; `read-only` also forbids refresh writes to a borrowed fixture. */
   compareReplaySession?: boolean | 'read-only'
   /** Fixed JSON-quoted workspace path length for compaction estimates; omitted values use the ordinary prefix. */
@@ -718,6 +720,8 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       },
     }],
     { id: 'llm-deepseek', disabled: mode !== 'record' && !maskDeepSeekCredential },
+    // Recents repeats Session titles above the tree; scenarios about the tree keep each title once.
+    { id: 'ui-workspace', config: { recentSessionLimit: options.recentSessionLimit ?? 0 } },
   ]
 
   // Recorded standard sessions pin the optional patch tool in their request headers.

@@ -23,7 +23,7 @@ import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionDragType, WorkspaceBrowserProps } from '../contract/slots.ts'
-import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
+import type { GroupNode, RecentSessionNode, SearchResultNode, SessionNode } from '../tree.ts'
 import css from './Rows.module.css'
 
 /** Sidebar-owned layout values needed by row copies mounted outside the sidebar. */
@@ -480,6 +480,45 @@ export function SearchResultItem({
         )}
       </span>
     </div>
+  )
+}
+
+/**
+ * One Recents row: the leading status cell, the title, and the Session's
+ * Workspace as secondary text. The row is one button that opens the Session;
+ * its accessible name lists the title, the Workspace, and every status label,
+ * so an idle row names no status.
+ * @param props.node - derived Recents row.
+ * @param props.currentId - the main view's Session id, if any (selected).
+ * @param props.onOpen - open the Session.
+ * @param props.t - Workspace-browser translation seat.
+ * @returns the row element.
+ */
+export function RecentSessionItem({ node, currentId, onOpen, t }: {
+  node: RecentSessionNode
+  currentId: string | undefined
+  onOpen: (id: RecentSessionNode['id']) => void
+  t: RowTranslate
+}) {
+  const selected = node.id === currentId
+  const statuses = sessionStatuses(node, t)
+  const active = statuses[0].state !== 'idle'
+  const title = displayTitle(node, t)
+  const workspace = node.workspace || t('group.ungrouped')
+  return (
+    <button
+      type="button"
+      className={clsx(css.recentRow, selected && css.selected)}
+      aria-label={[title, workspace, ...active ? statuses.map(status => status.label) : []].join(', ')}
+      aria-current={selected ? 'page' : undefined}
+      onClick={() => { onOpen(node.id) }}
+    >
+      <span className={css.slot}>
+        {active && <StateDot state={statuses[0].state} />}
+      </span>
+      <span className={css.recentTitle}>{title}</span>
+      <span className={css.recentWorkspace}>{workspace}</span>
+    </button>
   )
 }
 

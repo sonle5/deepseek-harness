@@ -108,6 +108,62 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* Recents row: status cell, title, and the Workspace name as trailing secondary text. */
+.recentRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
+  padding: 0 8px 0 calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset));
+  background: transparent;
+  background-clip: padding-box;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .recentRow:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.recentRow.selected {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.recentRow:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+.recentTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px 0 var(--dsh-sidebar-label-gap);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.recentWorkspace {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* Compact one-line Workspace row after removing the session-count subtitle. */
 .projectRow {
   height: 32px;

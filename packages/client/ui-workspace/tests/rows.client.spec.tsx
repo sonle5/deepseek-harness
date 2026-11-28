@@ -12,9 +12,9 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { RowDragProps } from '../src/client/rows/Rows.tsx'
 import {
-  ProjectRowItem as ProjectRowItemComponent, SearchResultItem, SessionNodeItem as SessionNodeItemComponent,
+  ProjectRowItem as ProjectRowItemComponent, RecentSessionItem, SearchResultItem, SessionNodeItem as SessionNodeItemComponent,
 } from '../src/client/rows/Rows.tsx'
-import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
+import type { GroupNode, RecentSessionNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { en, zh } from '../src/client/locales.ts'
 import rowCss from '../src/client/rows/Rows.module.css'
 import { renderMenuButton } from './menu-button.tsx'
@@ -592,6 +592,42 @@ describe('workspace browser rows', () => {
       useSessionAccess={allowAllAccess.useSessionAccess} t={t}
     />)
     expect(screen.getByRole('treeitem').querySelector('[data-state="done"]')).not.toBeNull()
+  })
+
+  describe('Recents rows', () => {
+    const recent = (overrides: Partial<RecentSessionNode> = {}): RecentSessionNode => ({
+      id: sid('recent'), title: 'Recent title', blank: false, running: false, runningSubagentCount: 0,
+      completed: false, failed: false, pinned: false, archived: false, updatedAt: 0, workspace: 'alpha', ...overrides,
+    })
+
+    it.each([
+      ['a running spinner', { running: true }, 'ongoing', zh['status.running'], en['status.running']],
+      ['a needs-input dot', { pendingInteraction: 'approval' as const, running: true }, 'warning', zh['status.waitingApproval'], en['status.waitingApproval']],
+      ['an unread-finished dot', { completed: true }, 'done', zh['status.unread'], en['status.unread']],
+      ['a failed dot', { completed: true, failed: true }, 'error', zh['status.failed'], en['status.failed']],
+    ] as const)('shows %s with its accessible label', (_name, overrides, state, label, englishLabel) => {
+      const view = render(<RecentSessionItem node={recent(overrides)} currentId={undefined} onOpen={vi.fn()} t={t} />)
+      const row = screen.getByRole('button', { name: new RegExp(label) })
+      expect(row.querySelectorAll('[data-state]')).toHaveLength(1)
+      expect(row.querySelector(`[data-state="${state}"]`)).not.toBeNull()
+      view.unmount()
+      render(<RecentSessionItem node={recent(overrides)} currentId={undefined} onOpen={vi.fn()} t={tEn} />)
+      expect(screen.getByRole('button', { name: new RegExp(englishLabel) })).toBeTruthy()
+    })
+
+    it('names the Workspace as secondary text, marks the main-view Session, and opens on click', () => {
+      const onOpen = vi.fn()
+      const view = render(<RecentSessionItem node={recent()} currentId={sid('recent')} onOpen={onOpen} t={t} />)
+      const row = screen.getByRole('button', { name: 'Recent title, alpha' })
+      expect(row.getAttribute('aria-current')).toBe('page')
+      // An idle row carries no dot and no status label.
+      expect(row.querySelector('[data-state]')).toBeNull()
+      fireEvent.click(row)
+      expect(onOpen).toHaveBeenCalledExactlyOnceWith(sid('recent'))
+      view.rerender(<RecentSessionItem node={recent({ title: '', workspace: '' })} currentId={undefined} onOpen={onOpen} t={t} />)
+      const unnamed = screen.getByRole('button', { name: `${zh['session.untitled']}, ${zh['group.ungrouped']}` })
+      expect(unnamed.hasAttribute('aria-current')).toBe(false)
+    })
   })
 
   it('gives right-click and the shared button the Workspace row target without changing expansion', () => {

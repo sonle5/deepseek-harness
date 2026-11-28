@@ -21,7 +21,7 @@ import {
   AnimatedRows, HoverCardGroup, IconArchiveCheckOutlineRegular, IconArchiveOffOutlineRegular, IconArchiveOutlineRegular,
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
-  IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
+  IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular, IconTriangleRightFillRegular,
   IconWorkspaceTreeOutlineRegular, Menu, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -34,10 +34,10 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
-  deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, sessionSearchIndex, owningGroupKey, owningParentFolder,
+  deriveFlat, deriveGroups, deriveRecents, deriveSearchResults, orderByRecency, sessionSearchIndex, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, UNGROUPED_KEY,
 } from '../tree.ts'
-import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+import { ProjectRowItem, RecentSessionItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
@@ -784,6 +784,54 @@ function FlatList({
   )
 }
 
+/**
+ * The Recents section: a foldable heading over the newest Sessions across
+ * every Workspace, up to the Host-synced `recentSessionLimit`. It renders
+ * nothing while no Session qualifies or before the browser receives the limit.
+ */
+function RecentSessions({
+  list, workspaces, rowState, collapsed, onCollapsedChange, open, useSessionStatus, usePanelInfo, useRecentSessionLimit, t,
+}: Pick<WorkspaceBrowserProps, 'useSessionStatus' | 'usePanelInfo' | 'useRecentSessionLimit' | 't'> & {
+  list: SessionListState
+  workspaces: readonly WorkspaceView[]
+  rowState: SessionRowState
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
+  open: (sessionId: SessionId) => void
+}) {
+  const panelActive = usePanelInfo(info => info.activePanelId !== null)
+  const statuses = useSessionStatus(s => s)
+  const limit = useRecentSessionLimit(value => value ?? 0)
+  const rows = useMemo(
+    () => deriveRecents(list, workspaces, rowState, statuses, limit),
+    [list, workspaces, rowState, statuses, limit],
+  )
+  if (rows.length === 0) return null
+  const currentId = panelActive
+    ? undefined
+    : Object.values(list.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
+  return (
+    <section className={clsx(css.recents, css.wide)} aria-label={t('section.recents')}>
+      <button
+        type="button"
+        className={css.recentsHeading}
+        aria-expanded={!collapsed}
+        onClick={() => { onCollapsedChange(!collapsed) }}
+      >
+        <span className={css.sectionLabel}>{t('section.recents')}</span>
+        <IconTriangleRightFillRegular className={clsx(css.recentsArrow, !collapsed && css.recentsArrowOpen)} />
+      </button>
+      {!collapsed && (
+        <div className={css.recentsList}>
+          {rows.map(node => (
+            <RecentSessionItem key={node.id} node={node} currentId={currentId} onOpen={open} t={t} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 interface RemoteSearchState {
   query: string
   status: 'idle' | 'loading' | 'ready' | 'error'
@@ -930,16 +978,34 @@ export function WorkspaceBrowser({
   useHostInfo,
   useShortcuts,
   useWorkspaceShortcuts,
+  useRecentSessionLimit,
   requestSearch,
   requestAddWorkspace,
   closeAddWorkspace,
   setDirectoryBusy,
-  renderSlot, renderFactorySlot, useContextMenuTarget, useContextMenu,
+  renderSlot, renderFactorySlot, useContextMenuTarget, useContextMenu, useRemoteAccess,
   t,
 }: WorkspaceBrowserProps) {
   const home = useHostInfo(info => info.home)
   const shortcuts = useShortcuts(rows => rows)
   const searchShortcut = shortcuts.find(row => row.id === 'session.search')
+  // Search sits beside New Session, which the sidebar omits without
+  // `session/create`; the region then shows its own search control.
+  const searchBesideNewSession = useRemoteAccess('session/create')
+  const searchControl = !searchBesideNewSession && (
+    <Tooltip label={t('search')} shortcutKeys={searchShortcut?.keys} side="bottom" delayMs={500} portal>
+      <button
+        type="button"
+        className={css.iconButton}
+        aria-label={t('search.sessions.aria')}
+        aria-keyshortcuts={searchShortcut?.aria}
+        data-session-search-trigger=""
+        onClick={requestSearch}
+      >
+        <IconSearchOutlineRegular size={wide ? 16 : 18} />
+      </button>
+    </Tooltip>
+  )
   const addShortcut = shortcuts.find(row => row.id === 'workspace.add')
   const shortcutState = useWorkspaceShortcuts(state => state)
   // Ordering remains live while the rail or search replaces the list body.
@@ -968,6 +1034,8 @@ export function WorkspaceBrowser({
   // without the field; they read as the default hide-archived view.
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
   const groupExpansion = useStore(s => s.groupExpansion)
+  // View blobs written before Recents existed rehydrate without the field; they read as unfolded.
+  const recentsCollapsed = useStore(s => s.recentsCollapsed ?? false)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
   // Archived sessions are not openable: the row stays visible under the
   // filter but a click explains instead of navigating.
@@ -1113,12 +1181,20 @@ export function WorkspaceBrowser({
   })
   const searchRoot = useRef<HTMLDivElement | null>(null)
   const searchInput = useRef<HTMLInputElement | null>(null)
+  const browserRoot = useRef<HTMLDivElement | null>(null)
   // The list area is this section's own vertical scroller; the sidebar hands wheel
   // scrolling over its viewport to it once the navigation has moved away.
   const { bindScrollerRef } = useSectionScroller()
   const focusSearch = useCallback(() => {
     searchInput.current?.focus({ preventScroll: true })
   }, [])
+  // Hiding the focused field would drop focus to the document body, so a
+  // keyboard dismissal hands it back to the search control first.
+  const dismissSearch = (): void => {
+    setQuery('')
+    searchInput.current?.ownerDocument.querySelector<HTMLElement>('[data-session-search-trigger]')?.focus({ preventScroll: true })
+    changeSearchExpanded(false)
+  }
   // Section-header ＋ opens the picker menu (same popover in wide and rail
   // states; the menu anchors on this button).
   const wsPickerOpen = shortcutState.addRequested
@@ -1133,6 +1209,10 @@ export function WorkspaceBrowser({
     setRevealSessionId(sessionId)
     setQuery('')
     changeSearchExpanded(false)
+    open(sessionId)
+  }
+  const openRecent = (sessionId: SessionId): void => {
+    setRevealSessionId(sessionId)
     open(sessionId)
   }
   const acknowledgeSessionReveal = (sessionId: SessionId): void => {
@@ -1156,7 +1236,7 @@ export function WorkspaceBrowser({
   useEffect(() => {
     if (shortcutState.searchRequest === 0) return
     closeAddWorkspace()
-    if (!wide || searchInput.current?.closest('[inert]')) {
+    if (!wide || browserRoot.current?.closest('[inert]')) {
       setSearchOnExpand(true)
       expandSidebar()
     } else focusSearch()
@@ -1170,12 +1250,14 @@ export function WorkspaceBrowser({
   // Outside-click dismissal stays off while the rail gesture is in flight
   // (searchOnExpand): the rail click flips the shell wide and mounts this
   // listener during its own dispatch, then keeps bubbling to document with
-  // the now-unmounted rail button as its target — outside searchRoot, so the
+  // the now-unmounted rail control as its target — outside searchRoot, so the
   // listener would dismiss the search that click just opened.
   useEffect(() => {
     if (!wide || !searchExpanded || searchOnExpand) return
     const onClick = (event: MouseEvent): void => {
-      if (!(event.target instanceof Node) || searchRoot.current?.contains(event.target) === true) return
+      if (!(event.target instanceof Element) || searchRoot.current?.contains(event.target) === true) return
+      // The search control beside New Session requests search; it must not also dismiss it.
+      if (event.target.closest('[data-session-search-trigger]') !== null) return
       searchInput.current?.blur()
       if (normalizedQuery !== '') return
       changeSearchExpanded(false)
@@ -1229,38 +1311,42 @@ export function WorkspaceBrowser({
     })
   }
   return (
-    <div className={clsx(css.root, !wide && css.rail)}>
+    <div ref={browserRoot} className={clsx(css.root, !wide && css.rail)}>
+      {/* Search replaces Recents, so the field sits directly below New Session. */}
+      {wide && !searchExpanded && (
+        <RecentSessions
+          list={list}
+          workspaces={workspaces}
+          rowState={rowState}
+          collapsed={recentsCollapsed}
+          onCollapsedChange={actions.setRecentsCollapsed}
+          open={openRecent}
+          useSessionStatus={useSessionStatus}
+          usePanelInfo={usePanelInfo}
+          useRecentSessionLimit={useRecentSessionLimit}
+          t={t}
+        />
+      )}
       <div className={clsx(css.sectionHeader, wide && searchSpacingMotionEnabled && css.searchSpacingMotion)} data-sidebar-workspace-header="">
         {wide && (
           <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
             {groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')}
           </span>
         )}
+        {/* The field opens from the search control beside New Session or its
+            shortcut, takes the title's place, and collapses the actions. It
+            stays mounted while hidden, so a query typed before it closes survives. */}
         {wide && (
           <div className={clsx(css.searchSlot, searchExpanded && css.searchSlotExpanded)}>
             <div
               ref={searchRoot}
               className={clsx(css.search, searchExpanded && css.searchExpanded)}
-              onClick={() => {
-                closeAddWorkspace()
-                changeSearchExpanded(true)
-                focusSearch()
-              }}
+              hidden={!searchExpanded}
+              onClick={focusSearch}
             >
-              <Tooltip label={t('search')} shortcutKeys={searchShortcut?.keys} side="bottom" delayMs={500} disabled={searchExpanded} portal>
-                <button
-                  type="button"
-                  className={css.searchButton}
-                  aria-label={t('search.sessions.aria')}
-                  aria-keyshortcuts={searchShortcut?.aria}
-                  aria-expanded={searchExpanded}
-                  onClick={() => {
-                    requestSearch()
-                  }}
-                >
-                  <IconSearchOutlineRegular size={searchExpanded ? 11 : 14} />
-                </button>
-              </Tooltip>
+              <span className={css.searchIcon} aria-hidden="true">
+                <IconSearchOutlineRegular size={11} />
+              </span>
               <input
                 ref={searchInput}
                 className={css.searchInput}
@@ -1268,32 +1354,28 @@ export function WorkspaceBrowser({
                 placeholder={t('search.placeholder')}
                 maxLength={SEARCH_QUERY_MAX_CODE_UNITS}
                 value={query}
-                tabIndex={searchExpanded ? 0 : -1}
                 onChange={(e) => { setQuery(sanitizeSearchQuery(e.target.value)) }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Escape') return
-                  setQuery('')
-                  changeSearchExpanded(false)
+                  dismissSearch()
                 }}
               />
-              {searchExpanded && (
-                <button
-                  type="button"
-                  className={css.clearButton}
-                  aria-label={t('search.clear')}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setQuery('')
-                    changeSearchExpanded(false)
-                  }}
-                >
-                  <IconCloseFillRegular />
-                </button>
-              )}
+              <button
+                type="button"
+                className={css.clearButton}
+                aria-label={t('search.clear')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  dismissSearch()
+                }}
+              >
+                <IconCloseFillRegular />
+              </button>
             </div>
           </div>
         )}
         <div className={clsx(css.headerActions, wide && searchExpanded && css.headerActionsHidden)}>
+          {searchControl}
           {wide && (
             <ViewOptionsMenu
               groupBy={groupBy}
@@ -1344,23 +1426,6 @@ export function WorkspaceBrowser({
           onClose={() => { closeAddWorkspace() }}
         />
       </div>
-
-      {/* The collapsed rail keeps search as its own 36px control. */}
-      {!wide && <div className={css.search}>
-        <Tooltip label={t('search')} shortcutKeys={searchShortcut?.keys} portal>
-          <button
-            type="button"
-            className={css.searchButton}
-            aria-label={t('search.sessions.aria')}
-            aria-keyshortcuts={searchShortcut?.aria}
-            onClick={() => {
-              requestSearch()
-            }}
-          >
-            <IconSearchOutlineRegular size={18} />
-          </button>
-        </Tooltip>
-      </div>}
 
       {/* Always-mounted seat keeps the region's flex slot while the list
           itself is wide-only. */}

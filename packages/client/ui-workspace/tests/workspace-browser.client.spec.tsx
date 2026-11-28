@@ -19,6 +19,7 @@ import type { DirectoryFlowOwnerProps, WorkspaceActionRequest, WorkspaceBrowserP
 import { createWorkspaceShortcutControls } from '../src/client/shortcuts.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
+import { SessionSearchAction } from '../src/client/rows/SessionSearchAction.tsx'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { renderMenuButton } from './menu-button.tsx'
 import rowCss from '../src/client/rows/Rows.module.css'
@@ -116,16 +117,38 @@ const renderDirectoryFlowOnly: WorkspaceBrowserProps['renderSlot'] = (name: stri
 // Mounted outside a sidebar, the browser binds its list area to nothing.
 const SECTION_SCROLLER = { bindScrollerRef: () => {} }
 
-function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
+/**
+ * The browser with the search control the sidebar's New session row carries,
+ * driven by the same requests, as the composed sidebar renders them.
+ */
+function Sidebar(props: WorkspaceBrowserProps) {
+  return (
+    <>
+      <SessionSearchAction {...props}>{null}</SessionSearchAction>
+      <WorkspaceBrowser {...props} />
+    </>
+  )
+}
+
+/** Whether the search field is open; the closed field stays mounted inside a hidden container. */
+const searchOpen = (): boolean => screen.queryByPlaceholderText('搜索会话名称')?.closest('[hidden]') === null
+
+/**
+ * Mount the browser. Recents starts folded so tree specs find each Session
+ * title once; Recents specs pass `recents: true`, or `'stored'` to keep the saved view.
+ */
+function mount(overrides: Partial<WorkspaceBrowserProps> = {}, options: { recents?: boolean | 'stored' } = {}) {
   const controls = createWorkspaceShortcutControls()
   const request = createSnapshotStore<WorkspaceActionRequest | null>(null)
   const store = createWorkspaceViewStore().create()
+  if (options.recents !== 'stored') store.actions.setRecentsCollapsed(options.recents !== true)
   const props: WorkspaceBrowserProps = {
     useWorkspaceActionRequest: bindSnapshotSelector(request),
     settleWorkspaceAction: () => { request.set(null) },
     useContextMenuTarget: selector => selector(null),
     useShortcuts: select => select([]),
     useWorkspaceShortcuts: bindSnapshotSelector(controls.state),
+    useRecentSessionLimit: select => select(5),
     requestSearch: controls.search,
     requestAddWorkspace: controls.add,
     closeAddWorkspace: controls.closeAdd,
@@ -161,7 +184,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     t,
     ...overrides,
   }
-  const view = render(<WorkspaceBrowser {...props} />)
+  const view = render(<Sidebar {...props} />)
   return { view, props, store, controls, openDialog: (workspaceId: WorkspaceId, displayTitle: string, action: 'rename' | 'delete') => {
     const storedTitle = props.useWorkspaces(state => state.items.find(row => row.workspaceId === workspaceId)?.title ?? displayTitle)
     act(() => { request.set({ action, workspaceId, displayTitle, storedTitle }) })
@@ -171,7 +194,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
 /** Re-render with (possibly) changed props — WorkspaceBrowser has no side channel. */
 function rerender(b: ReturnType<typeof mount>, overrides: Partial<WorkspaceBrowserProps>) {
   Object.assign(b.props, overrides)
-  b.view.rerender(<WorkspaceBrowser {...b.props} />)
+  b.view.rerender(<Sidebar {...b.props} />)
 }
 
 describe('WorkspaceBrowser', () => {
@@ -1538,20 +1561,20 @@ describe('WorkspaceBrowser', () => {
     mount()
     const search = screen.getByRole('button', { name: '搜索会话' })
     fireEvent.click(search)
-    expect(search.getAttribute('aria-expanded')).toBe('true')
+    expect(searchOpen()).toBe(true)
     fireEvent.click(document.body)
-    expect(search.getAttribute('aria-expanded')).toBe('false')
+    expect(searchOpen()).toBe(false)
 
     fireEvent.click(search)
     const input = screen.getByPlaceholderText<HTMLInputElement>('搜索会话名称')
     fireEvent.change(input, { target: { value: '   ' } })
     fireEvent.click(document.body)
-    expect(search.getAttribute('aria-expanded')).toBe('false')
+    expect(searchOpen()).toBe(false)
 
     fireEvent.click(search)
     fireEvent.change(input, { target: { value: 'kept' } })
     fireEvent.click(document.body)
-    expect(search.getAttribute('aria-expanded')).toBe('true')
+    expect(searchOpen()).toBe(true)
     expect(input.value).toBe('kept')
   })
 
@@ -1942,7 +1965,7 @@ describe('WorkspaceBrowser', () => {
       } else fireEvent.click(document.body)
       expect(motionEnabled()).toBe(true)
       expect(input.value).toBe('')
-      expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('false')
+      expect(searchOpen()).toBe(false)
       expect(screen.getByRole('button', { name: '添加工作区' })).toBe(add)
       expect(add.closest('[class*="sectionHeader"]')).toBe(header)
       rerender(b, { wide: false })
@@ -1975,12 +1998,12 @@ describe('WorkspaceBrowser', () => {
     const b = mount({ wide: false, expandSidebar: () => { layout.set({ wide: true }) } })
     const committedSearchStates: boolean[] = []
     function Shell() {
-      return <WorkspaceBrowser {...b.props} wide={useLayout(state => state.wide)} />
+      return <Sidebar {...b.props} wide={useLayout(state => state.wide)} />
     }
     b.view.rerender(<Profiler id="rail-search" onRender={() => {
       // The shell's external-store update can commit before state queued by a passive effect.
       if (screen.queryByPlaceholderText('搜索会话名称') === null) return
-      committedSearchStates.push(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded') === 'true')
+      committedSearchStates.push(searchOpen())
     }}><Shell /></Profiler>)
     if (usedSearch) {
       fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
@@ -1991,7 +2014,7 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
     expect(committedSearchStates.length).toBeGreaterThan(0)
     expect(committedSearchStates.every(Boolean)).toBe(true)
-    expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('true')
+    expect(searchOpen()).toBe(true)
   })
 
   it('treats a new shortcut source with no request as idle', () => {
@@ -2000,9 +2023,9 @@ describe('WorkspaceBrowser', () => {
     fireEvent.keyDown(screen.getByPlaceholderText('搜索会话名称'), { key: 'Escape' })
     const controls = createWorkspaceShortcutControls()
     rerender(b, { useWorkspaceShortcuts: bindSnapshotSelector(controls.state), requestSearch: controls.search })
-    expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('false')
+    expect(searchOpen()).toBe(false)
     act(() => { controls.search() })
-    expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('true')
+    expect(searchOpen()).toBe(true)
   })
 
   it('expands an inert drawer with retained wide content before focusing search', () => {
@@ -2036,7 +2059,7 @@ describe('WorkspaceBrowser', () => {
       expect(document.activeElement).not.toBe(input)
       act(() => { vi.advanceTimersByTime(300) })
       expect(document.activeElement).toBe(input)
-      // Wide search button is decorative (tabIndex -1, no expand call).
+      // The wide control focuses the open field without another expand call.
       fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
       expect(expandSidebar).toHaveBeenCalledTimes(1)
     } finally {
@@ -2052,18 +2075,153 @@ describe('WorkspaceBrowser', () => {
       rerender(b, { wide: true })
       // In the browser the rail click keeps bubbling to document after the
       // wide flip mounted the outside-click listener, with the unmounted rail
-      // button as its target — outside searchRoot. It must not dismiss the
+      // control as its target — outside searchRoot. It must not dismiss the
       // search it just opened.
       fireEvent.click(document.body)
-      expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('true')
+      expect(searchOpen()).toBe(true)
       act(() => { vi.advanceTimersByTime(300) })
       expect(document.activeElement).toBe(screen.getByPlaceholderText('搜索会话名称'))
       // The gesture has settled: outside clicks dismiss the search again.
       fireEvent.click(document.body)
-      expect(screen.getByRole('button', { name: '搜索会话' }).getAttribute('aria-expanded')).toBe('false')
+      expect(searchOpen()).toBe(false)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  describe('Recents', () => {
+    const pending = (interaction: SessionPendingInteraction | undefined, value: Partial<SessionStatus> = {}): SessionStatus => ({
+      running: false, pendingInteraction: interaction, completionUnread: false, completionFailed: false, ...value,
+    })
+    const sessions = () => sessionState([
+      summary('a-old', 1), summary('b-run', 6), summary('a-ask', 5), summary('b-done', 4),
+      summary('a-fail', 3), summary('a-idle', 2), summary('gone', 9),
+    ], { main: sid('a-idle') })
+    const statuses: SessionStatusSnapshot = new Map([
+      [sid('b-run'), pending(undefined, { running: true })],
+      [sid('a-ask'), pending({ key: 'approval:1', kind: 'approval', sessionId: sid('a-ask') } as SessionPendingInteraction)],
+      [sid('b-done'), pending(undefined, { completionUnread: true })],
+      [sid('a-fail'), pending(undefined, { completionUnread: true, completionFailed: true })],
+    ])
+    const recentsMount = (overrides: Partial<WorkspaceBrowserProps> = {}) => mount({
+      useSessions: hook(sessions()),
+      useSessionStatus: hook(statuses),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a-old', 'a-ask', 'a-fail', 'a-idle'], 'Alpha'), workspace('beta', ['b-run', 'b-done', 'gone'], 'Beta'),
+      ], [sid('gone')])),
+      ...overrides,
+    }, { recents: true })
+
+    it('lists the five newest Sessions across Workspaces with each status label above the Workspaces toolbar', () => {
+      recentsMount()
+      const section = screen.getByRole('region', { name: '最近' })
+      const header = screen.getByRole('button', { name: '添加工作区' }).closest('[data-sidebar-workspace-header]')!
+      expect(section.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      const rows = within(section).getAllByRole('button').slice(1)
+      expect(rows.map(row => row.getAttribute('aria-label'))).toEqual([
+        'b-run, Beta, 进行中', 'a-ask, Alpha, 等待审批', 'b-done, Beta, 未读', 'a-fail, Alpha, 运行出错', 'a-idle, Alpha',
+      ])
+      expect(rows.map(row => row.querySelector('[data-state]')?.getAttribute('data-state') ?? null))
+        .toEqual(['ongoing', 'warning', 'done', 'error', null])
+      expect(rows[4]!.getAttribute('aria-current')).toBe('page')
+      // The rows are buttons, outside the Sessions tree.
+      expect(within(screen.getByRole('tree', { name: '会话' })).queryByRole('button', { name: /^b-run,/ })).toBeNull()
+    })
+
+    it('opens a recent Session and folds the section through the saved view state', () => {
+      const open = vi.fn()
+      const b = recentsMount({ open })
+      fireEvent.click(screen.getByRole('button', { name: 'b-run, Beta, 进行中' }))
+      expect(open).toHaveBeenCalledExactlyOnceWith(sid('b-run'))
+      const heading = screen.getByRole('button', { name: '最近' })
+      expect(heading.getAttribute('aria-expanded')).toBe('true')
+      fireEvent.click(heading)
+      expect(heading.getAttribute('aria-expanded')).toBe('false')
+      expect(screen.queryByRole('button', { name: 'b-run, Beta, 进行中' })).toBeNull()
+      expect(b.store.getSnapshot().recentsCollapsed).toBe(true)
+      fireEvent.click(heading)
+      expect(b.store.getSnapshot().recentsCollapsed).toBe(false)
+    })
+
+    it('reads a view saved before Recents existed as unfolded', () => {
+      localStorage.setItem('dsh.workspace.view.v5', JSON.stringify({
+        groupBy: 'workspace', orderBy: 'manual', groupExpansion: {}, sessionOrderByAccount: {},
+      }))
+      const b = mount({ useSessions: hook(sessions()) }, { recents: 'stored' })
+      expect(b.store.getSnapshot().recentsCollapsed).toBeUndefined()
+      expect(screen.getByRole('button', { name: '最近' }).getAttribute('aria-expanded')).toBe('true')
+    })
+
+    it('leaves Recents out on the rail, while searching, and while no Session qualifies', () => {
+      const b = recentsMount()
+      fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
+      expect(screen.queryByRole('region', { name: '最近' })).toBeNull()
+      fireEvent.keyDown(screen.getByPlaceholderText('搜索会话名称'), { key: 'Escape' })
+      expect(screen.getByRole('region', { name: '最近' })).toBeTruthy()
+      rerender(b, { wide: false })
+      expect(screen.queryByRole('region', { name: '最近' })).toBeNull()
+      rerender(b, { wide: true, useSessions: hook(sessionState([])) })
+      expect(screen.queryByRole('region', { name: '最近' })).toBeNull()
+    })
+
+    it.each([
+      { limit: 2, names: ['b-run, Beta, 进行中', 'a-ask, Alpha, 等待审批'] },
+      { limit: 0, names: [] },
+      { limit: undefined, names: [] },
+    ])('lists up to the synced limit and none before it arrives (limit: $limit)', ({ limit, names }) => {
+      recentsMount({ useRecentSessionLimit: select => select(limit) })
+      const section = screen.queryByRole('region', { name: '最近' })
+      expect(section === null ? [] : within(section).getAllByRole('button').slice(1).map(row => row.getAttribute('aria-label')))
+        .toEqual(names)
+    })
+
+    it('marks no recent row while a main panel covers the conversation', () => {
+      recentsMount({ usePanelInfo: selector => selector({ activePanelId: 'panel-a' as MainPanelId }) })
+      expect(screen.getByRole('button', { name: 'a-idle, Alpha' }).hasAttribute('aria-current')).toBe(false)
+    })
+  })
+
+  it.each([true, false])('keeps a search control in the toolbar without New session access (wide: %s)', (wide) => {
+    const expandSidebar = vi.fn()
+    const useRemoteAccess = vi.fn((action: string) => action !== 'session/create')
+    // The sidebar omits the New session row, and its search layer, without the permission.
+    const b = mount({ useRemoteAccess, wide, expandSidebar })
+    cleanup()
+    render(<WorkspaceBrowser {...b.props} />)
+    expect(useRemoteAccess).toHaveBeenCalledWith('session/create')
+    const search = screen.getByRole('button', { name: '搜索会话' })
+    expect(search.closest('[data-sidebar-workspace-header]')).not.toBeNull()
+    fireEvent.click(search)
+    if (wide) expect(searchOpen()).toBe(true)
+    else expect(expandSidebar).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { carrier: 'New session row', dismissal: 'escape' },
+    { carrier: 'New session row', dismissal: 'clear' },
+    { carrier: 'toolbar', dismissal: 'escape' },
+    { carrier: 'toolbar', dismissal: 'clear' },
+  ] as const)('returns focus to the $carrier search control on $dismissal', ({ carrier, dismissal }) => {
+    if (carrier === 'toolbar') {
+      // Without the permission the sidebar renders neither New session nor its search layer.
+      const b = mount({ useRemoteAccess: (action: string) => action !== 'session/create' })
+      cleanup()
+      render(<WorkspaceBrowser {...b.props} />)
+    } else mount()
+    const trigger = screen.getByRole('button', { name: '搜索会话' })
+    fireEvent.click(trigger)
+    const input = screen.getByPlaceholderText('搜索会话名称')
+    expect(document.activeElement).toBe(input)
+    if (dismissal === 'escape') fireEvent.keyDown(input, { key: 'Escape' })
+    else fireEvent.click(screen.getByRole('button', { name: '清除搜索' }))
+    expect(searchOpen()).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('shows no toolbar search control while New session carries it', () => {
+    mount()
+    expect(screen.getAllByRole('button', { name: '搜索会话' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: '搜索会话' }).closest('[data-sidebar-workspace-header]')).toBeNull()
   })
 
   it('rail add-workspace raises the directory flow in place, with no menu and no expansion', () => {

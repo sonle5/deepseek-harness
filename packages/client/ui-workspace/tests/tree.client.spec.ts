@@ -10,7 +10,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SessionProjectionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
   type ArchivedFilter,
-  deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, sessionSearchIndex, owningGroupKey, owningParentFolder,
+  deriveFlat, deriveGroups, deriveRecents, deriveSearchResults, orderByRecency, sessionSearchIndex, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, visibleSessionIds, workspaceLabel, UNGROUPED_KEY,
 } from '../src/client/tree.ts'
 import { createWorkspaceViewStore } from '../src/client/stores.ts'
@@ -664,6 +664,47 @@ describe('deriveFlat', () => {
   })
 })
 
+describe('deriveRecents', () => {
+  it('lists the newest Sessions across Workspaces with their Workspace labels', () => {
+    const sessions = list(
+      summary('alpha-old', 1), summary('beta-new', 5), summary('loose', 4, '/projects/loose-dir'),
+      summary('alpha-mid', 3), summary('beta-tie', 5),
+    )
+    const rows = deriveRecents(
+      sessions, [workspace('alpha', ['alpha-old', 'alpha-mid'], 'Alpha'), workspace('beta', ['beta-new', 'beta-tie'], 'Beta')],
+      rowState({ pinned: ['alpha-mid'] }), noAttention, 4,
+    )
+    // Equal update times keep the id order, like the list's own recency order.
+    expect(rows.map(row => [row.id, row.workspace])).toEqual([
+      [sid('beta-new'), 'Beta'], [sid('beta-tie'), 'Beta'], [sid('loose'), 'loose-dir'], [sid('alpha-mid'), 'Alpha'],
+    ])
+    expect(rows[3]).toMatchObject({ pinned: true, archived: false })
+  })
+
+  it('leaves out blank, archived, and subagent Sessions whatever the archived filter shows', () => {
+    const currentBlank = { ...summary('current-blank', 9), blank: true, retainedBy: { mainView: 1 } }
+    const subagent = { ...summary('child', 8), parentId: sid('kept'), origin: 'subagent' as const }
+    const sessions = list(currentBlank, subagent, summary('gone', 7), summary('kept', 1))
+    for (const archivedFilter of ['default', 'show', 'only'] as const) {
+      const rows = deriveRecents(sessions, [], rowState({ archived: ['gone'], archivedFilter }), noAttention, 5)
+      expect(rows.map(row => row.id)).toEqual([sid('kept')])
+    }
+  })
+
+  it('carries live statuses for the row indicators', () => {
+    const sessions = list(summary('running', 3), summary('asking', 2), summary('done', 1))
+    const statuses: SessionStatusSnapshot = new Map([
+      [sid('running'), status(undefined, { running: true })],
+      [sid('asking'), status({ kind: 'question' } as SessionPendingInteraction)],
+      [sid('done'), status(undefined, { completionUnread: true })],
+    ])
+    const rows = deriveRecents(sessions, [], noRows, statuses, 5)
+    expect(rows.map(row => [row.running, row.pendingInteraction, row.completed])).toEqual([
+      [true, undefined, false], [false, 'question', false], [false, undefined, true],
+    ])
+  })
+})
+
 describe('deriveSearchResults archive filtering', () => {
   it('archived sessions never match — not by title and not via a backend content hit', () => {
     const hit = summary('hit', 2)
@@ -920,6 +961,15 @@ describe('createWorkspaceViewStore', () => {
       orderBy: 'manual',
       sessionOrderByAccount: { alpha: ['two', 'one'], beta: ['three'] },
     })
+  })
+
+  it('remembers the folded Recents section', () => {
+    const store = createWorkspaceViewStore().create()
+    expect(store.getSnapshot().recentsCollapsed).toBe(false)
+    store.actions.setRecentsCollapsed(true)
+    expect(store.getSnapshot().recentsCollapsed).toBe(true)
+    store.actions.setRecentsCollapsed(false)
+    expect(store.getSnapshot().recentsCollapsed).toBe(false)
   })
 
   it('ignores reconciliation writes outside Manual', () => {

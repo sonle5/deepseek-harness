@@ -55,12 +55,10 @@ if [ "$label" = after ]; then
             -e 'delay 0.5' -e 'tell application "System Events" to key code 49' >> "$out/osascript.txt" 2>&1
   sleep 2
   screencapture -x "$out/shortcuts-recording.png"
-  # The recorder commits on the modifier keyup, so press and release each key explicitly.
-  osascript -e 'tell application "System Events"' -e 'key down command' -e 'delay 0.2' -e 'key down shift' -e 'delay 0.2' \
-            -e 'key down "j"' -e 'delay 0.2' -e 'key up "j"' -e 'delay 0.2' -e 'key up shift' -e 'delay 0.2' -e 'key up command' \
-            -e 'end tell' >> "$out/osascript.txt" 2>&1
+  swift "$scripts/chord.swift" >> "$out/osascript.txt" 2>&1
   sleep 4
   screencapture -x "$out/shortcuts-rebound.png"
+  ls -la "$HOME/Library/Application Support" "$HOME/Library/Application Support/@deepseek-ai/dsh-desktop" > "$out/user-data.txt" 2>&1
   cp "$HOME/Library/Application Support/@deepseek-ai/dsh-desktop/keybindings.json" "$out/keybindings.json" 2>> "$out/osascript.txt"
   osascript -e 'tell application "System Events" to key code 53' >> "$out/osascript.txt" 2>&1
   sleep 1

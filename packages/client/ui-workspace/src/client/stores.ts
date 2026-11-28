@@ -28,6 +28,8 @@ type WorkspaceViewState = {
   sessionOrderByAccount: Record<string, string[]>
   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
   archivedFilter?: ArchivedFilter
+  /** Whether the Recents section is folded; omitted in pre-Recents v5 snapshots and read as false. */
+  recentsCollapsed?: boolean
 }
 
 type SessionOrderSource = {
@@ -66,6 +68,7 @@ type WorkspaceViewActions = {
     source: SessionOrderSource,
   ) => void
   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
+  setRecentsCollapsed: (draft: WorkspaceViewState, collapsed: boolean) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -87,6 +90,7 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
       groupExpansion: {},
       sessionOrderByAccount: {},
       archivedFilter: 'default',
+      recentsCollapsed: false,
     }),
     persist: 'dsh.workspace.view.v5',
     actions: {
@@ -125,6 +129,7 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
         }))
       },
       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
+      setRecentsCollapsed: (d, collapsed: boolean) => { d.recentsCollapsed = collapsed },
     },
   })
 }

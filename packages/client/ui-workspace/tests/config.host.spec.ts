@@ -11,6 +11,13 @@ describe('ui-workspace host', () => {
     expect(() => Config({ recentViewLimit: 1.5 })).toThrow()
   })
 
+  it('lists five Recents by default and rejects a negative or fractional length', () => {
+    expect(Config({}).recentSessionLimit?.get()).toBe(5)
+    expect(Config({ recentSessionLimit: 0 }).recentSessionLimit?.get()).toBe(0)
+    expect(() => Config({ recentSessionLimit: -1 })).toThrow()
+    expect(() => Config({ recentSessionLimit: 2.5 })).toThrow()
+  })
+
   it('loads as an inert Loader entry that only declares its synced Config', async () => {
     const ctx = new Context()
     onTestFinished(() => ctx.fiber.dispose())

@@ -1,14 +1,13 @@
 - button "新建会话": Nexus Superharness
 - button "收起侧边栏"
 - button "新建会话": 新会话
+- button "搜索会话"
 - navigation "全局面板":
   - button "插件"
   - button "自动化任务"
   - button "从侧边栏取消固定自动化任务"
   - button "更多"
 - text: 工作区
-- button "搜索会话"
-- textbox "搜索会话名称"
 - button "视图选项"
 - button "添加工作区"
 - tree "会话":

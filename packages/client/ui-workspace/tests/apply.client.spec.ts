@@ -18,8 +18,9 @@ import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from '@deepsee
 import {
   type ArchiveSessionInjected, menuOpenStateFactory, type PinSessionInjected,
   type RowToastInjected, type SessionArchiveConfirmInjected, type SessionRenameDialogInjected,
-  type WorkspaceViewStoreHandle,
+  type SessionSearchActionInjected, type WorkspaceViewStoreHandle,
 } from '../src/client/contract/slots.ts'
+import { SessionSearchAction } from '../src/client/rows/SessionSearchAction.tsx'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionRowButton, SessionArchiveConfirmDialog } from '../src/client/session-actions/ArchiveSession.tsx'
 import { PinSessionRowButton } from '../src/client/session-actions/PinSession.tsx'
@@ -309,6 +310,43 @@ describe('ui-workspace apply', () => {
     expect(after.slots.entries(MENU_ITEM)).toHaveLength(0)
     expect(after.slots.entries(ROW_ACTION)).toHaveLength(2)
     expect(after.slots.entries('shell.overlay')).toHaveLength(3)
+  })
+
+  it('layers search beside New session, requests the browser search, and leaves with the plugin', async () => {
+    const b = await bench()
+    onTestFinished(() => b.ctx.fiber.dispose())
+    const declareRow = (): () => void => b.slots.register({
+      name: 'root',
+      children: {
+        'sidebar.session.action': { kind: 'hoc', scope: 'root' },
+        'sidebar.workspaces': { kind: 'single', scope: 'root', inject: SECTION_INJECT },
+      },
+    } as never, () => null)
+    const withdraw = declareRow()
+    const plugin = b.ctx.plugin({ inject: [...inject], apply }, syncedConfig({ recentViewLimit: 10, recentSessionLimit: 3 }))
+    await plugin.await()
+    const [layer] = b.slots.entries('sidebar.session.action')
+    if (layer === undefined) throw new Error('the search layer did not register')
+    expect(layer.component).toBe(SessionSearchAction)
+    expect(layer.options).toMatchObject({ id: 'workspace.search', order: 1000 })
+    expect(layer.locale).toBe('workspace')
+    const face = faceOf(layer) as SessionSearchActionInjected
+    expect(face.hooks.shortcuts).toBe(b.ctx.shortcuts.catalog)
+    // The layer and the browser share one request source.
+    const browser = faceOf(b.slots.entries('sidebar.workspaces')[0]!) as WorkspaceBrowserInjected
+    expect(browser.hooks.recentSessionLimit.getSnapshot()).toBe(3)
+    face.requestSearch()
+    expect(browser.hooks.workspaceShortcuts.getSnapshot().searchRequest).toBe(1)
+    browser.requestSearch()
+    expect(browser.hooks.workspaceShortcuts.getSnapshot().searchRequest).toBe(2)
+    // A collapsed declaration drops the layer, a redeclaration restores it, and unloading removes it.
+    withdraw()
+    expect(b.slots.entries('sidebar.session.action')).toEqual([])
+    declareRow()
+    await Promise.resolve()
+    expect(b.slots.entries('sidebar.session.action')).toHaveLength(1)
+    await plugin.dispose()
+    expect(b.slots.entries('sidebar.session.action')).toEqual([])
   })
 
   it('declares the two Session row lists and registers the shipped actions and overlay surfaces into them', async () => {

@@ -517,17 +517,73 @@ describe('sidebar keyboard commands', () => {
     expect(fullscreen.resolve({ ...context, target: floated })).toMatchObject({ status: 'blocked', reason: en['command.float'] })
   })
 
+  it('cycles the focused pane strip with wrap-around and refuses a strip without two pages', () => {
+    const h = harness()
+    const registry = new ShortcutRegistry('desktop', 'macos')
+    releases.push(registerSidebarShortcuts({ register: command => registry.register(command),
+      runtime: registry.runtime }, h.controller, makeTranslate(en), vi.fn()))
+    const press = (code: 'BracketLeft' | 'BracketRight') => {
+      const focused = document.activeElement
+      return registry.dispatch({ code, control: false, meta: true, alt: false, shift: true,
+        repeat: false, composing: false, defaultPrevented: false }, { target: focused, region: 'page', modal: null }, vi.fn())
+    }
+    // One page: nothing to switch to.
+    expect(press('BracketRight')).toMatchObject({ status: 'blocked', reason: en['command.noTabs'] })
+    h.controller.openTab('files')
+    h.controller.openTab('terminal')
+    const tabs = getPane(h.layout(), activeDockPaneId(h.layout())).tabs
+    expect(tabs).toHaveLength(3)
+    const active = () => getPane(h.layout(), activeDockPaneId(h.layout())).activeTabId
+    h.tabElement(tabs[2]!).focus()
+    expect(press('BracketRight').status).toBe('handled')
+    expect(active()).toBe(tabs[0])
+    h.tabElement(tabs[0]!).focus()
+    expect(press('BracketLeft').status).toBe('handled')
+    expect(active()).toBe(tabs[2])
+    h.tabElement(tabs[1]!).focus()
+    expect(press('BracketLeft').status).toBe('handled')
+    expect(active()).toBe(tabs[0])
+    // A collapsed column and a missing Session refuse instead of focusing a hidden page.
+    h.store.actions.setExpanded(SESSION, false)
+    expect(press('BracketRight')).toMatchObject({ status: 'blocked', reason: en['command.collapsed'] })
+    document.body.focus()
+    expect(press('BracketRight')).toMatchObject({ status: 'blocked', reason: en['command.collapsed'] })
+    releases.push(h.show('missing-session' as SessionId))
+    expect(press('BracketRight')).toMatchObject({ status: 'blocked', reason: en['command.noSession'] })
+  })
+
+  it('drops a captured tab switch after the Session is replaced', () => {
+    const h = harness()
+    const commands = new Map<string, ShortcutCommand>()
+    releases.push(registerSidebarShortcuts({ runtime: 'desktop', register: (command) => {
+      commands.set(command.id, command)
+      return () => { commands.delete(command.id) }
+    } }, h.controller, makeTranslate(en), vi.fn()))
+    h.controller.openTab('files')
+    const before = h.controller.active()!.id
+    const captured = h.controller.commandTarget(null)!
+    const pending = commands.get('tab.next')!.resolve({ target: null, region: 'page', modal: null })
+    releases.push(h.show('missing-session' as SessionId))
+    expect(h.controller.cycleTab(captured, 1)).toBeUndefined()
+    expect(pending.status).toBe('handled')
+    if (pending.status === 'handled') pending.run()
+    releases.push(h.show())
+    expect(h.controller.active()!.id).toBe(before)
+    expect(h.controller.cycleTab({ ...captured, tabId: undefined }, 1)).toBeUndefined()
+    expect(h.controller.cycleTab({ ...captured, navigationRevision: -1 }, 1)).toBeUndefined()
+  })
+
   it.each([
-    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined] },
-    { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R'] },
-    { platform: 'linux', keys: [undefined, undefined, undefined, undefined, undefined] },
+    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined, undefined, undefined] },
+    { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R', 'Control+Shift+[', 'Control+Shift+]'] },
+    { platform: 'linux', keys: [undefined, undefined, undefined, undefined, undefined, undefined, undefined] },
   ] as const)('publishes the Web defaults and unbound commands on $platform', ({ platform, keys }) => {
     const h = harness()
     const registry = new ShortcutRegistry('web', platform)
     releases.push(registerSidebarShortcuts({ register: command => registry.register(command),
       runtime: registry.runtime }, h.controller, makeTranslate(en), vi.fn()))
     expect(registry.catalog.getSnapshot().map(row => row.id)).toEqual([
-      'sidebar.right.toggle', 'pane.split', 'pane.fullscreen.toggle', 'page.close', 'page.refresh',
+      'sidebar.right.toggle', 'pane.split', 'pane.fullscreen.toggle', 'page.close', 'page.refresh', 'tab.previous', 'tab.next',
     ])
     expect(registry.catalog.getSnapshot().map(row => row.aria)).toEqual(keys)
   })

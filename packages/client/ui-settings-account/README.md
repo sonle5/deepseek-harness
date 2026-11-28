@@ -52,7 +52,7 @@ The sidebar account menu uses the shared Menu surface and backdrop blur. The sig
 
 The account card’s More account information link has no underline and opens the root of the Host-provided Platform usage URL in the system browser, following `platformOrigin`.
 
-Sign out first queries running account-token tasks and opens a confirmation dialog. The warning describes interruption when such tasks exist; otherwise it explains that data is retained and the account can be signed in again. Cancel, close, and Escape dismiss without signing out. Failed impact queries still open confirmation with an explicit unknown-task warning; failed sign-out keeps the dialog available for retry.
+Sign out first queries running account-token tasks and opens a confirmation dialog. The warning describes interruption when such tasks exist; otherwise it explains that data is retained and the account can be signed in again. Cancel, close, and Escape dismiss without signing out. Failed impact queries still open confirmation with an explicit unknown-task warning; failed sign-out keeps the dialog available for retry. The keyboard reference and the Desktop application menu offer Feedback (`feedback.open`) and, while an account credential is stored, Sign out (`account.signOut`), both unbound by default. Feedback opens the same questionnaire as the menu entry. Sign out opens the confirmation of the mounted sidebar launcher; a request made before the launcher mounts is not replayed.
 
 Account notification polling and presentation belong to [ui-account-notifications](../ui-account-notifications/README.md). The plugin fills the settings shell's `settings.notice` row above the launcher row with the notification slot, and publishes account lifecycle and refresh events.
 

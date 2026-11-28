@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-api-remote-access/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { AccountUpdate, AccountDetails } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { OnboardingChange } from './onboarding-contract.ts'
 import type { PlatformBridge } from './PlatformOverlay.tsx'
@@ -336,4 +337,31 @@ export function apply(ctx: Context): void {
     update()
     return () => { listeners.delete(update); unregister?.() }
   }))
+  // Menu commands for the account menu's Feedback and Sign out; sign-out exists only while signed in.
+  ctx.inject(['shortcuts'], (scope) => {
+    const regions = ['page', 'editable', 'terminal'] as const
+    scope.remoteAccess.whenAccess('account/watch', () => scope.shortcuts.register({
+      id: 'feedback.open' as ShortcutCommandId, label: () => t('contactUs'), aliases: ['feedback', 'send feedback', 'contact us'],
+      defaults: {}, regions: [...regions], modals: ['sidebar', 'settings'],
+      resolve: () => ({ status: 'handled', run: () => { operations.contactUs() } }),
+    }))
+    scope.remoteAccess.whenAccess('account/watch', () => {
+      let unregister: (() => void) | undefined
+      const update = () => {
+        if (snapshot.view?.status === 'credential-stored') {
+          unregister ??= scope.shortcuts.register({
+            id: 'account.signOut' as ShortcutCommandId, label: () => t('signOut'), aliases: ['sign out', 'log out'],
+            defaults: {}, regions: [...regions], modals: [],
+            resolve: () => ({ status: 'handled', run: () => { publish({ ...snapshot, signOutRequest: (snapshot.signOutRequest ?? 0) + 1 }) } }),
+          })
+        } else {
+          unregister?.()
+          unregister = undefined
+        }
+      }
+      listeners.add(update)
+      update()
+      return () => { listeners.delete(update); unregister?.() }
+    })
+  })
 }

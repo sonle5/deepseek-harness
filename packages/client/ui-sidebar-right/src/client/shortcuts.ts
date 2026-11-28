@@ -96,5 +96,22 @@ export function registerSidebarShortcuts(shortcuts: Pick<Shortcuts, 'register' |
       },
     }))
   }
+  for (const [id, step, code] of [['tab.previous', -1, 'BracketLeft'], ['tab.next', 1, 'BracketRight']] as const) {
+    const binding: ShortcutBinding = { code, modifiers: ['primary', 'shift'] }
+    disposers.push(shortcuts.register({
+      id: id as ShortcutCommandId, label: () => t(step < 0 ? 'command.previousTab' : 'command.nextTab'),
+      aliases: [step < 0 ? 'previous tab' : 'next tab', 'switch tab'],
+      defaults: { 'desktop:macos': binding, 'desktop:windows': binding, 'desktop:linux': binding,
+        'web:windows': binding },
+      regions: ['page', 'editable', 'terminal'], modals: [],
+      resolve: ({ target: element }) => {
+        const target = sidebar.commandTarget(element)
+        if (target === undefined) return { status: 'blocked', reason: t(sidebar.active() === undefined ? 'command.noSession' : 'command.collapsed') }
+        const tabId = sidebar.cycleTab(target, step)
+        if (tabId === undefined) return { status: 'blocked', reason: t('command.noTabs') }
+        return { status: 'handled', run: () => { if (sidebar.isTargetCurrent(target)) sidebar.focus(tabId) } }
+      },
+    }))
+  }
   return () => { for (const dispose of disposers.reverse()) dispose() }
 }

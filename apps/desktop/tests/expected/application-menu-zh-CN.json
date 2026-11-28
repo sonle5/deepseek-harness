@@ -12,6 +12,11 @@
     "enabled": false
   },
   {
+    "id": "dsh-account-signOut",
+    "label": "退出登录",
+    "enabled": false
+  },
+  {
     "type": "separator"
   },
   {

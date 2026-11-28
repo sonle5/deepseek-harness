@@ -55,8 +55,23 @@
         - button "修改关闭当前页面／窗口快捷键"
         - text: 关闭当前页面／窗口 ⌥ ⌘ W
       - listitem:
+        - button "修改意见反馈快捷键"
+        - text: 意见反馈 暂无快捷键
+      - listitem:
+        - button "修改下一个会话快捷键"
+        - text: 下一个会话 ⌥ ⌘ ]
+      - listitem:
+        - button "修改上一个会话快捷键"
+        - text: 上一个会话 ⌥ ⌘ [
+      - listitem:
         - button "修改切换已读/未读快捷键"
         - text: 切换已读/未读 ⇧ ⌘ U
+      - listitem:
+        - button "修改下一个标签页快捷键"
+        - text: 下一个标签页 暂无快捷键
+      - listitem:
+        - button "修改上一个标签页快捷键"
+        - text: 上一个标签页 暂无快捷键
   - region "消息输入":
     - heading "消息输入" [level=3]
     - list:

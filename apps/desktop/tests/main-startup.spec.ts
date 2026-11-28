@@ -257,6 +257,8 @@ const harness = await vi.hoisted(async () => {
     dialog: { showOpenDialog: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn() },
     openExternal: vi.fn(async () => {}),
     showItemInFolder: vi.fn(),
+    openPath: vi.fn<(path: string) => Promise<string>>(async () => ''),
+    clipboard: { writeText: vi.fn<(text: string) => Promise<void>>(async () => {}) },
     protocolHandle: vi.fn<(scheme: string, handler: (request: Request) => Response | Promise<Response>) => void>(),
     applyRelease: vi.fn(() => { preparing.resolve(); return prepared.promise }),
     disableAllPlugins: vi.fn(async () => {
@@ -323,7 +325,8 @@ vi.mock('electron', () => ({
   BrowserWindow: harness.FakeWindow,
   WebContentsView: harness.FakeView,
   dialog: harness.dialog,
-  shell: { openExternal: harness.openExternal, showItemInFolder: harness.showItemInFolder },
+  shell: { openExternal: harness.openExternal, showItemInFolder: harness.showItemInFolder, openPath: harness.openPath },
+  clipboard: harness.clipboard,
   nativeTheme: harness.nativeTheme,
   ipcMain: {
     on: harness.ipcOn,
@@ -830,7 +833,8 @@ describe('desktop main startup', () => {
     const menu = applicationMenuItems()
     const visible = menu.filter(item => item.visible !== false)
     expect(visible.map(item => item.role === 'quit' ? 'quit' : item.label ?? item.type)).toEqual([
-      messages.aboutMenu, 'separator', messages.settingsMenu, 'separator', messages.checkUpdatesMenu,
+      messages.aboutMenu, 'separator', messages.settingsMenu, ...platform === 'darwin' ? [messages.signOutMenu] : [],
+      'separator', messages.checkUpdatesMenu,
       ...platform === 'linux' ? [] : ['separator', messages.cliCommandMenu],
       'separator', ...packaged ? [] : [messages.reloadPageMenu, messages.restartAppHostMenu],
       messages.toggleDevToolsMenu, 'separator',
@@ -1448,10 +1452,14 @@ describe('desktop main startup', () => {
     expect(submenu(en.viewMenu)).toEqual(platform === 'darwin'
       ? [[en.toggleSidebarMenu, 'dsh-sidebar-left-toggle', false], [en.toggleRightPanelMenu, 'dsh-sidebar-right-toggle', false],
         [en.searchSessionsMenu, 'dsh-session-search', false], ['separator'],
+        [en.openTerminalMenu, 'dsh-terminal-new', false], [en.openBrowserMenu, 'dsh-browser-new', false], ['separator'],
+        [en.previousSessionMenu, 'dsh-session-previous', false], [en.nextSessionMenu, 'dsh-session-next', false],
+        [en.previousTabMenu, 'dsh-tab-previous', false], [en.nextTabMenu, 'dsh-tab-next', false], ['separator'],
         [en.actualSizeMenu, false, 'Command+0'], [en.zoomInMenu, false], [en.zoomOutMenu, false]]
       : undefined)
     expect(submenu(en.helpMenu)).toEqual(platform === 'darwin'
-      ? [[en.keyboardShortcutsMenu, 'dsh-shortcuts-open', false], ['separator'], [en.documentationMenu], [en.reportIssueMenu]]
+      ? [[en.keyboardShortcutsMenu, 'dsh-shortcuts-open', false], ['separator'], [en.whatsNewMenu], [en.documentationMenu], ['separator'],
+        [en.sendFeedbackMenu, 'dsh-feedback-open', false], [en.reportIssueMenu], [en.troubleshootingMenu]]
       : undefined)
     const describeEdit = (items: MenuItemConstructorOptions[]): unknown[] => items.map(item => Array.isArray(item.submenu)
       ? [describeItem(item), describeEdit(item.submenu)]
@@ -1466,9 +1474,37 @@ describe('desktop main startup', () => {
       : undefined)
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
     expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
-      ? ['about', 'separator', en.settingsMenu, 'separator', en.checkUpdatesMenu, 'separator', en.cliCommandMenu, 'separator', 'toggleDevTools', 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
+      ? ['about', 'separator', en.settingsMenu, en.signOutMenu, 'separator', en.checkUpdatesMenu, 'separator', en.cliCommandMenu, 'separator', 'toggleDevTools', 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
       : ['about', 'separator', en.settingsMenu, 'separator', en.checkUpdatesMenu, 'separator', 'toggleDevTools', 'separator', 'quit'])
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
+  })
+
+  it('opens release notes, the logs folder, and copies diagnostics from the macOS Help menu', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const template = harness.menu.buildFromTemplate.mock.calls.map(call => call[0])
+      .findLast(items => items.some(item => item.role === 'help'))!
+    const help = template.find(item => item.role === 'help')!.submenu as MenuItemConstructorOptions[]
+    const click = (items: MenuItemConstructorOptions[], label: string) => {
+      ;(items.find(item => item.label === label)!.click as () => void)()
+    }
+    click(help, en.whatsNewMenu)
+    expect(harness.openExternal).toHaveBeenLastCalledWith(
+      `https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v${harness.app.getVersion()}`)
+    const troubleshooting = help.find(item => item.label === en.troubleshootingMenu)!.submenu as MenuItemConstructorOptions[]
+    expect(troubleshooting.map(item => item.label)).toEqual([en.openLogsFolderMenu, en.copyDiagnosticsMenu])
+    click(troubleshooting, en.openLogsFolderMenu)
+    expect(harness.openPath).toHaveBeenLastCalledWith(harness.app.getPath('logs'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    harness.openPath.mockResolvedValueOnce('missing')
+    click(troubleshooting, en.openLogsFolderMenu)
+    await vi.waitFor(() => { expect(error).toHaveBeenCalledWith('desktop help: could not open logs', 'missing') })
+    click(troubleshooting, en.copyDiagnosticsMenu)
+    const copied = harness.clipboard.writeText.mock.lastCall![0].split('\n')
+    expect(copied.slice(0, 2)).toEqual([`${harness.app.name} ${harness.app.getVersion()}`, `Electron ${process.versions.electron}`])
+    expect(copied[2]).toMatch(/^darwin /u)
+    expect(copied).toHaveLength(4)
   })
 
   it.each(['en-US', 'zh-CN'])('localizes macOS application commands without changing the application name (%s)', async (locale) => {

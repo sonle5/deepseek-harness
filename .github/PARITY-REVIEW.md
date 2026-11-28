@@ -6,9 +6,9 @@ carries enough context that the fixing agent needs nothing beyond the Issue body
 This file is the operating procedure. The label rules below are enforced by
 [`issue-policy.yml`](workflows/issue-policy.yml) and
 [`issue-lifecycle.yml`](workflows/issue-lifecycle.yml); the review and merge
-rules are enforced by `develop`'s branch protection, which the
-[Parity loop](workflows/parity-loop.yml) workflow relies on rather than
-re-implements.
+rules are enforced by `develop`'s branch protection and by the
+[Parity loop](workflows/parity-loop.yml) workflow, which requires the gating
+checks that the protection does not.
 
 Two things this procedure asks of a reviewer that no workflow can check: whether
 an Issue records the surface, the current behaviour and the reference behaviour
@@ -67,7 +67,8 @@ The Issue body is the brief. A fixing PR:
 
 - targets `develop`, never `master` (which mirrors upstream),
 - says `Fixes #N`, so merging closes the Issue and the lifecycle workflow moves
-  it to Done,
+  it to Done (GitHub skips closing keywords on the loop's own merges, so the
+  Parity loop closes those Issues itself),
 - carries exactly one `kind/*` and at least one `area/*`,
 - is routed for review by the Parity loop, which requests it automatically.
 
@@ -93,26 +94,97 @@ PR kinds and their meanings are the ones the policy already knows:
 | `kind/cleanup` | Refactor, rename, or removal with no behaviour change |
 | `kind/dependency` | Dependency or pinned-artifact changes |
 
-Fill the [pull request template](pull_request_template.md) as written. A
-parity-fix PR additionally states which acceptance criteria from the Issue it
-satisfies and how each was checked.
+Fill the [pull request template](pull_request_template.md) as written. A PR
+that carries `area/desktop` or `area/client`, or fixes a `parity` Issue, fills
+its **User-visible evidence** section from a packaged build: before and after
+screenshots, each captioned with the commit it was built from, and one ticked
+entry per acceptance criterion of the Issue saying how it was checked, with the
+output or screenshot. A PR with no user-visible change writes
+`N/A — no user-visible change` with a reason instead. The evidence is the
+author's to produce; CI does not build a DMG per PR.
+
+### Packaged-only surfaces
+
+A dev build (`dev:desktop`, `start:desktop`, a Web renderer or a DOM read)
+cannot verify these, because they come from the packaging step or from macOS
+reading the bundle. Evidence for them comes from a
+`pnpm run package:desktop:mac:arm64:unsigned` build:
+
+- Dock and Finder icon
+- About panel
+- `Info.plist`
+- DMG window, background and layout
+- native menus
+- code signature and bundle id
+- first-run window
+
+## Reviewing a PR
+
+Do not approve while any gating check on the head commit is failing or pending.
+The gating checks are `all checks passed`, `windows checks passed`,
+`python checks passed` and `cloudflare pages preview`; the last runs the
+aggregate type check, so "tests pass" includes it. When one is red, submit
+**Request changes** that names the check and links its log; when one is still
+running, wait for it or leave a comment. This applies to every PR, not only the
+desktop and client PRs below.
+
+The routed reviewer agent checks a PR that carries `area/desktop` or
+`area/client`, or says `Fixes` a `parity` Issue, against this list before
+anything else; other PRs skip it. When any item fails, submit
+**Request changes**, not a comment, and name each failed item; a comment leaves
+the PR mergeable once another account approves.
+
+- [ ] The PR has a **User-visible evidence** section. Only a stated
+      `N/A — no user-visible change` with a reason replaces it, and that reason
+      must hold for the diff. A valid N/A line passes the whole list.
+
+When the section shows evidence rather than the N/A line:
+
+- [ ] The evidence names the build command and the commit it was built from,
+      and that commit is the PR head or an ancestor whose later commits do not
+      change what the evidence shows.
+- [ ] Every criterion that names a
+      [packaged-only surface](#packaged-only-surfaces) is shown from a packaged
+      build. Dev-build screenshots or DOM reads for one of those surfaces fail
+      this item.
+- [ ] Every acceptance criterion in the linked Issue has its own ticked entry
+      saying how it was checked, with the output or screenshot. A criterion
+      left out, or covered only by "tests pass", fails this item.
+- [ ] Before and after screenshots show the same scenario, so the difference is
+      the change.
+
+Then review the diff as usual. A green CI run does not stand in for this list:
+unit tests and dev-build DOM reads can pass while the shipped bundle is wrong.
+
+The Parity loop prints a report-only warning when such a desktop or client PR
+has no image in its evidence section. It re-reads the labels and body only when
+it runs, on open, reopen, push, ready-for-review or a review request, so a
+warning can predate a later label or body edit; read the PR itself, not the
+warning.
 
 ## Merging
 
-Nobody merges by hand, and no workflow merges on its own. `develop` is protected:
-it requires one approving review from someone other than the author, dismisses
-stale approvals when the branch moves, requires an approval of the last push, and
-requires every review conversation to be resolved. The Parity loop therefore only
-asks GitHub to auto-merge the pull request, and GitHub applies those rules to the
-commit it is about to merge — so an approval cannot carry over to a commit it did
-not see.
+No merge skips review or CI. `develop` is protected: it requires one approving
+review from someone other than the author, dismisses stale approvals when the
+branch moves, requires an approval of the last push, and requires every review
+conversation to be resolved. The Parity loop asks GitHub to auto-merge the pull
+request, and GitHub applies those rules to the commit it is about to merge — so an
+approval cannot carry over to a commit it did not see.
 
-Squash to one commit per Issue so `develop` reads as a list of gaps closed. The
-first release after a merge is what the next review measures.
+`develop` requires no status checks, so the Parity loop enforces the gating
+checks itself. It enables auto-merge, pinned to the head commit, only after every
+gating check has concluded `success` on that commit, and it turns an enabled
+auto-merge off while any of them fails or runs on the current head. It comments
+once per head commit naming the checks that failed. It re-evaluates when one of
+the CI workflows or a review finishes.
 
-`develop` currently has no required status checks: the fork's CI workflows still
-reference upstream organisation secrets and do not run here. Protection enforces
-review, not CI, until those workflows can run.
+GitHub enables auto-merge only while a requirement is still pending. When the
+gating checks have passed and the pull request can already merge, the loop
+merges it, pinned to the head it checked, instead.
+
+Squash every merge, by hand or automatic, to one commit per Issue so `develop`
+reads as a list of gaps closed. The first release after a merge is what the next
+review measures.
 
 ## Scope
 

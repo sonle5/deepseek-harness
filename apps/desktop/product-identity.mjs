@@ -2,8 +2,7 @@
 export const PRODUCT_IDENTITY = Object.freeze({
   productName: 'Nexus Superharness',
   shortName: 'Nexus',
-  copyright: 'Copyright © 2026 One Nexus. Built on DeepSeek Harness.',
-  attribution: 'Built on DeepSeek Harness',
+  copyright: 'Copyright © 2026 One Nexus',
   appId: 'com.onenexus.superharness',
   artifactPrefix: 'nexus-superharness',
   protocol: 'nexus-superharness',

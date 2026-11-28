@@ -171,6 +171,10 @@ it('samples the language and UTC offset on every Platform request', async () => 
   manager.close()
 })
 
+it('scales renderer rectangles by the page zoom factor', () => {
+  expect(platformBounds({ x: 10, y: 20.4, width: 100, height: 50 }, 1.5)).toEqual({ x: 15, y: 31, width: 150, height: 75 })
+})
+
 it.each([null, {}, { ...bounds, width: NaN }, { ...bounds, x: -1 }, { ...bounds, y: Infinity }])('rejects malformed IPC rectangles', (value) => {
   expect(() => platformBounds(value)).toThrow()
 })

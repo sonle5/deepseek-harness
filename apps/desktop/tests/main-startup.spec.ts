@@ -1434,8 +1434,25 @@ describe('desktop main startup', () => {
       .find(items => items.some(item => item.role === 'editMenu'))
     if (template === undefined) throw new Error('application menu missing')
     expect(template.map(describeItem)).toEqual(platform === 'darwin'
-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
+      ? ['Desktop test', en.fileMenu, 'editMenu', en.viewMenu, 'windowMenu', 'help']
       : ['Application', 'editMenu'])
+    const submenu = (label: string): unknown[] | undefined => {
+      const items = template.find(item => item.label === label)?.submenu as MenuItemConstructorOptions[] | undefined
+      return items?.map(item => [describeItem(item), item.id, item.enabled, item.accelerator].filter(value => value !== undefined))
+    }
+    // Before the product registers its commands every registry item is present but disabled.
+    expect(submenu(en.fileMenu)).toEqual(platform === 'darwin'
+      ? [[en.newSessionMenu, 'dsh-session-new', false], [en.openWorkspaceMenu, 'dsh-workspace-add', false], ['separator'],
+        [en.closePage, 'dsh-page-close', false]]
+      : undefined)
+    expect(submenu(en.viewMenu)).toEqual(platform === 'darwin'
+      ? [[en.toggleSidebarMenu, 'dsh-sidebar-left-toggle', false], [en.toggleRightPanelMenu, 'dsh-sidebar-right-toggle', false],
+        [en.searchSessionsMenu, 'dsh-session-search', false], ['separator'],
+        [en.actualSizeMenu, false, 'Command+0'], [en.zoomInMenu, false], [en.zoomOutMenu, false]]
+      : undefined)
+    expect(submenu(en.helpMenu)).toEqual(platform === 'darwin'
+      ? [[en.keyboardShortcutsMenu, 'dsh-shortcuts-open', false], ['separator'], [en.documentationMenu], [en.reportIssueMenu]]
+      : undefined)
     const describeEdit = (items: MenuItemConstructorOptions[]): unknown[] => items.map(item => Array.isArray(item.submenu)
       ? [describeItem(item), describeEdit(item.submenu)]
       : [describeItem(item), item.accelerator, item.visible, item.acceleratorWorksWhenHidden].filter(value => value !== undefined))

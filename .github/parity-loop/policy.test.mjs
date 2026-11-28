@@ -1,15 +1,28 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  autoMergeAction,
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
+  autoMergeNotNeeded,
   baseBranchError,
+  ciGate,
+  CLOSE_WINDOW_MS,
+  EVIDENCE_HEADING,
+  failingChecksComment,
+  GATING_CHECKS,
+  issuesToClose,
   latestVerdicts,
+  LOOP_MERGER,
+  missingEvidenceWarning,
   needsReviewRequest,
+  reviewedPullNumber,
   reviewerFor,
   REVIEWERS,
   TARGET_BASE,
+  workflowRunPullNumbers,
 } from './policy.mjs'
+import { readFileSync } from 'node:fs'
 
 const clean = {
   base: 'develop',
@@ -18,6 +31,7 @@ const clean = {
   mergeable: true,
   protectedBranch: true,
   reviewDecision: 'REVIEW_REQUIRED',
+  gate: { failing: [], pending: [] },
 }
 
 test('develop is the only pull-request base', () => {
@@ -178,4 +192,232 @@ test('an already-enabled auto-merge is told apart from a real failure', () => {
   assert.equal(autoMergeAlreadyEnabled(
     'Head branch was modified. Review and try the merge again.',
   ), false)
+})
+
+test('a pull request that can merge now is told apart from a real failure', () => {
+  // GitHub refuses auto-merge when nothing is pending; only failing optional
+  // checks leave the merge state `unstable`.
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in unstable status (enablePullRequestAutoMerge)'),
+  ), true)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in clean status (enablePullRequestAutoMerge)'),
+  ), true)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request Pull request is in dirty status (enablePullRequestAutoMerge)'),
+  ), false)
+  assert.equal(autoMergeNotNeeded(
+    new Error('GraphQL: Pull request AutoMerge is already enabled (enablePullRequestAutoMerge)'),
+  ), false)
+})
+
+const HEAD = 'c4086e28aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+let runId = 0
+const run = (name, status, conclusion, slug = 'github-actions') => ({
+  id: ++runId,
+  name,
+  status,
+  conclusion,
+  html_url: `https://github.test/runs/${runId}`,
+  app: { slug },
+})
+const allPassed = () => GATING_CHECKS.map(name => run(name, 'completed', 'success'))
+
+test('every gating check must succeed on the head commit', () => {
+  assert.deepEqual(ciGate(allPassed()), { failing: [], pending: [] })
+  assert.deepEqual(ciGate([]), { failing: [], pending: [...GATING_CHECKS] })
+  const runs = allPassed()
+  runs[1] = run(GATING_CHECKS[1], 'completed', 'cancelled')
+  runs[2] = run(GATING_CHECKS[2], 'in_progress', null)
+  const gate = ciGate(runs)
+  assert.deepEqual(gate.failing.map(check => [check.name, check.conclusion]), [[GATING_CHECKS[1], 'cancelled']])
+  assert.deepEqual(gate.pending, [GATING_CHECKS[2]])
+})
+
+test('the latest run of a gating check replaces the one it re-runs', () => {
+  const failed = run(GATING_CHECKS[0], 'completed', 'failure')
+  const rerun = run(GATING_CHECKS[0], 'in_progress', null)
+  const rest = allPassed().slice(1)
+  assert.deepEqual(ciGate([rerun, failed, ...rest]), { failing: [], pending: [GATING_CHECKS[0]] })
+  const passed = run(GATING_CHECKS[0], 'completed', 'success')
+  assert.deepEqual(ciGate([passed, failed, ...rest]), { failing: [], pending: [] })
+})
+
+test('a same-named check from another app does not count', () => {
+  const runs = [run(GATING_CHECKS[0], 'completed', 'success', 'some-other-app'), ...allPassed().slice(1)]
+  assert.deepEqual(ciGate(runs).pending, [GATING_CHECKS[0]])
+})
+
+test('gating checks a draft skipped are pending, never failing, so a draft gets no failing-checks comment', () => {
+  // Replay of draft #52 at 7570d5cafd: all four gating jobs skip on a draft.
+  const gate = ciGate(GATING_CHECKS.map(name => run(name, 'completed', 'skipped')))
+  assert.deepEqual(gate, { failing: [], pending: [...GATING_CHECKS] })
+  const blockers = autoMergeBlockers({ ...clean, isDraft: true, reviewDecision: 'APPROVED', gate })
+  assert.ok(blockers.includes('Pull request is a draft.'))
+  assert.equal(blockers.some(reason => reason.startsWith('Gating checks failed')), false)
+  // An auto-merge left on from before the pull request went back to draft is still turned off.
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  // Once marked ready the jobs run for real, and their run replaces the skip.
+  const ready = ciGate([...GATING_CHECKS.map(name => run(name, 'completed', 'skipped')), ...allPassed()])
+  assert.deepEqual(ready, { failing: [], pending: [] })
+})
+
+test('the issue sweep runs after the loop, so it sees a merge the loop made directly', () => {
+  const workflow = readFileSync(new URL('../workflows/parity-loop.yml', import.meta.url), 'utf8')
+  const job = workflow.slice(workflow.indexOf('\n  close-issues:\n'))
+  assert.match(job, /\n    needs: loop\n/u)
+  // Without a status function, a failed or skipped `loop` would skip the sweep.
+  assert.match(job, /\n    if: \$\{\{ !cancelled\(\) \}\}\n/u)
+})
+
+test('an approval with failing checks on the head does not merge, and the comment names them', () => {
+  // Replay of #26: approved, auto-merge on, `all checks passed` red on the head.
+  const runs = [run(GATING_CHECKS[0], 'completed', 'failure'), ...allPassed().slice(1)]
+  const gate = ciGate(runs)
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED', gate })
+  assert.deepEqual(blockers, [`Gating checks failed on the head commit: \`${GATING_CHECKS[0]}\`.`])
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  const { marker, body } = failingChecksComment({ headSha: HEAD, failing: gate.failing })
+  assert.ok(body.startsWith(marker))
+  assert.ok(marker.includes(HEAD))
+  assert.ok(body.includes(`[\`${GATING_CHECKS[0]}\`](${gate.failing[0].url}): failure`))
+})
+
+test('pending gating checks block auto-merge and turn an enabled one off', () => {
+  const gate = ciGate(allPassed().slice(1))
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED', gate })
+  assert.deepEqual(blockers, [`Gating checks have not finished on the head commit: \`${GATING_CHECKS[0]}\`.`])
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'disable')
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: false }), 'wait')
+})
+
+test('a blocker other than the gating checks leaves auto-merge as it is', () => {
+  const gate = { failing: [], pending: [] }
+  const blockers = autoMergeBlockers({ ...clean, mergeable: null, gate })
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'wait')
+  assert.equal(autoMergeAction({ blockers: [], gate, autoMergeEnabled: false }), 'enable')
+})
+
+test('a finished workflow re-evaluates only this repository’s pull requests into develop', () => {
+  const pull = (number, ref = TARGET_BASE, id = 7) => ({ number, base: { ref, repo: { id } } })
+  const event = {
+    repository: { id: 7 },
+    workflow_run: { pull_requests: [pull(3), pull(3), pull(4, 'master'), pull(5, TARGET_BASE, 8), pull(6)] },
+  }
+  assert.deepEqual(workflowRunPullNumbers(event), [3, 6])
+  assert.deepEqual(workflowRunPullNumbers({ repository: { id: 7 }, workflow_run: { pull_requests: [] } }), [])
+  assert.deepEqual(workflowRunPullNumbers({}), [])
+})
+
+test('the review checklist forbids approving while a gating check is red or pending', () => {
+  const checklist = readFileSync(new URL('../PARITY-REVIEW.md', import.meta.url), 'utf8')
+  for (const name of GATING_CHECKS) assert.ok(checklist.includes(`\`${name}\``), name)
+  assert.match(checklist, /Do not approve while any gating check on the head commit is failing or pending/u)
+})
+
+const evidenceBody = section => `## Motivation\n\nFixes #33\n\n## Testing\n\n![unit](https://example.test/unit.png)\n\n${EVIDENCE_HEADING}\n\n${section}\n`
+
+test('a desktop or client pull request with an image in its evidence section is not flagged', () => {
+  for (const labels of [['area/desktop'], ['area/client'], ['kind/bug-fix', 'area/desktop', 'area/client']]) {
+    assert.equal(missingEvidenceWarning({
+      labels,
+      body: evidenceBody('**Before / after**: ![Dock icon at abc1234](https://example.test/dock.png)'),
+    }), null, labels.join(','))
+  }
+  assert.equal(missingEvidenceWarning({
+    labels: ['area/client'],
+    body: evidenceBody('<img alt="About panel at abc1234" src="https://example.test/about.png">'),
+  }), null)
+})
+
+test('a desktop or client pull request without an evidence image is flagged', () => {
+  // An image elsewhere in the body, or one inside the template's comments, is
+  // not evidence.
+  const noImage = missingEvidenceWarning({
+    labels: ['area/desktop'],
+    body: evidenceBody('<!-- ![placeholder](https://example.test/x.png) -->\n**Before / after**: see the unit tests'),
+  })
+  assert.match(noImage, /`area\/desktop` but has no image in its `## User-visible evidence` section/u)
+  const noSection = missingEvidenceWarning({ labels: ['area/client', 'area/desktop'], body: '## Motivation\n\n![x](https://example.test/x.png)\n' })
+  assert.match(noSection, /`area\/desktop` and `area\/client` but has no `## User-visible evidence` section/u)
+  assert.match(missingEvidenceWarning({ labels: ['area/client'], body: null }), /has no `## User-visible evidence` section/u)
+})
+
+test('the stated N/A path and other areas are not flagged', () => {
+  assert.equal(missingEvidenceWarning({
+    labels: ['area/desktop'],
+    body: evidenceBody('N/A — no user-visible change: the diff only renames a test helper.'),
+  }), null)
+  assert.equal(missingEvidenceWarning({ labels: ['kind/doc', 'area/ci'], body: '' }), null)
+})
+
+test('the pull request template carries the evidence heading the check reads', () => {
+  const template = readFileSync(new URL('../pull_request_template.md', import.meta.url), 'utf8')
+  assert.ok(template.split('\n').includes(EVIDENCE_HEADING))
+  assert.match(template, /N\/A — no user-visible change: <reason>/u)
+})
+
+const REPOSITORY = 'sonle5/deepseek-harness'
+const MERGED_AT = '2026-11-26T19:13:09Z'
+const AFTER_MERGE = Date.parse(MERGED_AT) + 60_000
+const openIssue = (number, overrides = {}) => ({
+  number, repository: REPOSITORY, state: 'OPEN', lastStateChangeAt: null, ...overrides,
+})
+const close = (pull, now = AFTER_MERGE) => issuesToClose({
+  repository: REPOSITORY,
+  pull: { mergedBy: LOOP_MERGER, mergedAt: MERGED_AT, issues: [], ...pull },
+  now,
+})
+
+test('a loop merge closes every open issue in its closing references', () => {
+  assert.deepEqual(close({ issues: [openIssue(8), openIssue(9)] }), [8, 9])
+})
+
+test('only closing references are candidates, so a bare or Refs mention closes nothing', () => {
+  // `Refs #N` and a bare `#N` never enter `closingIssuesReferences`; a pull
+  // request whose body only mentions issues reaches the sweep with none.
+  assert.deepEqual(close({ issues: [] }), [])
+})
+
+test('a merge GitHub already applied closing keywords to is left to GitHub', () => {
+  // A person's merge closes its issues itself, as #21 closed #19.
+  assert.deepEqual(close({ mergedBy: 'sonle5', issues: [openIssue(19)] }), [])
+  assert.deepEqual(close({ mergedBy: null, issues: [openIssue(19)] }), [])
+})
+
+test('an issue already closed, by hand or by GitHub, is not touched again', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(8, { state: 'CLOSED', lastStateChangeAt: '2026-11-26T19:16:17Z' })],
+  }), [])
+})
+
+test('an issue reopened after the merge stays open on every later sweep', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(8, { lastStateChangeAt: '2026-11-26T20:00:00Z' })],
+  }), [])
+  // A reopen from before the merge does not count: the merge still fixes it.
+  assert.deepEqual(close({
+    issues: [openIssue(8, { lastStateChangeAt: '2026-11-25T10:00:00Z' })],
+  }), [8])
+})
+
+test('an issue in another repository is not closed with this token', () => {
+  assert.deepEqual(close({
+    issues: [openIssue(5, { repository: 'deepseek-ai/deepseek-harness' }), openIssue(8)],
+  }), [8])
+})
+
+test('merges older than the sweep window are history and are left alone', () => {
+  const issues = [openIssue(20)]
+  assert.deepEqual(close({ issues }, Date.parse(MERGED_AT) + CLOSE_WINDOW_MS), [20])
+  assert.deepEqual(close({ issues }, Date.parse(MERGED_AT) + CLOSE_WINDOW_MS + 1), [])
+})
+
+test('the reviewed pull request is read only from a review-event run name', () => {
+  const run = displayTitle => ({ workflow_run: { display_title: displayTitle } })
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:26')), 26)
+  assert.equal(reviewedPullNumber(run('weighted-approval')), null)
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:0')), null)
+  assert.equal(reviewedPullNumber(run('weighted-approval-review-event:26 extra')), null)
+  assert.equal(reviewedPullNumber({ pull_request: { number: 26 } }), null)
 })

@@ -13,7 +13,8 @@ today and what Codex Desktop does instead.
 
 This body is also the brief for the fixing agent: the PR that closes it must
 reference this issue with `Fixes #N`. The Parity loop routes the PR's review to
-a reviewer agent other than its author.
+a reviewer agent other than its author, who requests changes unless the PR
+shows every acceptance criterion and every surface under Evidence required.
 -->
 
 ## Gap
@@ -58,6 +59,24 @@ menu item, a shortcut, a persisted setting, or a default.
 
 - [ ]
 - [ ]
+
+## Evidence required
+
+<!--
+Which surfaces the fixing PR must show from a packaged build
+(`pnpm run package:desktop:mac:arm64:unsigned`), because a dev build cannot
+verify them. Keep the ones the criteria touch and delete the rest; write
+"None — dev-build evidence suffices" with a reason when no criterion names one.
+See .github/PARITY-REVIEW.md, Packaged-only surfaces.
+-->
+
+- [ ] Dock and Finder icon
+- [ ] About panel
+- [ ] `Info.plist`
+- [ ] DMG window, background and layout
+- [ ] Native menus
+- [ ] Code signature and bundle id
+- [ ] First-run window
 
 ## Scope notes
 

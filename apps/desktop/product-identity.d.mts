@@ -3,7 +3,6 @@ export interface ProductIdentity {
   readonly productName: 'Nexus Superharness'
   readonly shortName: 'Nexus'
   readonly copyright: string
-  readonly attribution: 'Built on DeepSeek Harness'
   readonly appId: 'com.onenexus.superharness'
   readonly artifactPrefix: 'nexus-superharness'
   readonly protocol: 'nexus-superharness'

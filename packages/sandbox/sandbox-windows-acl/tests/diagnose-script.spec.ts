@@ -135,7 +135,12 @@ describe.skipIf(!isWin32 || !pwshAvailable())('diagnose-windows-sandbox-acl scri
 
   function newScratch(): string {
     // Windows runners may expose TEMP through an 8.3 alias; PowerShell reports long paths.
-    return realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-acl-diagnose-')))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-acl-diagnose-')))
+    // Under a TEMP whose DACL lacks SE_DACL_AUTO_INHERITED (the GitHub-hosted runner
+    // profile), `icacls /inheritance:r` copies inherited ACEs as explicit ones instead
+    // of removing them. The reset gives the scratch root an auto-inherited DACL.
+    icacls(root, '/reset')
+    return root
   }
 
   function makeDir(root: string, name: string): string {

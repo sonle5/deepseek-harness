@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
@@ -358,6 +360,7 @@ describe('CI workflow', () => {
     const [linuxName, macosName] = matrix.map(os => `publisher-isolated (${String(os)})`)
     if (linuxName === undefined || macosName === undefined) throw new TypeError('the publisher matrix must list two operating systems')
     expect([linuxName, macosName]).toEqual(['publisher-isolated (linux)', 'publisher-isolated (macos)'])
+    if (linuxName === undefined || macosName === undefined) throw new TypeError('the publisher matrix must list two operating systems')
     const linux = { name: linuxName, conclusion: 'success', runner_id: 1000001309 }
     const abandonedMacos = { name: macosName, conclusion: 'cancelled', runner_id: 0 }
     const unrelated = { name: 'node 24 / coverage 2/2', conclusion: 'failure', runner_id: 1000001308 }
@@ -705,8 +708,8 @@ describe('CI workflow', () => {
     expect(report?.run).toContain('::warning::')
     expect(report?.run).toContain('Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append')
 
-    // serial-windows: master-only standby, self-hosted, non-blocking, lives in ci-master.
-    expect(serialWindows.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+    // serial-windows: post-merge standby, self-hosted, non-blocking, lives in ci-master.
+    expectStandbyPushes(serialWindows.if, 'DSH_CI_FAILOVER_WINDOWS')
     expect(serialWindows['runs-on']).toEqual(['self-hosted', 'dsh-win-ci', 'windows'])
     expect(serialWindows.name).toBe('serial / windows (self-hosted standby)')
     // Its store must share the ReFS workspace volume for clone; the install
@@ -865,6 +868,41 @@ describe('CI workflow', () => {
       run: 'pnpm run check:ci:unit',
       env: { DSH_COVERAGE_TEST_TIMEOUT_MS: coverage.env.DSH_COVERAGE_TEST_TIMEOUT_MS },
     })
+  })
+
+  it('routes macOS CI jobs to the self-hosted Mac only under DSH_CI_MACOS and trusted events', () => {
+    const mac = ['self-hosted', 'macOS', 'ARM64']
+    const repository = 'owner/repo'
+    const pullRequest = (login: string, head: string) => ({ user: { login }, head: { repo: { full_name: head, fork: true } } })
+    const route = (selector: unknown, value: string, github: Record<string, unknown>) => evaluateRunsOn(selector, {
+      fromJSON: JSON.parse, matrix: { os: 'macos' }, vars: { DSH_CI_MACOS: value, DSH_CI_FAILOVER_LINUX: '' },
+      github: { repository, actor: 'maintainer', ...github },
+    })
+    // A fork repository reports head.repo.fork for its own branches, so the
+    // same-repository head is what admits a PR.
+    const trustedPr = { event_name: 'pull_request', event: { pull_request: pullRequest('maintainer', repository) } }
+    const publisher = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'publisher-isolated')['runs-on']
+    expect(route(publisher, 'selfhosted', trustedPr)).toEqual(mac)
+    for (const value of ['', 'hosted', 'true']) expect(route(publisher, value, trustedPr)).toBe('macos-latest')
+    for (const github of [
+      { event_name: 'pull_request', event: { pull_request: pullRequest('outsider', 'outsider/repo') } },
+      { event_name: 'pull_request', event: { pull_request: pullRequest('dependabot[bot]', repository) } },
+      { ...trustedPr, actor: 'dependabot[bot]' },
+    ]) expect(route(publisher, 'selfhosted', github)).toBe('macos-latest')
+    expect(evaluateRunsOn(publisher, {
+      fromJSON: JSON.parse, matrix: { os: 'linux' }, vars: { DSH_CI_MACOS: 'selfhosted', DSH_CI_FAILOVER_LINUX: '' },
+      github: { repository, actor: 'maintainer', ...trustedPr },
+    })).toBe('ubuntu-latest')
+
+    const pushJobs = [
+      workflowJob(loadWorkflow('.github/workflows/sandbox.yml'), 'unit-darwin')['runs-on'],
+      workflowJob(loadWorkflow('.github/workflows/ci-master.yml'), 'serial-macos')['runs-on'],
+    ]
+    for (const selector of pushJobs) {
+      expect(route(selector, 'selfhosted', { event_name: 'push', event: {} })).toEqual(mac)
+      expect(route(selector, '', { event_name: 'push', event: {} })).toBe('macos-latest')
+      expect(route(selector, 'selfhosted', { event_name: 'push', event: {}, actor: 'dependabot[bot]' })).toBe('macos-latest')
+    }
   })
 
   it('gates standalone keyless blacksmith jobs and benchmark tiers on the failover variables', () => {
@@ -1043,6 +1081,7 @@ describe('CI workflow', () => {
     if (typeof wine.if !== 'string') throw new TypeError('Wine must define a trigger condition')
     for (const [event, ref, suite, expected] of [
       ['push', 'refs/heads/master', '', true],
+      ['push', 'refs/heads/develop', '', true],
       ['push', 'refs/heads/topic', '', false],
       ['pull_request', 'refs/pull/42/merge', 'wine', false],
       ['workflow_dispatch', 'refs/heads/topic', 'wine', true],
@@ -1101,12 +1140,12 @@ describe('CI workflow', () => {
     expect(pythonWorkflow.env).toEqual(prWorkflow.env)
 
     // Drills share the parent run’s supersession policy.
-    for (const name of ['serial-linux-selfhosted', 'serial-windows']) {
+    for (const [name, variable] of [['serial-linux-selfhosted', 'DSH_CI_FAILOVER_LINUX'], ['serial-windows', 'DSH_CI_FAILOVER_WINDOWS']] as const) {
       const job = workflow.jobs[name]
       if (!isRecord(job)) throw new TypeError(`${name} must be defined`)
       expect(job.concurrency).toBeUndefined()
       // Standby drills remain post-merge work, but share run cancellation.
-      expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+      expectStandbyPushes(job.if, variable)
     }
 
     // Pin the post-merge runtime, Wine, and standby inventory.
@@ -2069,6 +2108,24 @@ describe('Git hooks', () => {
   })
 })
 
+// A develop push reaches a self-hosted standby only when its failover variable
+// selects that pool, so a repository without the pool never queues the drill.
+function expectStandbyPushes(condition: unknown, variable: string): void {
+  if (typeof condition !== 'string') throw new TypeError('Standby drills must define a trigger condition')
+  for (const [event, ref, value, expected] of [
+    ['push', 'refs/heads/master', '', true],
+    ['push', 'refs/heads/master', 'selfhosted', true],
+    ['push', 'refs/heads/develop', '', false],
+    ['push', 'refs/heads/develop', 'blacksmith', false],
+    ['push', 'refs/heads/develop', 'selfhosted', true],
+    ['push', 'refs/heads/topic', 'selfhosted', false],
+    ['workflow_dispatch', 'refs/heads/develop', 'selfhosted', false],
+  ] as const) {
+    expect(runInNewContext(condition, { github: { event_name: event, ref }, vars: { [variable]: value } }, { timeout: 1000 }),
+      `${event} ${ref} ${variable}=${value}`).toBe(expected)
+  }
+}
+
 function loadWorkflow(path: string): Record<string, unknown> {
   const workflow: unknown = yaml.load(readFileSync(resolve(root, path), 'utf8'))
   if (!isRecord(workflow)) throw new TypeError(`${path} must define a workflow`)
@@ -2122,10 +2179,7 @@ describe('Policy workflow shells', () => {
 })
 
 describe('Policy workflows', () => {
-  const workflows = [
-    ['pr-check-on-head-branch.yml', ['master']],
-    ['pr-check-after-approve.yml', ['approve']],
-  ] as const
+  const files = ['pr-check-on-head-branch.yml', 'pr-check-after-approve.yml', 'pr-check-on-base-branch.yml'] as const
 
   function stepsOf(job: Record<string, unknown>): Record<string, unknown>[] {
     const steps = job.steps as unknown[]
@@ -2133,46 +2187,96 @@ describe('Policy workflows', () => {
     return steps.filter(isRecord)
   }
 
-  it.each(workflows)('%s runs each check from master and reads its mode from a repository variable', (file, jobs) => {
+  function jobsOf(file: string): [string, Record<string, unknown>][] {
+    const workflow = loadWorkflow('.github/workflows/' + file)
+    if (!isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
+    return Object.entries(workflow.jobs).filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+  }
+
+  function runStep(file: string, job: string, id: string): string {
+    const step = stepsOf(workflowJob(loadWorkflow('.github/workflows/' + file), job)).find(candidate => candidate.id === id)
+    if (step === undefined || typeof step.run !== 'string') throw new TypeError(`${file} ${job} must run the ${id} step`)
+    return step.run
+  }
+
+  it.each(['pr-check-on-head-branch.yml', 'pr-check-after-approve.yml'])('%s runs on pull_request_target from the base branch', (file) => {
     const workflow = loadWorkflow('.github/workflows/' + file)
     expect(Object.keys(workflow).filter(key => key !== 'name')).toEqual(['on', 'permissions', 'concurrency', 'jobs'])
     const events = workflow.on
     if (!isRecord(events)) throw new TypeError(`${file} must declare events`)
     expect(events).not.toHaveProperty('pull_request')
     expect(events).toHaveProperty('pull_request_target')
-    for (const job of jobs) {
-      const check = stepsOf(workflowJob(workflow, job)).find(step => typeof step.uses === 'string' && step.uses.startsWith('deepseek-harness/deepseek-harness-check@'))
-      if (check === undefined || !isRecord(check.env)) throw new TypeError(`${file} ${job} must run the check action with env`)
-      expect(String(check.env.CHECK_MODE)).toContain('vars.MERGE_POLICY_')
-    }
   })
 
-  it('runs on the release branches as well as master, on both pull requests and base-branch pushes', () => {
-    const branches = ['master', 'release/dsh-[0-9]+.[0-9]+.[0-9]+']
+  it('runs on develop and the release branches as well as master, on both pull requests and base-branch pushes', () => {
+    const branches = ['master', 'develop', 'release/dsh-[0-9]+.[0-9]+.[0-9]+']
     for (const file of ['pr-check-on-head-branch.yml', 'pr-check-after-approve.yml']) {
-      const workflow = loadWorkflow('.github/workflows/' + file)
-      const events = workflow.on
+      const events = loadWorkflow('.github/workflows/' + file).on
       if (!isRecord(events) || !isRecord(events.pull_request_target)) throw new TypeError(`${file} must trigger on pull_request_target`)
       expect(events.pull_request_target.branches).toEqual(branches)
     }
-    const workflow = loadWorkflow('.github/workflows/pr-check-on-base-branch.yml')
-    const events = workflow.on
+    const events = loadWorkflow('.github/workflows/pr-check-on-base-branch.yml').on
     if (!isRecord(events) || !isRecord(events.push)) throw new TypeError('the base-branch workflow must trigger on push')
     expect(events.push.branches).toEqual(branches)
   })
 
-  it('decides the review verdict in one Approve Check job that can publish the check run', () => {
-    const workflow = loadWorkflow('.github/workflows/pr-check-after-approve.yml')
-    if (!isRecord(workflow.jobs)) throw new TypeError('the workflow must define jobs')
-    expect(Object.keys(workflow.jobs)).toEqual(['approve'])
-    const job = workflow.jobs.approve
-    if (!isRecord(job) || !isRecord(job.permissions)) throw new TypeError('the approve job must declare permissions')
+  it.each(files)('%s uses only public actions and runs no job on Blacksmith unless the failover switch asks', (file) => {
+    for (const [name, job] of jobsOf(file)) {
+      for (const step of stepsOf(job)) {
+        if (typeof step.uses === 'string') expect(step.uses, `${file} ${name}`).toMatch(/^(actions|pnpm)\//)
+      }
+      for (const mode of ['', 'selfhosted', 'hosted']) {
+        const runner = String(job['runs-on']).startsWith('${{')
+          ? evaluateRunsOn(job['runs-on'], { vars: { DSH_CI_FAILOVER_LINUX: mode } })
+          : job['runs-on']
+        expect(runner, `${file} ${name} with DSH_CI_FAILOVER_LINUX=${mode}`).toBe('ubuntu-latest')
+      }
+    }
+    expect(evaluateRunsOn(workflowJob(loadWorkflow('.github/workflows/pr-check-on-head-branch.yml'), 'pre-merge')['runs-on'], {
+      vars: { DSH_CI_FAILOVER_LINUX: 'blacksmith' },
+    })).toBe('blacksmith-4vcpu-ubuntu-2404')
+  })
+
+  it.each(files)('%s skips every job while the MERGE_POLICY variables are unset or off, and runs them once set', (file) => {
+    const context = (value: string) => ({
+      vars: { MERGE_POLICY_MASTER_DIFF: value, MERGE_POLICY_PRE_MERGE: value, MERGE_POLICY_HEAD_DIFF: value },
+      github: { event: { pull_request: { draft: false } } },
+      needs: { master: { result: 'success' } },
+    })
+    for (const [name, job] of jobsOf(file)) {
+      expect(String(job.if)).toContain('vars.MERGE_POLICY_')
+      for (const value of ['', 'off']) expect(evaluateRunsOn(job.if, context(value)), `${file} ${name} with ${value || 'unset'}`).toBe(false)
+      for (const value of ['report', 'block']) expect(evaluateRunsOn(job.if, context(value)), `${file} ${name} with ${value}`).toBe(true)
+    }
+  })
+
+  it('fails the Approve Check whenever it runs, because no reviewer-ownership check is available', () => {
+    const jobs = jobsOf('pr-check-after-approve.yml')
+    expect(jobs.map(([name]) => name)).toEqual(['approve'])
+    const job = workflowJob(loadWorkflow('.github/workflows/pr-check-after-approve.yml'), 'approve')
     expect(job.name).toBe('Approve Check')
-    expect(job.permissions.checks).toBe('write')
-    const check = stepsOf(job).find(step => typeof step.uses === 'string' && step.uses.startsWith('deepseek-harness/deepseek-harness-check@'))
-    if (check === undefined || !isRecord(check.env)) throw new TypeError('the job must run the check action with env')
-    expect(String(check.env.CHECK_MODE)).toContain('vars.MERGE_POLICY_HEAD_DIFF')
-    expect(JSON.stringify(workflow)).not.toContain('MERGE_POLICY_REVIEW')
+    expect(job.permissions).toEqual({})
+    const [step] = stepsOf(job)
+    if (step === undefined || typeof step.run !== 'string' || !isRecord(step.env)) throw new TypeError('the approve job must run one step with env')
+    expect(String(step.env.CHECK_MODE)).toContain('vars.MERGE_POLICY_HEAD_DIFF')
+    if (process.platform === 'win32') return
+    for (const mode of ['report', 'block']) {
+      const child = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', step.run], { env: { PATH: process.env.PATH, CHECK_MODE: mode }, encoding: 'utf8', timeout: 10_000 })
+      expect(child.error).toBeUndefined()
+      expect(child.status).toBe(1)
+      expect(child.stdout).toContain('::error title=Approve Check::')
+    }
+  })
+
+  it('re-runs the head-branch runs of open pull requests into the pushed branch without a private action', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/pr-check-on-base-branch.yml'), 'recheck')
+    expect(job.name).toBe('Recheck')
+    expect(job.permissions).toEqual({ actions: 'write', contents: 'read', 'pull-requests': 'read' })
+    const [step] = stepsOf(job)
+    if (step === undefined || typeof step.run !== 'string') throw new TypeError('the recheck job must run one step')
+    expect(step.run).toContain('pulls?state=open&base=$BASE_REF')
+    expect(step.run).toContain('actions/workflows/pr-check-on-head-branch.yml/runs?event=pull_request_target')
+    expect(step.run).toContain('gh run rerun')
   })
 
   it('keeps the pre-merge build behind the merge step, which honours the mode on its failures', () => {
@@ -2195,5 +2299,83 @@ describe('Policy workflows', () => {
     // The script annotates its own failures; the step keeps a mode-aware guard for a check that crashes.
     expect(run).toContain('exited without reporting')
     expect(run).toContain('"$CHECK_MODE" = block')
+  })
+
+  describe.skipIf(process.platform === 'win32')('against a base branch that moved after the pull request', () => {
+    const git = (cwd: string, ...args: string[]): string => {
+      const child = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=develop', ...args], { cwd, encoding: 'utf8', timeout: 10_000 })
+      if (child.status !== 0) throw new Error(`git ${args.join(' ')}: ${child.stderr}`)
+      return child.stdout.trim()
+    }
+
+    /** A remote whose develop moved past the pull request, which changes `shared` the same way or differently. */
+    function fixture(pullRequestShared: string): { root: string; runner: string; head: string; base: string } {
+      const root = mkdtempSync(join(tmpdir(), 'dsh-policy-'))
+      const source = join(root, 'source')
+      const runner = join(root, 'runner')
+      git(root, 'init', '-q', '--bare', 'origin.git')
+      git(root, 'init', '-q', 'source')
+      writeFileSync(join(source, 'shared'), 'base\n')
+      git(source, 'add', 'shared')
+      git(source, 'commit', '-qm', 'base')
+      git(source, 'checkout', '-qb', 'pr')
+      writeFileSync(join(source, 'shared'), pullRequestShared)
+      writeFileSync(join(source, 'feature'), 'feature\n')
+      git(source, 'add', '.')
+      git(source, 'commit', '-qm', 'pull request')
+      const head = git(source, 'rev-parse', 'HEAD')
+      git(source, 'checkout', '-q', 'develop')
+      writeFileSync(join(source, 'shared'), 'develop\n')
+      git(source, 'commit', '-qam', 'develop')
+      const base = git(source, 'rev-parse', 'HEAD')
+      git(source, 'push', '-q', '../origin.git', 'develop', 'pr:refs/pull/1/head')
+      git(root, 'init', '-q', 'runner')
+      git(runner, 'remote', 'add', 'origin', pathToFileURL(join(root, 'origin.git')).href)
+      return { root, runner, head, base }
+    }
+
+    function run(script: string, cwd: string, env: Record<string, string>): { status: number | null; stdout: string; output: string } {
+      const output = join(cwd, '..', 'github-output')
+      writeFileSync(output, '')
+      const child = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
+        cwd, env: { PATH: process.env.PATH, HOME: cwd, GIT_CONFIG_NOSYSTEM: '1', GITHUB_OUTPUT: output, ...env }, encoding: 'utf8', timeout: 30_000,
+      })
+      expect(child.error).toBeUndefined()
+      expect(child.signal).toBeNull()
+      return { status: child.status, stdout: child.stdout, output: readFileSync(output, 'utf8') }
+    }
+
+    it('notes a clean pull request behind develop and hands the develop commit to pre-merge', () => {
+      const { root, runner, head, base } = fixture('base\n')
+      try {
+        const result = run(runStep('pr-check-on-head-branch.yml', 'master', 'check'), runner, { CHECK_MODE: 'block', BASE_REF: 'develop', HEAD_SHA: head })
+        expect(result.status, result.stdout).toBe(0)
+        expect(result.output).toBe(`base_sha=${base}\n`)
+        expect(result.stdout).toContain(`::notice title=Master Change::the pull request is 1 commits behind develop (${base}) and merges with it without conflicts`)
+        const merged = run(runStep('pr-check-on-head-branch.yml', 'pre-merge', 'merge'), runner, { CHECK_MODE: 'block', BASE_REF: 'develop', BASE_SHA: base, HEAD_SHA: head })
+        expect(merged.status, merged.stdout).toBe(0)
+        expect(merged.output).toBe('merged=true\n')
+        expect(readFileSync(join(runner, 'shared'), 'utf8')).toBe('develop\n')
+        expect(readFileSync(join(runner, 'feature'), 'utf8')).toBe('feature\n')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    })
+
+    it.each([['report', 0, '::warning'], ['block', 1, '::error']] as const)('reports a conflicting pull request in %s mode by naming develop', (mode, status, annotation) => {
+      const { root, runner, head, base } = fixture('pull request\n')
+      try {
+        const result = run(runStep('pr-check-on-head-branch.yml', 'master', 'check'), runner, { CHECK_MODE: mode, BASE_REF: 'develop', HEAD_SHA: head })
+        expect(result.status).toBe(status)
+        expect(result.stdout).toContain(`${annotation} title=Master Change::the pull request is 1 commits behind develop (${base}) and conflicts with it in shared; merge develop into it and push`)
+        const merged = run(runStep('pr-check-on-head-branch.yml', 'pre-merge', 'merge'), runner, { CHECK_MODE: mode, BASE_REF: 'develop', BASE_SHA: base, HEAD_SHA: head })
+        expect(merged.status).toBe(status)
+        expect(merged.output).toBe('')
+        expect(merged.stdout).toContain(`${annotation} title=Pre-Merge Check::the pull request conflicts with ${base}; merge develop into it and push`)
+        expect(merged.stdout).not.toContain('master')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    })
   })
 })

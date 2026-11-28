@@ -1,7 +1,7 @@
 name: Policy
 on:
   pull_request_target:
-    branches: [master, 'release/dsh-[0-9]+.[0-9]+.[0-9]+']
+    branches: [master, develop, 'release/dsh-[0-9]+.[0-9]+.[0-9]+']
     types: [opened, synchronize, reopened, ready_for_review]
   pull_request_review:
     types: [submitted, dismissed]
@@ -14,49 +14,17 @@ concurrency:
 jobs:
   approve:
     name: Approve Check
-    # Skipped while MERGE_POLICY_HEAD_DIFF is empty or `off`; otherwise the job fails by that mode and publishes
-    # `Policy / Reviewer Check` whatever that mode says.
+    # The reviewer-ownership check that decides this verdict and publishes `Policy / Reviewer Check` is not available in
+    # this repository, so the job runs only to report that MERGE_POLICY_HEAD_DIFF is set; it never passes. While the
+    # variable is empty or `off`, the job is skipped.
     if: ${{ vars.MERGE_POLICY_HEAD_DIFF != '' && vars.MERGE_POLICY_HEAD_DIFF != 'off' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: read
-      # The check posts the review verdict as a check run of its own.
-      checks: write
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      # The head checkout is only the Git repository the check fetches into; it needs no files and runs no code.
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-          filter: blob:none
-          sparse-checkout: README.md
-          sparse-checkout-cone-mode: false
-
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: '^24.22.3'
-          package-manager-cache: false
-
-      # The check app's token makes the review check run its own row instead of joining this workflow's suite.
-      - id: token
-        continue-on-error: true
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
-        with:
-          client-id: ${{ vars.DSH_APPROVAL_APP_CLIENT_ID }}
-          private-key: ${{ secrets.DSH_APPROVAL_APP_PRIVATE_KEY }}
-          owner: deepseek-harness
-          repositories: deepseek-harness
-          permission-checks: write
-
-      - uses: deepseek-harness/deepseek-harness-check@master
+      - name: Report the unavailable reviewer-ownership check
         env:
           CHECK_MODE: ${{ vars.MERGE_POLICY_HEAD_DIFF }}
-          CHECK_TOKEN: ${{ steps.token.outputs.token }}
-        with:
-          check: review
-          base-branch: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-          pr-number: ${{ github.event.pull_request.number }}
-          pr-author: ${{ github.event.pull_request.user.login }}
+        run: |
+          echo "::error title=Approve Check::MERGE_POLICY_HEAD_DIFF is '$CHECK_MODE', but this repository has no reviewer-ownership check, so no review verdict was decided; set the variable to off or delete it"
+          exit 1

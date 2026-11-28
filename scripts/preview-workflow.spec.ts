@@ -87,6 +87,29 @@ describe('PR preview workflow', () => {
     expect(comment.run).toContain('select(.user.login == \\"github-actions[bot]\\"')
   })
 
+  it('skips publication with a notice when the Cloudflare credentials are absent', () => {
+    const steps = preview.steps.map(step => step.name)
+    const check = preview.steps.find(step => step.name === 'Check Cloudflare publication credentials')!
+    expect(check).toMatchObject({ id: 'cloudflare' })
+    expect(check.if).toBeUndefined()
+    expect(check['continue-on-error']).toBeUndefined()
+    for (const secret of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID', 'CF_ACCESS_CLIENT_ID', 'CF_ACCESS_CLIENT_SECRET']) {
+      expect(check.env?.[secret]).toBe(`\${{ secrets.${secret} }}`)
+      expect(check.run).toContain(`-n "$${secret}"`)
+    }
+    expect(check.run).toContain('echo "available=true" >> "$GITHUB_OUTPUT"')
+    expect(check.run).toContain('echo "available=false" >> "$GITHUB_OUTPUT"')
+    expect(check.run).toContain('::notice::')
+    expect(check.run).not.toContain('exit 1')
+    expect(steps.indexOf('Check Cloudflare publication credentials')).toBeGreaterThan(steps.indexOf('Shape the upload'))
+    // Skipped steps report outcome 'skipped', so the publication warning stays quiet.
+    for (const name of ['Render the snapshot diff page', 'Upload to Cloudflare Pages', 'Verify the protected deployment serves the image', 'Comment the preview URL']) {
+      expect(preview.steps.find(step => step.name === name)?.if, `${name} must wait for credentials`)
+        .toBe("steps.cloudflare.outputs.available == 'true'")
+      expect(steps.indexOf(name)).toBeGreaterThan(steps.indexOf('Check Cloudflare publication credentials'))
+    }
+  })
+
   it('renders the snapshot diff page into the upload against the base branch tip', () => {
     const steps = preview.steps.map(step => step.name)
     const page = preview.steps.find(step => step.name === 'Render the snapshot diff page')!

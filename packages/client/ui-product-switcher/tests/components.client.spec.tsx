@@ -142,14 +142,13 @@ describe('ProductControl', () => {
 })
 
 describe('ComposerSurface', () => {
-  it('draws no chrome of its own and reports the region bounds, tracking resizes', async () => {
+  it('draws no switcher of its own and reports the region bounds, tracking resizes', async () => {
     const observer = stubResizeObserver()
     const props = surfaceProps()
     render(<ComposerSurface {...props} />)
     const region = screen.getByRole('region', { name: en['region.label'] })
-    // Composer occupies the frame's center column; the switcher and the drag
-    // rows belong to the shared shell, so the surface draws neither.
-    expect(document.querySelector('[data-window-drag]')).toBeNull()
+    // The switcher belongs to the shared shell. The drag row has no height
+    // outside macOS, so the view covers the whole column.
     expect(screen.queryByRole('button', { name: en['trigger.label'] })).toBeNull()
     vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 4, y: 0, width: 800, height: 600, top: 0, left: 4, right: 804, bottom: 600, toJSON: () => ({}) })
     // show runs on mount; re-run its effect body by remounting is unnecessary —
@@ -157,6 +156,21 @@ describe('ComposerSurface', () => {
     observer.fire()
     act(() => { window.dispatchEvent(new Event('resize')) })
     expect(props.setBounds).toHaveBeenCalledWith({ x: 4, y: 0, width: 800, height: 600 })
+  })
+
+  it('keeps a window drag row above the native view', async () => {
+    stubResizeObserver()
+    // The Composer document declares no window drag, and a native view paints
+    // over the document, so the view starts below the panel's own drag row.
+    const props = surfaceProps()
+    render(<ComposerSurface {...props} />)
+    const region = screen.getByRole('region', { name: en['region.label'] })
+    const row = region.querySelector('[data-window-drag]')
+    expect(row?.getAttribute('aria-hidden')).toBe('true')
+    vi.spyOn(row!, 'getBoundingClientRect').mockReturnValue({ x: 280, y: 0, width: 1000, height: 20, top: 0, left: 280, right: 1280, bottom: 20, toJSON: () => ({}) })
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 280, y: 0, width: 1000, height: 820, top: 0, left: 280, right: 1280, bottom: 820, toJSON: () => ({}) })
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(props.setBounds).toHaveBeenCalledWith({ x: 280, y: 20, width: 1000, height: 800 })
   })
 
   it('reserves the frame chrome band while the leading seat is mounted', async () => {

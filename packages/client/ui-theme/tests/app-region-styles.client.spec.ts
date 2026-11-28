@@ -113,6 +113,13 @@ const CHROME_ROWS: readonly ChromeRow[] = [
     markup: 'client/ui-plugin-manager/src/client/PluginManagerPage.tsx',
   },
   {
+    file: 'client/ui-product-switcher/src/client/ComposerView.module.css',
+    selector: '.dragBand',
+    markup: 'client/ui-product-switcher/src/client/ComposerView.tsx',
+    height: ['height', '0'],
+    conditionalHeights: [{ selector: ":global(html[data-platform='darwin']) .dragBand", height: ['height', '20px'] }],
+  },
+  {
     file: PLATFORM_OVERLAY,
     selector: '.header',
     markup: 'client/ui-settings-account/src/client/PlatformOverlay.tsx',

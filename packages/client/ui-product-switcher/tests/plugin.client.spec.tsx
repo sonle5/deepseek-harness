@@ -217,9 +217,9 @@ it('selects the Composer panel from a sidebar control, attaching the view to the
   expect(screen.queryByRole('menu')).toBeNull()
   expect(layout.selectPanel).toHaveBeenCalledWith('composer')
   expect(runtime.panelInfo.getSnapshot().activePanelId).toBe('composer')
-  // The surface occupies the center column: no window bar, no second switcher.
+  // The surface occupies the center column: no second switcher.
   const region = panel.view.getByRole('region', { name: 'Composer view' })
-  expect(document.querySelector('[data-window-drag]')).toBeNull()
+  expect(region.querySelector('button')).toBeNull()
   vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ x: 280, y: 0, width: 900, height: 700, top: 0, left: 280, right: 1180, bottom: 700, toJSON: () => ({}) })
   expect(fake.bridge.show).toHaveBeenCalledTimes(1)
   resize.fire()

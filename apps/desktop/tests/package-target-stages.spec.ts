@@ -183,6 +183,15 @@ it('initializes shared storage only after acquiring the preflight stage lock', a
   await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
 })
 
+it('hands the Composer token to prepare:composer only', async () => {
+  const { run } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['win-x64', '--unsigned'], 'win32', 'x64'),
+    { ...environment, DSH_DESKTOP_COMPOSER_TOKEN: 'fixture-composer-token' }, run)
+  const withToken = run.run.mock.calls
+    .filter(([, , , options]) => options.env.DSH_DESKTOP_COMPOSER_TOKEN !== undefined).map(([stage]) => stage)
+  expect(withToken).toEqual(['run prepare:composer'])
+})
+
 it.each(['preflight:windows-signing', 'run build:official', 'run sign:primary-runtime', 'run prepare:dsh --defer-runtime-smoke', 'run sign:primary-runtime --dsh',
   'run prepare:composer', 'exec tsx scripts/smoke-packaged-runtime.ts',
   'exec electron-builder --config electron-builder.config.mjs --win --x64 --publish never'])

@@ -6,7 +6,8 @@ import { c as createTar } from 'tar'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import lockFile from '../scripts/composer/lock.json' with { type: 'json' }
 import {
-  COMPOSER_TARGETS, localComposerArtifacts, parseComposerLock, prepareComposer, releaseComposerArtifacts,
+  checkComposerReleaseAccess, COMPOSER_TARGETS, COMPOSER_TOKEN_ENV, localComposerArtifacts, parseComposerLock, prepareComposer,
+  releaseComposerArtifacts,
   type ComposerLock, type ComposerTarget,
 } from '../scripts/prepare-composer.ts'
 
@@ -109,6 +110,22 @@ describe('composer lock', () => {
       targets: Object.fromEntries(COMPOSER_TARGETS.map(key => [key, key === target ? { available: true, sha256: 'c'.repeat(64) } : { available: false }])),
     })).toThrow(`no Composer release builds ${target}`)
   })
+
+  it('rejects a tag that names a commit other than the pinned one', async () => {
+    const { lock } = await release('darwin-arm64')
+    const pinned = (tag: string) => ({
+      release: { repository: lock.repository, tag }, version: VERSION, commit: COMMIT, bridgeProtocol: 1, schemaVersion: 7,
+      renderer: { sha256: 'b'.repeat(64) }, targets: lock.targets,
+    })
+    expect(parseComposerLock(pinned('composer-{version}-aaaaaaaa')).tag).toBe('composer-{version}-aaaaaaaa')
+    expect(() => parseComposerLock(pinned('composer-{version}-4bbac2b7'))).toThrow('lock release tag names commit 4bbac2b7')
+  })
+
+  it('names the pinned commit in the checked-in tag', () => {
+    const lock = parseComposerLock(lockFile)
+    if (lock.version === null) throw new Error('the checked-in lock must pin a release')
+    expect(lock.tag).toContain(lock.commit.slice(0, 8))
+  })
 })
 
 describe('prepare composer', () => {
@@ -208,7 +225,7 @@ describe('composer release downloads', () => {
     const fetcher = vi.fn<typeof fetch>(async (url, _init) => typeof url === 'string' && url.includes('/releases/tags/')
       ? Response.json({ assets: [{ name: `nexus-composer-sidecar-${VERSION}-darwin-arm64`, url: 'https://api.github.com/assets/1' }] })
       : new Response(binary))
-    const source = releaseComposerArtifacts(lock, VERSION, cache, { GITHUB_TOKEN: 'fixture-token' }, fetcher)
+    const source = releaseComposerArtifacts(lock, VERSION, cache, { [COMPOSER_TOKEN_ENV]: 'fixture-token' }, fetcher)
     await expect(source(`nexus-composer-sidecar-${VERSION}-darwin-arm64`, binarySha256)).resolves.toEqual(binary)
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       `https://api.github.com/repos/onenexus-team/nexus-composer/releases/tags/v${VERSION}`, 'https://api.github.com/assets/1',
@@ -227,5 +244,36 @@ describe('composer release downloads', () => {
     await source(`nexus-composer-embedded-manifest-${VERSION}.json`)
     expect(fetcher.mock.calls[0]?.[0]).toBe(`https://github.com/onenexus-team/nexus-composer/releases/download/v${VERSION}/nexus-composer-embedded-manifest-${VERSION}.json`)
     expect(fetcher.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization')
+  })
+})
+
+describe('composer release preflight', () => {
+  const tagUrl = `https://api.github.com/repos/onenexus-team/nexus-composer/releases/tags/v${VERSION}`
+
+  it('confirms the pinned release with the Composer token', async () => {
+    const { lock } = await release('darwin-arm64')
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ assets: [] }))
+    await expect(checkComposerReleaseAccess('mac-arm64', { [COMPOSER_TOKEN_ENV]: 'fixture-token' }, lock, fetcher)).resolves.toBe(`v${VERSION}`)
+    expect(fetcher.mock.calls[0]?.[0]).toBe(tagUrl)
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({ authorization: 'Bearer fixture-token' })
+  })
+
+  it.each([
+    ['no token', {}, `set ${COMPOSER_TOKEN_ENV}`],
+    ['an unusable token', { [COMPOSER_TOKEN_ENV]: 'expired' }, 'it may be expired'],
+  ])('fails fast with %s', async (_case, environment: NodeJS.ProcessEnv, hint) => {
+    const { lock } = await release('darwin-arm64')
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('', { status: 404 }))
+    await expect(checkComposerReleaseAccess('mac-arm64', environment, lock, fetcher)).rejects.toThrow(hint)
+  })
+
+  it.each([
+    ['a target without Composer', 'win-x64', {}],
+    ['local artifacts', 'mac-arm64', { DSH_DESKTOP_COMPOSER_ARTIFACTS: '/fixture/artifacts' }],
+  ] as const)('skips the network for %s', async (_case, target, environment) => {
+    const { lock } = await release('darwin-arm64')
+    const fetcher = vi.fn<typeof fetch>()
+    await expect(checkComposerReleaseAccess(target, environment, lock, fetcher)).resolves.toBeUndefined()
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

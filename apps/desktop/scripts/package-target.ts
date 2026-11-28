@@ -26,6 +26,7 @@ import { desktopBuildCommitEnvironment, readDesktopBuildCommit, resolveDesktopBu
 import { requireDesktopToolchain } from './desktop-toolchain-preflight.ts'
 import { withMacOSNotarizationProxy } from './macos-notarization-proxy.ts'
 import { PRODUCT_IDENTITY } from '../product-identity.mjs'
+import { checkComposerReleaseAccess, COMPOSER_TOKEN_ENV } from './prepare-composer.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -121,6 +122,15 @@ export function desktopElectronBuilderEnvironment(environment: NodeJS.ProcessEnv
 export function withoutDesktopUploadCredentials(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(environment)
     .filter(([name]) => !DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES.has(name)))
+}
+
+/**
+ * Remove the Composer release token; only the `prepare:composer` stage receives it.
+ * @param environment - Packaging command environment.
+ * @returns A copy without the Composer release token.
+ */
+export function withoutComposerToken(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(environment).filter(([name]) => name !== COMPOSER_TOKEN_ENV))
 }
 
 function isTargetName(value: string): value is DesktopPackageTargetName {
@@ -358,6 +368,7 @@ async function main(): Promise<void> {
   if (invocation.check) {
     validateDesktopPackageEnvironment(environment, target, invocation)
     await requireDesktopToolchain(target.platform, environment)
+    await checkComposerReleaseAccess(target.name, environment)
     process.stdout.write(`desktop package: ${target.name} would publish ${buildVersion}; local configuration and toolchain valid, signing and notarization were not attempted\n`)
     return
   }
@@ -379,6 +390,7 @@ async function main(): Promise<void> {
   try {
     await packagingStep(run.directory, 'configuration', async () => { validateDesktopPackageEnvironment(environment, target, invocation) }, secrets)
     await packagingStep(run.directory, 'toolchain', () => requireDesktopToolchain(target.platform, environment), secrets)
+    await packagingStep(run.directory, 'composer-release', async () => { await checkComposerReleaseAccess(target.name, environment) }, secrets)
     if (target.platform === 'darwin') {
       const settings = resolveMacOSPackageSettings(environment)
       recordPackagingEvent(run.directory, { type: 'macos-settings', packConcurrency: settings.packConcurrency, zipCompressionLevel: settings.zipCompressionLevel,
@@ -434,8 +446,8 @@ export async function packageTarget(
     rmSync(`${releaseRecordPath}.tmp`, { force: true })
   }
   const artifactsRoot = desktopArtifactOutput(buildPaths, invocation).directory
-  const buildEnv = withoutWindowsSigningEnvironment(withoutDesktopUploadCredentials(
-    desktopElectronBuilderEnvironment(environment, invocation.unsigned)))
+  const buildEnv = withoutComposerToken(withoutWindowsSigningEnvironment(withoutDesktopUploadCredentials(
+    desktopElectronBuilderEnvironment(environment, invocation.unsigned))))
   const targetEnv: NodeJS.ProcessEnv = {
     ...buildEnv,
     DSH_DESKTOP_MACOS_SKIP_NOTARIZATION: invocation.skipNotarization ? '1' : '0',
@@ -525,7 +537,8 @@ export async function packageTarget(
   await execute(['run', 'prepare:packages'], targetEnv)
   await execute(['run', 'prepare:dsh', ...(signPrimaryRuntime ? ['--defer-runtime-smoke'] : [])], downloadEnv)
   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime', '--dsh'], electronBuilderEnv)
-  await execute(['run', 'prepare:composer'], downloadEnv)
+  const composerToken = environment[COMPOSER_TOKEN_ENV]
+  await execute(['run', 'prepare:composer'], composerToken === undefined ? downloadEnv : { ...downloadEnv, [COMPOSER_TOKEN_ENV]: composerToken })
   if (invocation.prepareOnly) return
   const buildMacArtifact = (artifact: DesktopPrepackagedArtifact) => execute(
     desktopElectronBuilderArguments(target, false, artifact), artifact.format === 'zip'

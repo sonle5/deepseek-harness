@@ -47,7 +47,12 @@ if [ "$label" = after ]; then
   osascript -e "tell application \"System Events\" to tell process \"$proc\" to click menu item \"Keyboard Shortcuts\" of menu 1 of menu bar item \"Help\" of menu bar 1" >> "$out/osascript.txt" 2>&1
   sleep 3
   screencapture -x "$out/shortcuts-dialog.png"
-  osascript "$scripts/click-button.applescript" "$proc" "Edit shortcut for New Session" > "$out/rebind-click.txt" 2>&1
+  # The search field has focus; filter to New Session, tab past the clear button to its edit button and press it.
+  osascript -e 'tell application "System Events" to keystroke "New Session"' >> "$out/osascript.txt" 2>&1
+  sleep 2
+  screencapture -x "$out/shortcuts-search.png"
+  osascript -e 'tell application "System Events" to key code 48' -e 'delay 0.5' -e 'tell application "System Events" to key code 48' \
+            -e 'delay 0.5' -e 'tell application "System Events" to key code 49' >> "$out/osascript.txt" 2>&1
   sleep 2
   screencapture -x "$out/shortcuts-recording.png"
   osascript -e 'tell application "System Events" to keystroke "j" using {command down, shift down}' >> "$out/osascript.txt" 2>&1

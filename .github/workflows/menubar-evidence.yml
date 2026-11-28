@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        label: [before, after]
+        label: [after]
     runs-on: macos-latest
     timeout-minutes: 150
     steps:

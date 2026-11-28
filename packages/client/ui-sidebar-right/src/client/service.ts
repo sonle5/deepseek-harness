@@ -751,6 +751,20 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   /**
+   * Choose the neighbouring tab in a captured pane's strip, wrapping at either end.
+   * @param target - captured command target.
+   * @param step - -1 for the previous tab, 1 for the next.
+   * @returns the tab to focus, or undefined for a stale target or a strip with fewer than two tabs.
+   */
+  cycleTab(target: SidebarRightTarget, step: -1 | 1): TabId | undefined {
+    const layout = this.mountedSurface()?.layout
+    if (layout === undefined || target.tabId === undefined || !this.isTargetCurrent(target)) return undefined
+    // A current target's page is always in its pane's strip.
+    const { tabs } = getPane(layout, target.paneId)
+    return tabs.length < 2 ? undefined : tabs[(tabs.indexOf(target.tabId) + step + tabs.length) % tabs.length]
+  }
+
+  /**
    * Explain the same geometry and pane-budget rule used by the split control.
    * @param target - captured command or button target.
    * @returns a localizable block discriminator, or undefined when splitting is available.

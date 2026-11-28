@@ -8,7 +8,8 @@ import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 
 /** Registry commands the native application menu can invoke; each item shows its command's accepted binding. */
 export const MENU_COMMAND_IDS = ['page.close', 'settings.open', 'session.new', 'workspace.add', 'session.search',
-  'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open'] as const
+  'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open', 'terminal.new', 'browser.new',
+  'session.previous', 'session.next', 'tab.previous', 'tab.next', 'account.signOut', 'feedback.open'] as const
 
 /** One registry command reachable from the native application menu. */
 export type MenuCommandId = typeof MENU_COMMAND_IDS[number]
@@ -84,9 +85,9 @@ export function installDesktopShortcuts(
       if (binding.code.startsWith('Key')) return input.key.toUpperCase() === binding.code.slice(3)
       if (binding.code.startsWith('Digit')) return input.key === binding.code.slice(5)
       const acceleratorKey = menuAccelerator(binding)?.split('+').at(-1)
-      return acceleratorKey !== undefined && acceleratorKey.length === 1
-        ? input.key.toUpperCase() === acceleratorKey.toUpperCase()
-        : input.code === binding.code
+      // Option and Shift change the typed character of punctuation, so the physical code also matches.
+      return input.code === binding.code || (acceleratorKey !== undefined && acceleratorKey.length === 1
+        && input.key.toUpperCase() === acceleratorKey.toUpperCase())
     })
   }
   const sendMenuClose = (): void => {

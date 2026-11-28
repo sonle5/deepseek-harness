@@ -992,3 +992,20 @@ it('builds registry command menu items that follow rebinding and run through the
   expect(ignore(key('KeyN', 'n'), ['session.new'])).toBe(false)
   expect(ignore(key('KeyJ', 'J', true), ['sidebar.right.toggle'])).toBe(false)
 })
+
+it('shows bracket bindings as Electron accelerators and suppresses them for another product view', async () => {
+  const f = await fixture('macos')
+  const definitions: ShortcutDefinition[] = [
+    { id: 'session.next' as ShortcutCommandId, defaults: desktopDefaults({ code: 'BracketRight', modifiers: ['primary', 'alt'] }) },
+    { id: 'tab.previous' as ShortcutCommandId, defaults: desktopDefaults({ code: 'BracketLeft', modifiers: ['primary', 'shift'] }) },
+  ]
+  await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, definitions)
+  expect(f.keyboard.commandMenuItem('session.next', 'Next Session')).toMatchObject({ id: 'dsh-session-next', accelerator: 'Alt+Command+]' })
+  expect(f.keyboard.commandMenuItem('tab.previous', 'Previous Tab')).toMatchObject({ id: 'dsh-tab-previous', accelerator: 'Shift+Command+[' })
+  const composer = { setIgnoreMenuShortcuts: vi.fn<(ignore: boolean) => void>() }
+  // macOS reports Option+] as a typed character and Shift+[ as a brace; the physical code decides.
+  f.keyboard.ignoreMenuKeys(composer, { code: 'BracketRight', key: '‘', meta: true, control: false, alt: true, shift: false }, ['session.next'])
+  expect(composer.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(true)
+  f.keyboard.ignoreMenuKeys(composer, { code: 'BracketLeft', key: '{', meta: true, control: false, alt: false, shift: true }, ['tab.previous'])
+  expect(composer.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(true)
+})

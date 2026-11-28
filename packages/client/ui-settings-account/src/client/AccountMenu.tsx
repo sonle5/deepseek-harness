@@ -51,6 +51,14 @@ export function AccountMenu({
     catch (_error) { setSignOutImpact('unknown'); setOpen(false) }
     finally { setBusy(false) }
   }
+  // A menu request opens the same confirmation; a request made before this launcher mounted is not replayed.
+  const signOutRequest = account.signOutRequest ?? 0
+  const handledSignOutRequest = useRef(signOutRequest)
+  useEffect(() => {
+    if (handledSignOutRequest.current === signOutRequest) return
+    handledSignOutRequest.current = signOutRequest
+    if (signedIn) void requestSignOut()
+  }, [signOutRequest])
   // The plugin's start publishes `loginFailed` before it rejects, so the dialog owns the report.
   const beginSignIn = (): void => { setOpen(false); void start().catch(() => undefined) }
   return <div className={css.root} data-inset={signedIn && wide}>

@@ -24,7 +24,7 @@ const row = (id: string, main = false): SessionSummary => ({
   id: sid(id), title: id, displayTitle: id, cwd: `/workspace/${id}`, blank: false,
   running: false, updatedAt: 0, retainedBy: main ? { mainView: 1 } : {},
 })
-async function bench(runtime: 'web' | 'desktop' = 'desktop', platform: ShortcutPlatform = 'macos') {
+async function bench(runtime: 'web' | 'desktop' = 'desktop', platform: ShortcutPlatform = 'macos', injectRoot = true) {
   const ctx = new Context()
   onTestFinished(async () => { await ctx.fiber.dispose() })
   const registry = new ShortcutRegistry(runtime, platform)
@@ -58,20 +58,27 @@ async function bench(runtime: 'web' | 'desktop' = 'desktop', platform: ShortcutP
   ctx.provide('locale', locale)
   const navigation = {
     startSession: vi.fn(), forkSession: vi.fn(async () => 'fork-child' as SessionId), archiveSession: vi.fn(async (_sessionId: SessionId) => {}),
+    openSession: vi.fn<(id: SessionId) => void>(),
   }
+  // Rendered sidebar rows in display order; the node environment has no DOM.
+  const rows = { ids: ['a', 'b'] }
+  const root = { querySelectorAll: (selector: string) => {
+    expect(selector).toBe('[data-sidebar-list-area] [data-row-key^="session:"]')
+    return rows.ids.map(id => ({ dataset: { rowKey: `session:${id}` } }))
+  } }
   const controls = createWorkspaceShortcutControls()
   const reportForkFailure = vi.fn()
   const markSession = vi.fn()
   const fiber = ctx.plugin((scoped) => {
     installWorkspaceShortcuts(scoped, navigation, controls,
-      (id) => { void navigation.archiveSession(id) }, reportForkFailure, markSession)
+      (id) => { void navigation.archiveSession(id) }, reportForkFailure, markSession, injectRoot ? root : undefined)
   })
   await fiber.await()
   const select = (id: string) => { list.set({ ...list.getSnapshot(), byId: {
     [sid('a')]: row('a', id === 'a'), [sid('b')]: row('b', id === 'b'),
   } }) }
   return { ctx, fiber, registry, commands, navigation, controls, reportForkFailure, list, directory,
-    select, history, loadOlder, panelInfo, status, access, markSession, workspaces }
+    select, history, loadOlder, panelInfo, status, access, markSession, workspaces, rows }
 }
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -102,16 +109,75 @@ describe('workspace shortcut ownership', () => {
     const b = await bench()
     expect(b.registry.catalog.getSnapshot().map(row => row.id)).toEqual([
       'session.new', 'session.search', 'workspace.add', 'session.rename', 'session.fork', 'session.archive',
-      'session.toggleRead',
+      'session.toggleRead', 'session.previous', 'session.next',
     ])
     expect(b.registry.catalog.getSnapshot().every(row => row.keys.length > 0)).toBe(true)
+    expect(b.registry.catalog.getSnapshot().slice(-2).map(row => row.aria)).toEqual(['Alt+Meta+[', 'Alt+Meta+]'])
     const web = await bench('web')
     expect(web.registry.catalog.getSnapshot().map(row => row.aria)).toEqual([
       'Alt+Meta+N', 'Alt+Meta+K', 'Alt+Meta+O', 'Alt+Meta+G', 'Shift+Meta+F', 'Alt+Meta+A',
-      'Shift+Meta+U',
+      'Shift+Meta+U', 'Alt+Meta+[', 'Alt+Meta+]',
     ])
     await b.fiber.dispose()
     expect(b.registry.catalog.getSnapshot()).toEqual([])
+  })
+
+  it('opens the previous and next rendered sidebar Session with wrap-around', async () => {
+    const b = await bench()
+    const step = (code: 'BracketLeft' | 'BracketRight') => {
+      b.navigation.openSession.mockClear()
+      expect(b.registry.dispatch(key(code, { alt: true }), context, vi.fn()).status).toBe('handled')
+      return b.navigation.openSession.mock.calls.map(([id]) => id)
+    }
+    const select = (main: string) => { b.list.set({ ...b.list.getSnapshot(), byId: Object.fromEntries(['a', 'b', 'c']
+      .map(id => [sid(id), row(id, id === main)])) }) }
+    b.rows.ids = ['a', 'b', 'c']
+    select('a')
+    expect(step('BracketRight')).toEqual(['b'])
+    expect(step('BracketLeft')).toEqual(['c'])
+    select('c')
+    expect(step('BracketRight')).toEqual(['a'])
+    expect(step('BracketLeft')).toEqual(['b'])
+    // Without a selected row, next starts at the top and previous at the bottom.
+    select('none')
+    expect(step('BracketRight')).toEqual(['a'])
+    expect(step('BracketLeft')).toEqual(['c'])
+    // A single row wraps onto itself without reopening it.
+    select('a')
+    b.rows.ids = ['a']
+    expect(step('BracketRight')).toEqual([])
+    expect(step('BracketLeft')).toEqual([])
+  })
+
+  it('refuses previous and next Session without rows, skipping archived rows and dialogs', async () => {
+    const b = await bench()
+    for (const id of ['session.previous', 'session.next']) {
+      b.rows.ids = []
+      expect(b.commands.get(id)!.resolve(context)).toMatchObject({ status: 'blocked', reason: en['shortcut.noSidebarSessions'] })
+      b.rows.ids = ['a', 'b']
+      b.workspaces.set({ archivedSessionIds: [sid('a'), sid('b')] })
+      expect(b.commands.get(id)!.resolve(context)).toMatchObject({ status: 'blocked', reason: en['shortcut.noSidebarSessions'] })
+      b.workspaces.set({ archivedSessionIds: [] })
+      expect(b.commands.get(id)!.resolve({ ...context, modal: 'settings' }))
+        .toMatchObject({ status: 'blocked', reason: en['shortcut.closeDialog'] })
+      expect(b.commands.get(id)!.resolve({ ...context, modal: 'sidebar' }).status).toBe('handled')
+    }
+    b.rows.ids = ['a', 'b', 'c']
+    b.workspaces.set({ archivedSessionIds: [sid('b')] })
+    const next = b.commands.get('session.next')!.resolve(context)
+    if (next.status === 'handled') next.run()
+    expect(b.navigation.openSession).toHaveBeenCalledWith('c')
+  })
+
+  it('reads rows from the page document when no container is supplied, ignoring a row without a key', async () => {
+    const rows: { dataset: { rowKey?: string } }[] = [{ dataset: {} }, { dataset: { rowKey: 'session:b' } }]
+    vi.stubGlobal('document', { querySelectorAll: () => rows })
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    const b = await bench('desktop', 'macos', false)
+    b.select('a')
+    const next = b.commands.get('session.next')!.resolve(context)
+    if (next.status === 'handled') next.run()
+    expect(b.navigation.openSession).toHaveBeenCalledExactlyOnceWith('b')
   })
 
   it.each([

@@ -1556,7 +1556,14 @@ describe('DeepSeek e2e workflow', () => {
     }
     const workflow = loadWorkflow('.github/workflows/e2e.yml')
     expect(Object.keys(workflow.on as Record<string, unknown>).sort()).toEqual(['pull_request', 'push', 'schedule', 'workflow_dispatch'])
-    expect(workflowJob(workflow, 'e2e').if).toContain('github.event.pull_request.head.repo.fork')
+    // A fork repository reports head.repo.fork for its own branches, so the
+    // same-repository head is what admits a PR.
+    const runs = (github: Record<string, unknown>) => evaluateRunsOn(`\${{ ${String(workflowJob(workflow, 'e2e').if)} }}`, { github: { repository: 'owner/repo', ...github } })
+    const pullRequest = (login: string, head: string) => ({ event_name: 'pull_request', event: { pull_request: { user: { login }, head: { repo: { full_name: head, fork: true } } } } })
+    expect(runs(pullRequest('maintainer', 'owner/repo'))).toBe(true)
+    expect(runs(pullRequest('outsider', 'outsider/repo'))).toBe(false)
+    expect(runs(pullRequest('dependabot[bot]', 'owner/repo'))).toBe(false)
+    for (const event_name of ['push', 'schedule', 'workflow_dispatch']) expect(runs({ event_name })).toBe(true)
   })
 
   it('skips the build and test steps with a notice and step summary when no key is set', () => {

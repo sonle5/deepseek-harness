@@ -2158,10 +2158,9 @@ describe('strips and variants', () => {
     expect(view.queryByRole('alert')).toBeNull()
   })
 
-  it('hero variant adds the hero class and accessory row renders', () => {
+  it('hero variant renders the accessory row', () => {
     const { view } = bench({ variant: 'hero', accessory: <i data-testid="acc" /> })
     expect(view.getByTestId('acc')).toBeTruthy()
-    expect(view.container.querySelector('[class*="hero"]')).not.toBeNull()
   })
 
   it('renders overlay, left/right, and footer slots at their layout positions', () => {

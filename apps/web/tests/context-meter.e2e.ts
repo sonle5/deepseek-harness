@@ -29,9 +29,10 @@ describe.skipIf(webSnapshotMode() === 'record').each([
         await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
         await connectFreshWorkspace(page, scaffold.workspaceCwd)
         const card = page.locator('[data-composer-card]')
-        expect(await card.evaluate(element =>
-          element.parentElement!.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom,
-        )).toBe(0)
+        // The hero bar reserves the docked statistics row, so the card keeps its gap to the bar's bottom once the turn starts.
+        const cardGap = (): Promise<number> => card.evaluate(element =>
+          element.parentElement!.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom)
+        const heroGap = await cardGap()
         const prompts = fixtureUserPrompts(await readFile(fixture, 'utf8'))
         expect(prompts).toHaveLength(1)
         const settled = scaffold.whenTurnSettled()
@@ -43,6 +44,7 @@ describe.skipIf(webSnapshotMode() === 'record').each([
         await trigger.waitFor()
         expect(await trigger.textContent()).toMatch(/^\d+%$/)
         expect(await page.getByRole('button', { name: /tok · Cache hit/ }).count()).toBe(withStats ? 1 : 0)
+        expect(await cardGap()).toBe(heroGap)
         expect(await card.evaluate((element) => {
           const dock = element.nextElementSibling!
           return {

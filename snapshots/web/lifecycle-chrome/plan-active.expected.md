@@ -18,7 +18,7 @@
 - banner:
   - button "Open right sidebar"
 - img "Nexus Superharness"
-- text: Into the Unknown Preview
+- text: What should we build?
 - button "Choose workspace": workspace
 - button "Standard mode"
 - textbox "Describe what you want to build, / commands, @ files or sessions"

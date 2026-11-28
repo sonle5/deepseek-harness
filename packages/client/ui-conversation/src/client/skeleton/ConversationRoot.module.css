@@ -709,19 +709,13 @@
   left: 0;
 }
 
-/* Hero phase: the composer stack (hero chrome + workspace row + card) is
-   flex-centered in the column; composer phase docks it at the bottom. Flex,
-   NOT absolute+transform: a transform would make this box the containing
-   block for position:fixed descendants (pickers/modals), shrinking them. */
+/* Hero phase: the hero chrome fills the scroll body above the seat, so the
+   seat rests at the same floor it keeps once the transcript starts. The
+   stack is capped at the card plus both clearances and centered, which gives
+   the input card exactly the docked composer's width at every viewport. */
 .composerHero {
   align-self: center;
-  /* figma 75:8208 drew 12 between all three rows; the workspace row now sits
-     8 above the card (its margin-top restores 12 under the hero chrome). */
   gap: 8px;
-  /* Foot inside the centered box floats the stack a bit above true center. */
-  padding-bottom: 32px;
-  /* Card cap + both clearances: the hero input card lands at exactly the same
-     width as the docked composer at every viewport. */
   width: min(calc(var(--dsh-composer-card-max-width) + 2 * var(--dsh-composer-side-clearance)), 100%);
   z-index: 1;
 }
@@ -750,14 +744,6 @@
 
 .heroOptions:empty {
   display: none;
-}
-
-/* Hero: the composer sits inside the session scroll body; center there so
-   the tree seat matches active (sticky footer) without a Root remount. */
-.root[data-phase='hero'] .scrollBody,
-.embeddedBody[data-content-phase='hero'] .scrollBody {
-  justify-content: center;
-  overflow-y: auto;
 }
 
 /* Settling (session replaying, hero/docked unknown): keep the composer seat

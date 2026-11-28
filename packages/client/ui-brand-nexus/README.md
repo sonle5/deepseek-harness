@@ -1,5 +1,5 @@
 ---
-description: "Nexus Superharness sidebar and blank-home brand artwork."
+description: "Nexus Superharness sidebar and blank-home brand marks."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package supplies the canonical Nexus N monogram and wordmark in the application sidebar and a restrained cool-neutral treatment on the blank home. The monogram is the mark Nexus Composer has shipped since its first release, carried over now that Composer and Superharness are one application, and the wordmark names the merged product. The shipped Web and Desktop compositions mount it in place of the official brand package.
+This package supplies the canonical Nexus N monogram and wordmark in the application sidebar, and the same monogram above the blank-home headline. The monogram is the mark Nexus Composer has shipped since its first release, carried over now that Composer and Superharness are one application, and the wordmark names the merged product. The shipped Web and Desktop compositions mount it in place of the official brand package.
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ This package supplies the canonical Nexus N monogram and wordmark in the applica
 <a id="use-this-package"></a>
 ## Use this package
 
-The package registers `sidebar.brand.mark`, `sidebar.brand.name`, `conversation.hero.brand.mark`, and `conversation.hero.frame`. The artwork is fixed presentation and takes no configuration. A different product identity replaces this package and occupies the same slots.
+The package registers `sidebar.brand.mark`, `sidebar.brand.name`, and `conversation.hero.brand.mark`; it leaves `conversation.hero.frame` empty, so the blank home carries no background decoration. The artwork is fixed presentation and takes no configuration. A different product identity replaces this package and occupies the same slots.
 
 The product name in the mark's accessible label and in the wordmark comes from the `brandNexus` locale namespace, so a translated build names the product in its own language.
 
@@ -55,7 +55,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define how brand presentation is supplied. They are current package constraints, not a brand-design comparison or a task backlog.
 
 - **One occupant set** — alternative artwork belongs in another Cordis package occupying the same slots.
-- **Fixed artwork** — the mark, the wordmark and the home treatment take no configuration and follow the active theme.
+- **Fixed artwork** — the mark and the wordmark take no configuration and follow the active theme.
 
 <a id="dev-note"></a>
 ### Dev Note

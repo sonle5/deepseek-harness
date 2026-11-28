@@ -177,7 +177,6 @@ export function ConversationContent(props: ConversationContentProps) {
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} headline={props.headline} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
@@ -214,6 +213,8 @@ export function ConversationContent(props: ConversationContentProps) {
         children: (
           <div className={css.scrollBody} data-conversation-scroll="">
             {sessionId === undefined ? null : <Views />}
+            {/* Fills the space above the seat, so the seat rests at the floor it keeps once the transcript starts. */}
+            {hero && <HeroShell t={t} renderSlot={renderSlot} headline={props.headline} />}
             {composerSeat}
           </div>
         ),

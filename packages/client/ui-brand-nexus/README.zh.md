@@ -1,5 +1,5 @@
 ---
-description: "Nexus Superharness 侧栏与空白首页品牌图形。"
+description: "Nexus Superharness 侧栏与空白首页品牌标志。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包在应用侧栏提供规范的 Nexus N 字标与文字标识，并为空白首页提供克制的冷中性氛围。该字标即 Nexus Composer 自首个版本起使用的标志，现随 Composer 与 Superharness 合并为同一应用而沿用；文字标识则标识合并后的产品。随产品提供的 Web 与 Desktop 组合用它替代官方品牌包。
+本包在应用侧栏提供规范的 Nexus N 字标与文字标识，并在空白首页标题上方显示同一字标。该字标即 Nexus Composer 自首个版本起使用的标志，现随 Composer 与 Superharness 合并为同一应用而沿用；文字标识则标识合并后的产品。随产品提供的 Web 与 Desktop 组合用它替代官方品牌包。
 
 ## 目录
 
@@ -24,7 +24,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-本包注册 `sidebar.brand.mark`、`sidebar.brand.name`、`conversation.hero.brand.mark` 与 `conversation.hero.frame`。图形固定，不接受配置。不同的产品身份应替换本包并占用相同 slot。
+本包注册 `sidebar.brand.mark`、`sidebar.brand.name` 与 `conversation.hero.brand.mark`；不占用 `conversation.hero.frame`，因此空白首页没有背景装饰。图形固定，不接受配置。不同的产品身份应替换本包并占用相同 slot。
 
 字标的无障碍标签与文字标识中的产品名来自 `brandNexus` locale 命名空间，因此翻译后的构建会用各自语言书写的产品名。
 
@@ -55,7 +55,7 @@ kind: "package-reference"
 这些限制说明品牌呈现的提供方式，是当前包的约束，而不是品牌设计对比或任务清单。
 
 - **唯一的占位集** —— 替代图形应属于另一个占用相同 slot 的 Cordis 包。
-- **图形固定** —— 标志、文字标识与首页处理不接受配置，并跟随当前主题。
+- **图形固定** —— 标志与文字标识不接受配置，并跟随当前主题。
 
 <a id="dev-note"></a>
 ### 开发备注

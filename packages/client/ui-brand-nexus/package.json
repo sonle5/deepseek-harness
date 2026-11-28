@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-brand-nexus",
-  "description": "Nexus Superharness sidebar, hero, and blank-home brand artwork",
+  "description": "Nexus Superharness sidebar and blank-home brand marks",
   "version": "0.2.3-alpha.2",
   "publishConfig": {
     "access": "public"

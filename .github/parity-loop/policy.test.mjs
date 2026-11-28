@@ -32,6 +32,7 @@ const clean = {
   protectedBranch: true,
   reviewDecision: 'REVIEW_REQUIRED',
   gate: { failing: [], pending: [] },
+  changedFiles: ['.github/parity-loop/run.mjs'],
 }
 
 test('develop is the only pull-request base', () => {
@@ -296,6 +297,23 @@ test('a blocker other than the gating checks leaves auto-merge as it is', () => 
   const blockers = autoMergeBlockers({ ...clean, mergeable: null, gate })
   assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: true }), 'wait')
   assert.equal(autoMergeAction({ blockers: [], gate, autoMergeEnabled: false }), 'enable')
+})
+
+test('a pull request that changes a workflow file is left for a person to merge', () => {
+  // GitHub refuses auto-merge and merge by the workflow token for workflow
+  // changes, so trying only fails the run.
+  const gate = { failing: [], pending: [] }
+  const changedFiles = ['.github/workflows/macos-package.yml', 'apps/desktop/package.json']
+  const blockers = autoMergeBlockers({ ...clean, reviewDecision: 'APPROVED', gate, changedFiles })
+  assert.deepEqual(blockers, [
+    'Changes workflow files (`.github/workflows/macos-package.yml`), which the workflow token cannot merge; a person merges this pull request.',
+  ])
+  assert.equal(autoMergeAction({ blockers, gate, autoMergeEnabled: false }), 'wait')
+})
+
+test('other files under .github do not block auto-merge', () => {
+  const changedFiles = ['.github/parity-loop/run.mjs', '.github/pull_request_template.md', 'docs/.github/workflows/x.yml']
+  assert.deepEqual(autoMergeBlockers({ ...clean, changedFiles }), [])
 })
 
 test('a finished workflow re-evaluates only this repository’s pull requests into develop', () => {

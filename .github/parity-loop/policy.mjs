@@ -173,7 +173,10 @@ export function workflowRunPullNumbers(event) {
  * The other blockers are what make auto-merge meaningless: a wrong base, a
  * closed or draft pull request, a branch GitHub cannot merge, and a branch that
  * does not require review, where enabling auto-merge lands the head without
- * waiting for anyone.
+ * waiting for anyone. A pull request that changes a file under
+ * `.github/workflows/` is left for a person to merge: GitHub refuses to let the
+ * workflow token enable auto-merge on, or merge, a workflow change without the
+ * `workflows` permission, which `GITHUB_TOKEN` cannot be granted.
  * @param {object} input Pull-request state.
  * @param {string} input.base Base branch.
  * @param {boolean} input.isDraft Whether the pull request is a draft.
@@ -182,6 +185,7 @@ export function workflowRunPullNumbers(event) {
  * @param {boolean|null} input.protectedBranch Whether the base branch is protected at all, or `null` when it cannot be read.
  * @param {string|null} input.reviewDecision GitHub's review decision for the pull request, or `null` when no rule requires review.
  * @param {{failing: readonly {name: string}[], pending: readonly string[]}} input.gate Gating checks on the head commit, from `ciGate`.
+ * @param {readonly string[]} input.changedFiles Repository paths the pull request changes.
  * @returns {string[]} Blocking reasons; empty means the pull request may merge once GitHub's protection allows.
  */
 export function autoMergeBlockers({
@@ -192,6 +196,7 @@ export function autoMergeBlockers({
   protectedBranch,
   reviewDecision,
   gate,
+  changedFiles,
 }) {
   const blockers = []
   const baseError = baseBranchError(base)
@@ -217,6 +222,10 @@ export function autoMergeBlockers({
   const checkList = names => names.map(name => `\`${name}\``).join(', ')
   if (gate.failing.length > 0) blockers.push(`Gating checks failed on the head commit: ${checkList(gate.failing.map(check => check.name))}.`)
   if (gate.pending.length > 0) blockers.push(`Gating checks have not finished on the head commit: ${checkList(gate.pending)}.`)
+  const workflowFiles = changedFiles.filter(path => path.startsWith('.github/workflows/'))
+  if (workflowFiles.length > 0) {
+    blockers.push(`Changes workflow files (${checkList(workflowFiles)}), which the workflow token cannot merge; a person merges this pull request.`)
+  }
   return blockers
 }
 

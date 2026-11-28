@@ -11,7 +11,9 @@
  *                      protected base whose head passed every gating check,
  *                      and disabled while any gating check on the head failed
  *                      or has not finished; a failure is also named in a
- *                      comment, once per head commit
+ *                      comment, once per head commit; a PR that changes
+ *                      `.github/workflows/` is left for a person to merge
+ *                      because GitHub refuses the workflow token there
  *  - `close-issues`    (`run.mjs close-issues`) the open closing references of
  *                      recent loop merges, closed as completed with a comment
  *                      linking the merge, because GitHub applies no closing
@@ -37,6 +39,7 @@ import {
   autoMergeAction,
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
+  changedPaths,
   autoMergeNotNeeded,
   baseBranchError,
   ciGate,
@@ -375,6 +378,7 @@ async function enableAutoMerge(repository, number) {
     protectedBranch: branchIsProtected(repository, pull.base.ref),
     reviewDecision: reviewState.reviewDecision,
     gate,
+    changedFiles: changedPaths(apiAll(`repos/${repository}/pulls/${number}/files?per_page=100`)),
   })
   const action = autoMergeAction({ blockers, gate, autoMergeEnabled: reviewState.autoMergeEnabled })
   if (gate.failing.length > 0) reportFailingChecks(repository, number, reviewState.headRefOid, gate.failing)

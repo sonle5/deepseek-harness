@@ -1,0 +1,52 @@
+name: Back/forward and find evidence (Issue 60, temporary)
+
+on:
+  pull_request:
+    branches: [agent/nav-history-find-8f621162f6a1]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [before, after]
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Keep the capture scripts
+        run: cp -R .github/nav-evidence "$RUNNER_TEMP/scripts"
+      - name: Select source
+        run: |
+          if [ "${{ matrix.label }}" = before ]; then git checkout --detach 065e363c0b9185d564d8b4f02c970f505adb8269; else git checkout --detach 77af228b588a66a0d558648c2778455244692b4e; fi
+          git log --oneline -1
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/source-sha.txt"
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '^24.22.3'
+      - run: pnpm install --frozen-lockfile
+      - name: Omit the internal Composer release this repository cannot download
+        run: |
+          node -e "const f='apps/desktop/scripts/composer/lock.json';const fs=require('fs');const l=JSON.parse(fs.readFileSync(f,'utf8'));l.targets['darwin-arm64']={available:false};fs.writeFileSync(f,JSON.stringify(l,null,2)+'\n')"
+      - name: Package unsigned arm64 DMG
+        run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: Capture
+        if: always()
+        run: bash "$RUNNER_TEMP/scripts/capture.sh" "${{ matrix.label }}" "$RUNNER_TEMP/evidence" "$RUNNER_TEMP/scripts"
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: nav-evidence-${{ matrix.label }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 7

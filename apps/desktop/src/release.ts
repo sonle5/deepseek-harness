@@ -17,6 +17,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/**
+ * Name the git tag and GitHub release of one published Desktop version.
+ * @param version - Version the release published.
+ * @returns The tag name, distinct from the `dsh-v*` tags the npm family publishes from.
+ */
+export function desktopReleaseTag(version: string): string {
+  return `desktop-v${version}`
+}
+
 /** Validate release data read from an installed or packaged filesystem resource. */
 export function parseDesktopRelease(value: unknown): DesktopRelease {
   if (!isRecord(value) || value.schemaVersion !== 1 || typeof value.version !== 'string'

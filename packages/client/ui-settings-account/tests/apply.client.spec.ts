@@ -154,6 +154,49 @@ it('shares account actions across seats, publishes dialog ownership, and opens c
   expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(0)
 }, 60_000)
 
+it('registers menu Feedback always and menu Sign out only while signed in, and removes both on unload', async ({ start }) => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  const c = await start()
+  const shortcuts = c.ctx.get('shortcuts')
+  if (shortcuts === undefined) throw new Error('shortcuts service is unavailable')
+  const ids = () => shortcuts.catalog.getSnapshot().map(row => row.id)
+  const register = vi.spyOn(shortcuts, 'register')
+  const command = (id: string) => register.mock.calls.findLast(([entry]) => entry.id === id)?.[0]
+  await c.reload(SELF)
+  await c.mock.streams.opened('account/watch', 2)
+  expect(ids()).toContain('feedback.open')
+  expect(ids()).not.toContain('account.signOut')
+  const context = { region: 'page', target: null, modal: null } as const
+  const feedback = command('feedback.open')!
+  expect(feedback).toMatchObject({ defaults: {}, modals: ['sidebar', 'settings'] })
+  expect(feedback.label()).toBe('Feedback')
+  const opened = feedback.resolve(context)
+  if (opened.status === 'handled') opened.run()
+  expect(open).toHaveBeenCalledOnce()
+
+  const actions = operations(c)
+  c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
+  await vi.waitFor(() => { expect(ids()).toContain('account.signOut') })
+  const signOut = command('account.signOut')!
+  expect(signOut.label()).toBe('Sign out')
+  // Each menu request is one more confirmation request for the mounted launcher.
+  for (const expected of [1, 2]) {
+    const request = signOut.resolve(context)
+    if (request.status === 'handled') request.run()
+    expect(actions.hooks.account.getSnapshot().signOutRequest).toBe(expected)
+  }
+  c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
+  await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().view).toEqual(stored) })
+  expect(ids().filter(id => id === 'account.signOut')).toHaveLength(1)
+  c.mock.streams.push('account/watch', { type: 'snapshot', state: view })
+  await vi.waitFor(() => { expect(ids()).not.toContain('account.signOut') })
+  c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
+  await vi.waitFor(() => { expect(ids()).toContain('account.signOut') })
+  await c.unload(SELF)
+  expect(ids()).not.toContain('feedback.open')
+  expect(ids()).not.toContain('account.signOut')
+}, 60_000)
+
 it('prefills the native device description from the Desktop bridge on every click', async ({ start }) => {
   const open = vi.spyOn(window, 'open').mockReturnValue(null)
   const deviceInfo = vi.fn(async () => 'platform=darwin; os=15.0; app_arch=arm64; cpu=Apple M3; memory_gib=16.0')
@@ -525,6 +568,28 @@ it('publishes a terminal state-stream failure without mistaking it for plugin di
   await c.mock.streams.opened('account/watch', 1)
   c.mock.streams.end('account/watch')
   await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().failed).toBe(true) })
+}, 60_000)
+
+it('publishes a failed account snapshot when the stream carrier is lost', async ({ start }) => {
+  vi.stubGlobal('dshDesktop', {})
+  const c = await start()
+  const open = c.ctx.remote.$stream.bind(c.ctx.remote)
+  let fail: (() => void) | undefined
+  vi.spyOn(c.ctx.remote, '$stream').mockImplementation((options) => {
+    if (options.name === 'account') fail = () => {
+      options.carrierFailed?.(Object.assign(new Error('connection lost'), { code: 'gateway/carrier-lost' as const }))
+    }
+    return open(options)
+  })
+  await c.reload(SELF)
+  const actions = operations(c)
+  const changed = vi.fn()
+  c.ctx.on('account-ui/change', changed)
+  await c.mock.streams.opened('account/watch', 2)
+  expect(fail).toBeDefined()
+  fail?.()
+  expect(actions.hooks.account.getSnapshot().failed).toBe(true)
+  expect(changed).toHaveBeenLastCalledWith(expect.anything(), true)
 }, 60_000)
 
 it('ignores a terminal stream error when plugin disposal already owns teardown', async ({ start }) => {

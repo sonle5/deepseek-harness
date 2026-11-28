@@ -32,6 +32,8 @@ export interface AccountSnapshot {
    * True on Desktop until shell.overlay reports visibility, false in browsers; Desktop layouts must render that slot.
    */
   desktopOnboardingVisible?: boolean
+  /** Count of sign-out requests from the application menu; each increment opens the launcher's sign-out confirmation. */
+  signOutRequest?: number
 }
 
 /** Host operations injected into the Cordis-free account component. */

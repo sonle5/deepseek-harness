@@ -12,6 +12,11 @@
     "enabled": false
   },
   {
+    "id": "dsh-account-signOut",
+    "label": "Log Out",
+    "enabled": false
+  },
+  {
     "type": "separator"
   },
   {

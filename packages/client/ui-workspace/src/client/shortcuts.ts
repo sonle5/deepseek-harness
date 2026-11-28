@@ -46,6 +46,9 @@ export function createWorkspaceShortcutControls(): WorkspaceShortcutControls {
   }
 }
 
+/** Rendered sidebar rows, queried in display order. */
+type SidebarRows = { querySelectorAll(selector: string): Iterable<{ readonly dataset: DOMStringMap }> }
+
 /**
  * Register navigation commands against the existing workspace owner.
  * Rename requires a nonblank main Conversation with no modal other than the navigation drawer obscuring it.
@@ -55,14 +58,16 @@ export function createWorkspaceShortcutControls(): WorkspaceShortcutControls {
  * @param archiveSession - shared archive action, including running-work confirmation and notices.
  * @param reportForkFailure - publish a classified failure through the frame-wide notice channel.
  * @param markSession - shared reading action; only failed writes raise a notice.
+ * @param root - container whose rendered sidebar rows order the previous and next Session commands; the page document when omitted.
  */
 export function installWorkspaceShortcuts(
   ctx: Context,
-  navigation: Pick<UiWorkspace, 'startSession' | 'forkSession'>,
+  navigation: Pick<UiWorkspace, 'startSession' | 'forkSession' | 'openSession'>,
   controls: ReturnType<typeof createWorkspaceShortcutControls>,
   archiveSession: (sessionId: SessionId) => void,
   reportForkFailure: (reason: 'unavailable' | 'failed') => void,
   markSession: (sessionId: SessionId, unread: boolean) => void,
+  root?: SidebarRows,
 ): void {
   const t = ctx.locale.bind('workspace')
   const current = () => Object.values(ctx.sessions.list.getSnapshot().byId)
@@ -143,4 +148,21 @@ export function installWorkspaceShortcuts(
       return { status: 'handled', run: () => { markSession(target.id, !unread) } }
     },
   }), 'ui-workspace: session.toggleRead')
+  // Rendered rows carry the grouping, pinning, manual order and expansion the sidebar shows; a hidden sidebar has none.
+  const archived = () => new Set(ctx.workspaces.list.getSnapshot().archivedSessionIds)
+  for (const [id, step, code] of [['session.previous', -1, 'BracketLeft'], ['session.next', 1, 'BracketRight']] as const) {
+    register(id, () => t(step < 0 ? 'shortcut.previousSession' : 'shortcut.nextSession'),
+      [step < 0 ? 'previous session' : 'next session', 'sidebar item'], code, ['primary', 'alt'], ['primary', 'alt'], (context) => {
+        if (context.modal !== null && context.modal !== 'sidebar') return { status: 'blocked', reason: t('shortcut.closeDialog') }
+        const hidden = archived()
+        const rows: SidebarRows = root ?? document
+        const ids = [...rows.querySelectorAll('[data-sidebar-list-area] [data-row-key^="session:"]')]
+          .flatMap(row => row.dataset.rowKey?.slice('session:'.length) ?? []).map(key => key as SessionId)
+          .filter(sessionId => !hidden.has(sessionId))
+        const index = ids.indexOf(current()?.id as SessionId)
+        const target = ids.at(index < 0 ? (step < 0 ? -1 : 0) : (index + step) % ids.length)
+        if (target === undefined) return { status: 'blocked', reason: t('shortcut.noSidebarSessions') }
+        return { status: 'handled', run: () => { if (target !== current()?.id) navigation.openSession(target) } }
+      })
+  }
 }

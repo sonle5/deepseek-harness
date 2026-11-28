@@ -275,6 +275,29 @@ it('keeps the confirmation dialog open after a failed sign-out', async () => {
   expect(within(dialog).getByRole('alert').textContent).toBe(en.failed)
 })
 
+it('opens the sign-out confirmation for each later application-menu request while signed in', async () => {
+  const operations = mount({ status: 'credential-stored', attempt: null })
+  cleanup()
+  const { AccountMenu } = await import('../src/client/AccountMenu.tsx')
+  const base = operations.hooks.account.getSnapshot()
+  const Launcher = ({ request, signedIn = true }: { request?: number; signedIn?: boolean }) =>
+    <AccountMenu {...({} as GlobalStandardProps)} {...operations} settingsOpen={false}
+      useAccount={selector => selector({ ...base, view: { ...base.view!, status: signedIn ? 'credential-stored' : 'signed-out' },
+        ...request === undefined ? {} : { signOutRequest: request } })}
+      useTheme={selector => selector(operations.hooks.theme.getSnapshot())} wide
+      openOnboarding={() => {}} openSettings={() => {}} t={key => key in en ? en[key as AccountKey] : key} />
+  // A request published before this launcher mounted is not replayed.
+  const { rerender } = render(<Launcher request={1} />)
+  await act(async () => {})
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await act(async () => { rerender(<Launcher request={2} />) })
+  expect(within(screen.getByRole('dialog')).getByRole('button', { name: en.signOut })).toBeTruthy()
+  expect(operations.hasRunningAccountTasks).toHaveBeenCalledOnce()
+  // A signed-out launcher drops the request.
+  await act(async () => { rerender(<Launcher request={3} signedIn={false} />) })
+  expect(operations.hasRunningAccountTasks).toHaveBeenCalledOnce()
+})
+
 it.each([en, zh])('renders Platform profile and recharge wallet balances', async (copy) => {
   mount({ status: 'credential-stored', attempt: null }, copy, {
     profile: { status: 'ready', value: { id: null, name: 'Harness Mock (TEST ONLY)', contact: '138****0000' } },

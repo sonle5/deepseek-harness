@@ -625,7 +625,8 @@ async function main(): Promise<void> {
       composerSwitcher.forwardInput(event, input)
       // Superharness commands target the product document, which Composer covers while it has focus.
       shortcuts.ignoreMenuKeys(contents, input, ['session.new', 'workspace.add', 'session.search',
-        'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open'])
+        'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open', 'terminal.new', 'browser.new',
+        'session.previous', 'session.next', 'tab.previous', 'tab.next', 'account.signOut', 'feedback.open'])
     }
     // A crash loop detaches the view without a command; the client must learn it is no longer visible.
     composer.view.onVisibility = () => { composerSwitcher.publish() }
@@ -1338,10 +1339,19 @@ async function main(): Promise<void> {
       mainWindow.webContents.setZoomLevel(level(mainWindow.webContents.getZoomLevel()))
     },
   })
+  // AppKit appends Enter Full Screen (Control+Command+F) to this menu itself.
   const macViewMenu = (messages: DesktopMessages): MenuItemConstructorOptions => ({ label: messages.viewMenu, submenu: [
     productCommand('sidebar.left.toggle', messages.toggleSidebarMenu),
     productCommand('sidebar.right.toggle', messages.toggleRightPanelMenu),
     productCommand('session.search', messages.searchSessionsMenu),
+    { type: 'separator' },
+    productCommand('terminal.new', messages.openTerminalMenu),
+    productCommand('browser.new', messages.openBrowserMenu),
+    { type: 'separator' },
+    productCommand('session.previous', messages.previousSessionMenu),
+    productCommand('session.next', messages.nextSessionMenu),
+    productCommand('tab.previous', messages.previousTabMenu),
+    productCommand('tab.next', messages.nextTabMenu),
     { type: 'separator' },
     // Plain items rather than zoom roles: the roles' ⌘+ and ⌘− accelerators would also fire the fixed font-size shortcuts.
     zoomItem(messages.actualSizeMenu, () => 0, 'Command+0'),
@@ -1349,17 +1359,33 @@ async function main(): Promise<void> {
     zoomItem(messages.zoomOutMenu, level => level - 0.5),
     ...composerSwitcher.available ? [{ type: 'separator' as const }, ...composerProductItems()] : [],
   ] })
-  // Help links: the project documentation and this repository's new-issue page.
+  // Help links: release notes, the project documentation and this repository's new-issue page.
   const documentationUrl = 'https://deepseek-harness.github.io/deepseek-harness/'
   const newIssueUrl = 'https://github.com/sonle5/deepseek-harness/issues/new'
+  // Release tags are dsh-v<version>; the notes of the running build live on its release page.
+  const releaseNotesUrl = (): string => `https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v${app.getVersion()}`
+  const copyDiagnostics = (): void => {
+    void clipboard.writeText([`${app.name} ${app.getVersion()}`, `Electron ${process.versions.electron}`,
+      `${process.platform} ${process.arch} ${osRelease()}`, readDeviceInfo()].join('\n'))
+      .catch((error: unknown) => { console.error('desktop help: could not copy diagnostics', error) })
+  }
   const openPublicPage = (url: string): void => {
     void shell.openExternal(url).catch((error: unknown) => { console.error('desktop help: could not open', url, error) })
   }
   const macHelpMenu = (messages: DesktopMessages): MenuItemConstructorOptions => ({ role: 'help', label: messages.helpMenu, submenu: [
     productCommand('shortcuts.open', messages.keyboardShortcutsMenu),
     { type: 'separator' },
+    { label: messages.whatsNewMenu, click: () => { openPublicPage(releaseNotesUrl()) } },
     { label: messages.documentationMenu, click: () => { openPublicPage(documentationUrl) } },
+    { type: 'separator' },
+    productCommand('feedback.open', messages.sendFeedbackMenu),
     { label: messages.reportIssueMenu, click: () => { openPublicPage(newIssueUrl) } },
+    { label: messages.troubleshootingMenu, submenu: [
+      { label: messages.openLogsFolderMenu, click: () => {
+        void shell.openPath(app.getPath('logs')).then((error) => { if (error !== '') console.error('desktop help: could not open logs', error) })
+      } },
+      { label: messages.copyDiagnosticsMenu, click: copyDiagnostics },
+    ] },
   ] })
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
     ? [shortcuts.fileMenu(currentDesktopLocale().messages, [
@@ -1389,6 +1415,7 @@ async function main(): Promise<void> {
       { type: 'separator' },
       shortcuts.settingsMenuItem(currentDesktopLocale().messages.settingsMenu,
         enteredWorkspace && !isMandatory(), () => { focusPrimaryWindow() }),
+      ...darwin ? [productCommand('account.signOut', currentDesktopLocale().messages.signOutMenu)] : [],
       { type: 'separator' },
       { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
       ...productActions.length === 0 ? [] : [{ type: 'separator' as const }, ...productActions],

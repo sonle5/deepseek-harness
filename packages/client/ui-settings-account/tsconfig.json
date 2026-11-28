@@ -18,6 +18,9 @@
       "path": "../locale/tsconfig.client.json"
     },
     {
+      "path": "../shortcuts/tsconfig.client.json"
+    },
+    {
       "path": "../store"
     },
     {

@@ -55,8 +55,23 @@
         - button "Edit shortcut for Close current page or window"
         - text: Close current page or window Ctrl + Alt + W
       - listitem:
+        - button "Edit shortcut for Feedback"
+        - text: Feedback No shortcut
+      - listitem:
+        - button "Edit shortcut for Next session"
+        - text: Next session Ctrl + Alt + ]
+      - listitem:
+        - button "Edit shortcut for Previous session"
+        - text: Previous session Ctrl + Alt + [
+      - listitem:
         - button "Edit shortcut for Toggle read/unread"
         - text: Toggle read/unread Ctrl + Shift + U
+      - listitem:
+        - button "Edit shortcut for Next tab"
+        - text: Next tab Ctrl + Shift + ]
+      - listitem:
+        - button "Edit shortcut for Previous tab"
+        - text: Previous tab Ctrl + Shift + [
   - region "Message input":
     - heading "Message input" [level=3]
     - list:

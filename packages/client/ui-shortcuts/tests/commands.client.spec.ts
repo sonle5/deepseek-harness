@@ -5,7 +5,8 @@ import { act, cleanup, render } from '@testing-library/react'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client'
-import type { DesktopKeyboardApi, DesktopShortcutInput, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/protocol'
+import type { DesktopKeyboardApi, DesktopShortcutInput, ShortcutCommandId, ShortcutDefinition } from '@deepseek-ai/dsh-client-shortcuts/protocol'
+import { normalizeBinding, overlappingBindings, resolveShortcutDefault } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import type { createSettingsShellStore } from '../../ui-settings-general/src/client/shell-store.ts'
 import type { createLayoutStore } from '../../ui-layout/src/client/stores.ts'
 import type { ReferenceInjected } from '../src/client/Reference.tsx'
@@ -49,6 +50,43 @@ describe('assembled shortcut command owners', () => {
     for (const owner of ['ui-settings-general', 'ui-layout']) await client.unload(`@deepseek-ai/dsh-client-${owner}`)
     expect(ownedRows()).toEqual([])
     expect(shortcuts.fixedCatalog.getSnapshot().some(row => row.id.startsWith('fixed.'))).toBe(false)
+  }, 60_000)
+
+  it('registers product-wide editable defaults that are unique on every runtime and platform', async ({ start }) => {
+    // The Desktop bridge receives the complete serializable catalog, the one main validates for menu accelerators.
+    const previous = document.documentElement.dataset.platform
+    const previousBridge = Object.getOwnPropertyDescriptor(window, 'dshDesktop')
+    let catalog: readonly ShortcutDefinition[] = []
+    const keyboard: DesktopKeyboardApi = { subscribe: () => () => {}, closeWindow: async () => {} }
+    Object.defineProperty(window, 'dshDesktop', { configurable: true, value: { keyboard, shortcuts: {
+      get: async (definitions: readonly ShortcutDefinition[]) => { catalog = definitions; return new Promise(() => {}) },
+      edit: async () => new Promise(() => {}), subscribe: () => () => {}, recording: async () => {},
+    } } })
+    document.documentElement.dataset.platform = 'darwin'
+    onTestFinished(() => {
+      if (previousBridge === undefined) Reflect.deleteProperty(window, 'dshDesktop')
+      else Object.defineProperty(window, 'dshDesktop', previousBridge)
+      if (previous === undefined) delete document.documentElement.dataset.platform
+      else document.documentElement.dataset.platform = previous
+    })
+    await start()
+    const ids = catalog.map(definition => definition.id)
+    expect(ids).toEqual(expect.arrayContaining(['page.close', 'terminal.new', 'session.previous', 'session.next',
+      'tab.previous', 'tab.next', 'sidebar.right.toggle', 'feedback.open']))
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const runtime of ['desktop', 'web'] as const) {
+      for (const platform of ['macos', 'windows', 'linux'] as const) {
+        const owners: { id: string; binding: ReturnType<typeof normalizeBinding> }[] = []
+        for (const definition of catalog) {
+          const candidate = resolveShortcutDefault(definition, runtime, platform)
+          if (candidate === undefined) continue
+          const binding = normalizeBinding(candidate, platform)
+          const clash = owners.find(other => overlappingBindings(other.binding, binding))
+          expect(clash === undefined ? undefined : `${runtime}:${platform} ${clash.id} and ${definition.id}`).toBeUndefined()
+          owners.push({ id: definition.id, binding })
+        }
+      }
+    }
   }, 60_000)
 
   it('toggles foreground dialogs, permits shortcuts above settings, and blocks settings behind shortcuts', async ({ start }) => {

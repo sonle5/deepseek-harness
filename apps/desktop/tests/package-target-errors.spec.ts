@@ -54,6 +54,7 @@ it.each(['win32', 'darwin'] as const)('records and prints redacted parent failur
       success: false, stages: [
         { stage: 'configuration', success: true },
         { stage: 'toolchain', success: true },
+        { stage: 'composer-release', success: true },
         { stage: platform === 'win32' ? 'windows-package' : 'macos-package', success: false },
       ],
     })

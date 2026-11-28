@@ -1,0 +1,52 @@
+name: Help menu evidence (Issue 81, temporary)
+
+on:
+  pull_request:
+    branches: [agent/help-menu-urls-0e7795548eb6]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [before, after]
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Keep the capture scripts
+        run: cp -R .github/help-menu-evidence "$RUNNER_TEMP/scripts"
+      - name: Select source
+        run: |
+          if [ "${{ matrix.label }}" = before ]; then git checkout --detach 490660c6cd4bdf4b4677535e68883a68a346c4a0; else git checkout --detach 7d3bb076af1e20defc6f057da97db6d871f18929; fi
+          git log --oneline -1
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/source-sha.txt"
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '^24.22.3'
+      - run: pnpm install --frozen-lockfile
+      - name: Omit the internal Composer release this repository cannot download
+        run: |
+          node -e "const f='apps/desktop/scripts/composer/lock.json';const fs=require('fs');const l=JSON.parse(fs.readFileSync(f,'utf8'));l.targets['darwin-arm64']={available:false};fs.writeFileSync(f,JSON.stringify(l,null,2)+'\n')"
+      - name: Package unsigned arm64 DMG
+        run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: Capture Help menu and opened pages
+        if: always()
+        run: bash "$RUNNER_TEMP/scripts/capture.sh" "${{ matrix.label }}" "$RUNNER_TEMP/evidence" "$RUNNER_TEMP/scripts"
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: help-menu-evidence-${{ matrix.label }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 7

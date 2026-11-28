@@ -230,6 +230,20 @@ export function autoMergeBlockers({
 }
 
 /**
+ * Paths a pull request touches, from the `pulls/{number}/files` listing.
+ *
+ * A rename lists only its new path in `filename` and the old one in
+ * `previous_filename`. Moving a file out of `.github/workflows/` still removes
+ * a workflow, which GitHub refuses the workflow token in the same way, so both
+ * paths count.
+ * @param {readonly {filename: string, previous_filename?: string}[]} files Entries from the files listing.
+ * @returns {string[]} Every current and previous path, in listing order.
+ */
+export function changedPaths(files) {
+  return files.flatMap(file => [file.filename, file.previous_filename].filter(path => typeof path === 'string' && path !== ''))
+}
+
+/**
  * Decide what to do with the pull request's auto-merge.
  *
  * Auto-merge stays on across pushes, and GitHub merges as soon as an approval

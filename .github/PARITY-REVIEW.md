@@ -182,6 +182,11 @@ GitHub enables auto-merge only while a requirement is still pending. When the
 gating checks have passed and the pull request can already merge, the loop
 merges it, pinned to the head it checked, instead.
 
+The loop never auto-merges a pull request that adds, changes, removes or renames
+a file under `.github/workflows/`, because GitHub refuses that to the workflow
+token. It says so in the run log, and a person merges such a pull request once it
+is approved and its gating checks pass.
+
 Squash every merge, by hand or automatic, to one commit per Issue so `develop`
 reads as a list of gaps closed. The first release after a merge is what the next
 review measures.

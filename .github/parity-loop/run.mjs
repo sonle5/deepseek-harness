@@ -39,6 +39,7 @@ import {
   autoMergeAction,
   autoMergeAlreadyEnabled,
   autoMergeBlockers,
+  changedPaths,
   autoMergeNotNeeded,
   baseBranchError,
   ciGate,
@@ -377,7 +378,7 @@ async function enableAutoMerge(repository, number) {
     protectedBranch: branchIsProtected(repository, pull.base.ref),
     reviewDecision: reviewState.reviewDecision,
     gate,
-    changedFiles: apiAll(`repos/${repository}/pulls/${number}/files?per_page=100`).map(file => file.filename),
+    changedFiles: changedPaths(apiAll(`repos/${repository}/pulls/${number}/files?per_page=100`)),
   })
   const action = autoMergeAction({ blockers, gate, autoMergeEnabled: reviewState.autoMergeEnabled })
   if (gate.failing.length > 0) reportFailingChecks(repository, number, reviewState.headRefOid, gate.failing)

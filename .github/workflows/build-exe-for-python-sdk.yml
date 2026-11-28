@@ -409,8 +409,8 @@ jobs:
           inputs.ci
           && runner.os != 'Windows'
           && (github.event_name != 'pull_request'
-              || !(github.event.pull_request.head.repo.fork
-                   || github.event.pull_request.user.login == 'dependabot[bot]'))
+              || (github.event.pull_request.head.repo.full_name == github.repository
+                  && github.event.pull_request.user.login != 'dependabot[bot]'))
         env:
           E2E_KEY_PRESENT: ${{ secrets.DSH_E2E_API_KEY != '' || secrets.DEEPSEEK_API_KEY_EXTERNAL != '' }}
           DSH_E2E_PROTOCOL: ${{ vars.DSH_E2E_PROTOCOL || 'anthropic-messages' }}
@@ -434,8 +434,8 @@ jobs:
           inputs.ci
           && runner.os == 'Windows'
           && (github.event_name != 'pull_request'
-              || !(github.event.pull_request.head.repo.fork
-                   || github.event.pull_request.user.login == 'dependabot[bot]'))
+              || (github.event.pull_request.head.repo.full_name == github.repository
+                  && github.event.pull_request.user.login != 'dependabot[bot]'))
         shell: pwsh
         env:
           E2E_KEY_PRESENT: ${{ secrets.DSH_E2E_API_KEY != '' || secrets.DEEPSEEK_API_KEY_EXTERNAL != '' }}

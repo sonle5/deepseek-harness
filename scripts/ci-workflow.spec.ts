@@ -1778,8 +1778,14 @@ describe('Python release workflows', () => {
         },
       })
       expect(String(preflight.if)).toContain('inputs.ci')
-      expect(String(preflight.if)).toContain('head.repo.fork')
-      expect(String(preflight.if)).toContain('dependabot[bot]')
+      // A fork repository reports head.repo.fork for its own branches, so the
+      // same-repository head is what admits a PR.
+      const runs = (github: Record<string, unknown>) => evaluateRunsOn(`\${{ ${String(preflight.if)} }}`, { inputs: { ci: true }, runner: { os: preflight.shell === 'pwsh' ? 'Windows' : 'Linux' }, github: { repository: 'owner/repo', ...github } })
+      const pullRequest = (login: string, head: string) => ({ event_name: 'pull_request', event: { pull_request: { user: { login }, head: { repo: { full_name: head, fork: true } } } } })
+      expect(runs(pullRequest('maintainer', 'owner/repo'))).toBe(true)
+      expect(runs(pullRequest('outsider', 'outsider/repo'))).toBe(false)
+      expect(runs(pullRequest('dependabot[bot]', 'owner/repo'))).toBe(false)
+      expect(runs({ event_name: 'push' })).toBe(true)
       expect(JSON.stringify(preflight)).toContain('::notice title=Installed-wheel real API test skipped::')
       expect(JSON.stringify(preflight)).toContain('GITHUB_STEP_SUMMARY')
     }

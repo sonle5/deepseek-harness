@@ -92,7 +92,7 @@ composer 在挂载、切换 Session 和解除锁定时使用共享的[文字输�
 
 候选菜单未处理按键且光标位于草稿末尾时，不带修饰键的 ArrowUp 和 ArrowDown 会召回已加载的 Session 历史中用户发出的消息文本。只有草稿为空时才能开始浏览，只有草稿仍是上一次显示且未修改的消息时才能继续浏览；任何修改（包括撤销）都会结束浏览，草稿变成普通草稿，因此已输入或改过的文字不会被替换。浏览期间光标不在末尾时，方向键在当前消息内移动光标。按键时从 Session 的事件窗口由新到旧读取消息；没有文字的消息和连续重复的消息会被跳过，越过最新一条时回到空草稿。每次切换都是一次普通的、可撤销的编辑：撤销回到切换前显示的草稿。
 
-上下文占用按钮在输入卡片下方、会话统计右侧显示圆环和百分比。点击按钮可在受布局视口约束的 CSS 锚定面板中查看 token 构成，没有统计项时也可打开；上下文用量和容量尚不可用时，按钮保持隐藏。浏览器缩放和平移时面板随页面移动，因此可以超出视觉视口。Hero 之外，这一行为空时仍保留一项读数的高度，因此会话统计和上下文用量稍后到达不会改变 composer 的高度；Hero 不显示空行。
+上下文占用按钮在输入卡片下方、会话统计右侧显示圆环和百分比。点击按钮可在受布局视口约束的 CSS 锚定面板中查看 token 构成，没有统计项时也可打开；上下文用量和容量尚不可用时，按钮保持隐藏。浏览器缩放和平移时面板随页面移动，因此可以超出视觉视口。这一行为空时仍保留一项读数的高度，因此会话统计和上下文用量稍后到达不会改变 composer 的高度。Hero 把品牌标志和标题放在 composer 上方的空间里；首条消息开始 transcript 时，composer 的底部位置和宽度保持不变。
 
 关闭代码工作工具时，外壳仅隐藏 Trajectory；其他插件贡献的 View 仍然可用。可用 View 少于两个时隐藏 View 标签栏。在 Trajectory 激活时关闭代码工作工具会返回 Chat；已保存的 View 偏好和 Session 记录保持不变。开启后，Trajectory 恢复可用。View 所有者接收可用列表，使导航操作跟随相同的可见性。
 
@@ -110,7 +110,7 @@ root 作用域的 `conversation.session.header.views.actions` list 有注册项�
 
 工作区选择使用 `uiWorkspace.openWorkspace` 准备目标并提交导航。草稿内容（包括结构化引用）和附件仅在该请求仍为当前请求、且没有在途提交时，通过它的同步准备回调搬移；后续导航、所有者释放或在途提交都会把原草稿留在它的 Session 中。
 
-本包占据 root 作用域 `main` 中的 `conversation` key。其 `main.conversation` 外壳将常驻的 `conversation.header` 放在可选 Session 的 `conversation.content` Component Factory 外。未选中 Session 时，头部仍承载根作用域导航；标题、操作和 View 标签保留在严格 Session 子组件中。Factory 拥有共享正文与 Composer，通过其标准 Hook 读取当前 Session，并公开 strict-Session `views` 与 root-scoped `widthControls` 两个局部位置。默认 adapter 渲染现有 `conversation.session` entry，主 occurrence 选择宽度拖拽条；嵌入式 occurrence 可以替换 `views`、省略拖拽条，且不渲染主 Header。每个 occurrence 都传入 `onWorkspaceSelected`，由它决定在 Hero 中选择工作区后做什么。它接收工作区和一个 `adopt` 函数：解析该工作区的空白 Session，用它替换此前显示的 Session，并在同一步、仍保留两个 Session 时以它调用 `adopt`；`adopt` 负责移动草稿。主 occurrence 把这个空白 Session 打开为主 Session，嵌入方可以自己显示它。属主不再需要的选择在不调用 `adopt` 的情况下完成；失败的选择会 reject，由属主报告失败，Hero 回到此前显示的工作区。嵌入式 occurrence 也可以传入 `headline`，用来替换 Hero 的标题与预览徽标。共享正文与 Composer 注册 queue dock 和 Todo dock。Todo dock 在 composer 上方使用共享面板 elevation；其中的行分别以共享 idle、ongoing 与 done 标记表示待处理、进行中与已完成。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
+本包占据 root 作用域 `main` 中的 `conversation` key。其 `main.conversation` 外壳将常驻的 `conversation.header` 放在可选 Session 的 `conversation.content` Component Factory 外。未选中 Session 时，头部仍承载根作用域导航；标题、操作和 View 标签保留在严格 Session 子组件中。Factory 拥有共享正文与 Composer，通过其标准 Hook 读取当前 Session，并公开 strict-Session `views` 与 root-scoped `widthControls` 两个局部位置。默认 adapter 渲染现有 `conversation.session` entry，主 occurrence 选择宽度拖拽条；嵌入式 occurrence 可以替换 `views`、省略拖拽条，且不渲染主 Header。每个 occurrence 都传入 `onWorkspaceSelected`，由它决定在 Hero 中选择工作区后做什么。它接收工作区和一个 `adopt` 函数：解析该工作区的空白 Session，用它替换此前显示的 Session，并在同一步、仍保留两个 Session 时以它调用 `adopt`；`adopt` 负责移动草稿。主 occurrence 把这个空白 Session 打开为主 Session，嵌入方可以自己显示它。属主不再需要的选择在不调用 `adopt` 的情况下完成；失败的选择会 reject，由属主报告失败，Hero 回到此前显示的工作区。嵌入式 occurrence 也可以传入 `headline`，用来替换 Hero 的标题。共享正文与 Composer 注册 queue dock 和 Todo dock。Todo dock 在 composer 上方使用共享面板 elevation；其中的行分别以共享 idle、ongoing 与 done 标记表示待处理、进行中与已完成。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
 
 blank Session 保留 header 的 leading 与 corner 控件，包括右侧栏展开入口，同时隐藏标题、actions、utilities 和 View tabs。选择 Workspace 会创建这些控件所需的 Session，无需先发送消息。没有选中 Session 时，strict header 不挂载；常驻 header 在所有平台都保留与 blank Session 相同的 40px 行，因此绑定 Workspace 前后 Hero 输入卡片的高度位置不变；在 macOS 桌面上，这一行同时是窗口拖拽行。侧栏各入口仍遵循自身的数据与执行环境要求。 已开始的 Session 在可用 View 少于两个时使用单行标题栏，仅在渲染标签行时保留其高度。标题与 actions 放不下时，标题区域会裁剪它们，并在 utilities 之前渐隐其末端；utilities 始终完整可见且可点击；标题与 actions slot 中的浮层通过 portal 渲染，不受该裁剪影响。
 
@@ -214,7 +214,7 @@ selector 必须是 owner currency 的纯函数。非 null 返回值作为 `match
 
 `InputActions.captureInsertion()` 捕获草稿选区与版本；`insertText(text, span)` 仅在版本未变且编辑器允许编辑时，插入一次可撤销的纯文本编辑。异步消费者在插入被拒绝后负责保留结果，等待用户操作。
 
-`conversation.input.activity` 在模型选择器与发送按钮之间承载一个控件。其 `onActiveChange` 回调将控件展开至整条工具栏并隐藏普通辅助控件和上下文用量按钮，同时保留编辑器与提交按钮。关闭活动后恢复这些控件，上下文详情保持关闭。首页输入框下方没有内容时，该区域保持收起。占用者在卸载时释放展开状态，并拥有活动专属反馈。
+`conversation.input.activity` 在模型选择器与发送按钮之间承载一个控件。其 `onActiveChange` 回调将控件展开至整条工具栏并隐藏普通辅助控件和上下文用量按钮，同时保留编辑器与提交按钮。关闭活动后恢复这些控件，上下文详情保持关闭。占用者在卸载时释放展开状态，并拥有活动专属反馈。
 
 会话标题右键使用共享[右键菜单](../ui-context-menu/README.zh.md)，目标是被点击面包屑所属会话。可复用图片库从其 Factory 注入的 `useContextMenu` hook 获取 `getTriggerProps`。
 

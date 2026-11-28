@@ -315,17 +315,21 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     }
     // The blank frame renders the hero, not the resident composer: the
     // headline plus the guidance placeholder are the empty state's anchors.
-    await expect.poll(() => page.getByText('Into the Unknown', { exact: false }).count(), { timeout: 15_000 }).toBe(1)
+    await expect.poll(() => page.getByText('What should we build?', { exact: false }).count(), { timeout: 15_000 }).toBe(1)
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     if (MODE !== 'record') {
-      await page.getByText('Into the Unknown', { exact: false }).hover()
+      await page.getByText('What should we build?', { exact: false }).hover()
       await expect.poll(() => page.getByRole('tooltip').count()).toBe(0)
       // Golden of the hero's stable waiting state (captured before any send;
       // the conversation-region goldens belong to the other scenarios).
       const snapshot = await captureStableAria(page, '[class*="frame"]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(HERO_EXPECTED, snapshot, MODE)
     }
+    // The input card keeps its blank-home box once the first message starts the transcript.
+    const card = page.locator('[data-composer-card]').first()
+    const heroCard = await card.boundingBox()
+    expect(heroCard).not.toBeNull()
     const settled = scaffold.whenTurnSettled()
     await writeComposerDraft(page, input, PROMPT)
     const observeTurn = async () => {
@@ -364,6 +368,14 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
       }
     }
     const sessionId = await observeTurn()
+    await expect.poll(() => page.locator('[data-phase="active"]').count()).toBe(1)
+    await expect.poll(async () => {
+      const box = await card.boundingBox()
+      return box === null ? Number.POSITIVE_INFINITY : Math.max(
+        Math.abs(box.x - heroCard!.x), Math.abs(box.y - heroCard!.y),
+        Math.abs(box.width - heroCard!.width), Math.abs(box.height - heroCard!.height),
+      )
+    }).toBeLessThanOrEqual(2)
     if (MODE === 'record') {
       await recordFixture(scaffold, sessionId, FIXTURE)
     }

@@ -47,7 +47,6 @@ describe('Nexus Superharness in the default web profile', () => {
     browser = await chromium.launch()
     page = await browser.newPage({ viewport: { width: 1440, height: 960 }, locale: ZH_BROWSER_LOCALE })
     await page.goto(scaffold.authenticatedUrl)
-    await page.locator('[data-nexus-home]').waitFor()
     await page.locator('[data-composer-input]').waitFor()
   }, 120_000)
 
@@ -59,15 +58,10 @@ describe('Nexus Superharness in the default web profile', () => {
     }
   })
 
-  it('renders one non-interactive Nexus blank-home identity without attribution', async () => {
-    const decoration = page.locator('[data-nexus-home]')
-    expect(await decoration.count()).toBe(1)
-    expect(await decoration.getAttribute('aria-hidden')).toBe('true')
-    expect(await decoration.evaluate(node => getComputedStyle(node).pointerEvents)).toBe('none')
-    expect(await page.locator('[data-nexus-aura]').evaluate(node => getComputedStyle(node).backgroundImage))
-      .toContain('radial-gradient')
-    expect(await page.locator('[data-nexus-glyph] [data-nexus-brand-mark]').count()).toBe(1)
+  it('renders the Nexus blank home without a background decoration or attribution', async () => {
+    expect(await page.locator('[data-nexus-home], [data-nexus-aura], [data-nexus-glyph]').count()).toBe(0)
     expect(await page.locator('[data-nexus-attribution]').count()).toBe(0)
+    expect(await page.locator('[data-phase="hero"] [data-nexus-brand-mark]').count()).toBe(1)
     expect(await page.locator('[data-nexus-brand-mark]').count()).toBeGreaterThan(0)
     const mark = page.locator('[data-nexus-brand-mark]').first()
     expect(await mark.getAttribute('viewBox')).toBe('0 0 96 96')
@@ -190,15 +184,16 @@ describe('Nexus Superharness in the default web profile', () => {
   })
 
   it('keeps the composer independent and follows light and dark theme tokens', async () => {
-    const auraImage = () => page.locator('[data-nexus-aura]').evaluate(node => getComputedStyle(node).backgroundImage)
+    const heroMarkColor = () => page.locator('[data-phase="hero"] [data-nexus-brand-mark]')
+      .evaluate(node => getComputedStyle(node).color)
 
     await themeSettings(scaffold).update('ui-theme', { preference: 'light' })
     await expect.poll(() => page.locator('body').getAttribute('data-ds-dark-theme')).toBeNull()
-    const lightImage = await auraImage()
+    const lightColor = await heroMarkColor()
 
     await themeSettings(scaffold).update('ui-theme', { preference: 'dark' })
     await expect.poll(() => page.locator('body').getAttribute('data-ds-dark-theme')).toBe('')
-    await expect.poll(auraImage).not.toBe(lightImage)
+    await expect.poll(heroMarkColor).not.toBe(lightColor)
     await page.screenshot({ path: `${captureDir}/blank-home-dark.png`, fullPage: true })
 
     const input = page.locator('[data-composer-input]')
@@ -210,10 +205,10 @@ describe('Nexus Superharness in the default web profile', () => {
 
   it('fits a phone-width blank home without horizontal overflow', async () => {
     await page.setViewportSize({ width: 390, height: 844 })
-    const decoration = await page.locator('[data-nexus-home]').boundingBox()
-    expect(decoration).not.toBeNull()
-    expect(decoration!.x).toBeGreaterThanOrEqual(0)
-    expect(decoration!.x + decoration!.width).toBeLessThanOrEqual(390)
+    const mark = await page.locator('[data-phase="hero"] [data-nexus-brand-mark]').boundingBox()
+    expect(mark).not.toBeNull()
+    expect(mark!.x).toBeGreaterThanOrEqual(0)
+    expect(mark!.x + mark!.width).toBeLessThanOrEqual(390)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
     await page.screenshot({ path: `${captureDir}/blank-home-phone.png`, fullPage: true })
   })

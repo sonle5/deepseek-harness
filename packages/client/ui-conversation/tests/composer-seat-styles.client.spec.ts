@@ -44,10 +44,10 @@ describe('docked composer seat styles', () => {
 })
 
 describe('composer statistics row styles', () => {
-  it('reserves one reading row in the docked composer only', () => {
-    expect(rule(inputBarCss, '.root:not(.hero) > .dock'))
+  it('reserves one reading row in the hero and the docked composer alike', () => {
+    expect(rule(inputBarCss, '.dock'))
       .toContain('min-height: calc(22px + var(--dsh-content-font-delta-secondary, 0px))')
-    expect(rule(inputBarCss, '.hero .dock:empty')).toMatch(/display:\s*none;/)
+    expect(inputBarCss).not.toMatch(/\.hero\b/)
   })
 
   it('sizes the reservation to one reading: a 20px secondary line plus 1px block padding', () => {

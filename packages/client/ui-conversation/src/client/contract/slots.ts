@@ -575,7 +575,7 @@ export interface ConversationSessionHeaderInjected {
 
 /** Owner share of the resident composer bar. */
 export interface ComposerBarOwnerProps {
-  /** Hero uses centered placement; composer uses the active bottom placement. */
+  /** Hero renders the blank-home bar; composer adds the active Session's dock. */
   variant: 'hero' | 'composer'
   /** Conversation content occurrence rendering this composer; an unaddressed document paste reaches the main one. */
   occurrence: ConversationContentInputProps['variant']
@@ -736,7 +736,7 @@ export interface ConversationContentInputProps {
   hero: boolean
   /** What a Workspace picked in the Hero does in this occurrence; the main occurrence opens it as the main Session. */
   onWorkspaceSelected: WorkspaceSelectedHandler
-  /** Text the blank-session Hero shows instead of its default headline and preview badge. */
+  /** Text the blank-session Hero shows instead of its default headline. */
   headline?: string | undefined
 }
 

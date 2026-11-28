@@ -61,13 +61,13 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
   )
 }
 
-/** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
+/** Hero chrome props. The workspace row rides the composer stack, not here. */
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
   /** Authorized renderer for the hero brand-mark slot. */
   renderSlot: ConversationContentProps['renderSlot']
-  /** Text shown instead of the default headline and preview badge. */
+  /** Text shown instead of the default headline. */
   headline?: string | undefined
   /** Overlay content after the stack (modals). */
   children?: ReactNode
@@ -127,7 +127,8 @@ function HeroFish({ hovering }: { hovering: boolean }) {
 }
 
 /**
- * Render the hero chrome (headline only; no composer, no workspace row).
+ * Render the hero chrome: the brand mark above one short headline, centered in
+ * the space the bottom-anchored composer leaves (no composer, no workspace row).
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
@@ -137,7 +138,6 @@ export function HeroShell({ t, renderSlot, headline, children }: HeroShellProps)
     <div className={css.root}>
       <div className={css.stack}>
         <div className={css.headline}>
-          {/* figma 34:10412: fish 34×25 leading the headline, gap 10. */}
           <span
             className={css.fishHitbox}
             onPointerEnter={(event) => {
@@ -152,14 +152,7 @@ export function HeroShell({ t, renderSlot, headline, children }: HeroShellProps)
               fallback: <HeroFish hovering={hovering} />,
             })}
           </span>
-          <span className={css.titleGroup}>
-            {/* Own element: keeps the headline text addressable apart from the badge. */}
-            <span>{headline ?? t('hero.headline')}</span>
-            {headline === undefined && <span className={css.previewBadge}>{t('hero.preview')}</span>}
-          </span>
-        </div>
-        <div className={css.body}>
-          {/* The composer remains mounted outside this component. */}
+          <span>{headline ?? t('hero.headline')}</span>
         </div>
       </div>
       {children}

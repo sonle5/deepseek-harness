@@ -7,7 +7,6 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { apply, inject } from '../src/client/index.ts'
 import { NEXUS_MONOGRAM, NexusBrandMark, NexusBrandName } from '../src/client/Brand.tsx'
-import { NexusHeroFrame } from '../src/client/HeroFrame.tsx'
 import { zh } from '../src/client/locales.ts'
 import { apply as hostApply } from '../src/index.ts'
 
@@ -22,7 +21,6 @@ const HOLES = [
   'sidebar.brand.mark',
   'sidebar.brand.name',
   'conversation.hero.brand.mark',
-  'conversation.hero.frame',
 ] as const
 
 async function bench(declare = true) {
@@ -34,10 +32,10 @@ async function bench(declare = true) {
   slots.installLocale(locale)
   const declareHoles = () => slots.register({
     name: 'root',
-    children: Object.fromEntries(HOLES.map(name => [name, {
-      kind: name === 'conversation.hero.frame' ? 'hoc' : 'single',
-      scope: 'root',
-    }])),
+    children: {
+      ...Object.fromEntries(HOLES.map(name => [name, { kind: 'single', scope: 'root' }])),
+      'conversation.hero.frame': { kind: 'hoc', scope: 'root' },
+    },
   } as never, () => null)
   const disposeHoles = declare ? declareHoles() : undefined
   return { ctx, slots, locale, declareHoles, disposeHoles }
@@ -115,29 +113,9 @@ describe('Nexus browser-brand plugin', () => {
     name.unmount()
   })
 
-  it('frames the blank home with the aura and the oversized mark, without an attribution', async () => {
+  it('leaves the blank-home frame layer to the Conversation, with no background decoration', async () => {
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
-    const t = brandT(subject.locale)
-
-    const frame = render(<NexusHeroFrame hero t={t}><p>Conversation</p></NexusHeroFrame>)
-    expect(frame.container.textContent).toBe('Conversation')
-    expect(frame.container.querySelector('[data-nexus-attribution]')).toBeNull()
-    expect(frame.container.querySelector('[data-nexus-home]')?.getAttribute('aria-hidden')).toBe('true')
-    expect(frame.container.querySelectorAll('[data-nexus-aura]')).toHaveLength(1)
-    expect(frame.container.querySelector('[data-nexus-glyph] svg')?.getAttribute('width')).toBe('420')
-    frame.unmount()
-  })
-
-  it('renders only the wrapped Conversation content away from the blank home', async () => {
-    const subject = await bench()
-    await subject.ctx.plugin({ inject: [...inject], apply }).await()
-
-    const frame = render(
-      <NexusHeroFrame hero={false} t={brandT(subject.locale)}><p>Conversation</p></NexusHeroFrame>,
-    )
-    expect(frame.container.textContent).toBe('Conversation')
-    expect(frame.container.querySelector('[data-nexus-home]')).toBeNull()
-    frame.unmount()
+    expect(subject.slots.entries('conversation.hero.frame')).toHaveLength(0)
   })
 })

@@ -160,7 +160,7 @@ Two independent Escape presses in the focused Chat or Composer stop its current 
 
 ### Control geometry
 
-The attachment and send controls share a 32px diameter and the toolbar center line in both the initial composer and the docked composer.
+The attachment and send controls share a 32px diameter and the toolbar center line in both the initial composer and the docked composer. The new-session Workspace chip, the `conversation.hero.agentPreset` chip, and `conversation.hero.options` form a tab strip on the composer card's top edge, so they share its width and corners and precede the draft in keyboard order. Placeholders name only the task; the add button's tooltip names the `/` and `@` triggers.
 
 The task panel keeps its heading and task text on one column, using equal leading slots without changing the icon artwork.
 

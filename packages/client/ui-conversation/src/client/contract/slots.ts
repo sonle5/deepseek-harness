@@ -588,7 +588,10 @@ export interface ComposerBarOwnerProps {
   /** Open the Workspace picker from the inert composer surface. */
   onRequestWorkspace?: () => void
   placeholder?: string
-  /** Optional content rendered above the composer surface. */
+  /**
+   * Optional tab strip rendered on the composer surface's top edge, before the
+   * draft in focus order; its clicks never open the Workspace picker.
+   */
   accessory?: ReactNode
 }
 

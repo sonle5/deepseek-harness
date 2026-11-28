@@ -326,10 +326,14 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
       const snapshot = await captureStableAria(page, '[class*="frame"]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(HERO_EXPECTED, snapshot, MODE)
     }
-    // The input card keeps its blank-home box once the first message starts the transcript.
+    // The input card keeps its blank-home box once the first message starts the transcript, apart from the
+    // Workspace tab strip on its top edge, which only the blank home shows.
     const card = page.locator('[data-composer-card]').first()
     const heroCard = await card.boundingBox()
     expect(heroCard).not.toBeNull()
+    const editor = card.locator('[data-composer-input]')
+    const heroEditor = await editor.boundingBox()
+    expect(heroEditor).not.toBeNull()
     const settled = scaffold.whenTurnSettled()
     await writeComposerDraft(page, input, PROMPT)
     const observeTurn = async () => {
@@ -371,9 +375,12 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     await expect.poll(() => page.locator('[data-phase="active"]').count()).toBe(1)
     await expect.poll(async () => {
       const box = await card.boundingBox()
-      return box === null ? Number.POSITIVE_INFINITY : Math.max(
-        Math.abs(box.x - heroCard!.x), Math.abs(box.y - heroCard!.y),
-        Math.abs(box.width - heroCard!.width), Math.abs(box.height - heroCard!.height),
+      const inner = await editor.boundingBox()
+      return box === null || inner === null ? Number.POSITIVE_INFINITY : Math.max(
+        Math.abs(box.x - heroCard!.x), Math.abs(box.y + box.height - (heroCard!.y + heroCard!.height)),
+        Math.abs(box.width - heroCard!.width),
+        Math.abs(inner.x - heroEditor!.x), Math.abs(inner.y - heroEditor!.y),
+        Math.abs(inner.width - heroEditor!.width), Math.abs(inner.height - heroEditor!.height),
       )
     }).toBeLessThanOrEqual(2)
     if (MODE === 'record') {

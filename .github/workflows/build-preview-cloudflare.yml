@@ -1,7 +1,8 @@
 name: Build PR preview
 
-# Every push to a pull request publishes that pull request's preview to
-# Cloudflare Pages under its own branch alias, behind Cloudflare Access. The
+# Every push to a pull request builds that pull request's preview and, when
+# the run has all four Cloudflare credentials, publishes it to Cloudflare Pages
+# under its own branch alias, behind Cloudflare Access. The
 # upload carries build products plus the snapshot diff page, which embeds
 # committed `snapshots/` diff text: the workflow never grants the deployment
 # platform access to this repository's sources. This lane also owns the
@@ -103,12 +104,34 @@ jobs:
           find apps/web/dist -name '*.map' -delete
           cp apps/web/dist/preview.html apps/web/dist/index.html
 
+      # Without all four Cloudflare credentials, as in a fork or a fork's pull
+      # request, the preview cannot be published, so the publication steps are
+      # skipped with a notice. The build above stays the check.
+      - name: Check Cloudflare publication credentials
+        id: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] \
+            && [ -n "$CF_ACCESS_CLIENT_ID" ] && [ -n "$CF_ACCESS_CLIENT_SECRET" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            message='Cloudflare credentials are not available to this run; the build passed and preview publication was skipped'
+            echo "::notice::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       # Reviewers read snapshot changes at /snapshot-diff/, which opens on the
       # SDK blank-Session catalog (system prompt and tool schemas); the source
       # chooser links to it. The page serves review only, so a failure warns
       # like publication instead of failing the build.
       - name: Render the snapshot diff page
         id: snapshot-diff
+        if: steps.cloudflare.outputs.available == 'true'
         continue-on-error: true
         run: >-
           pnpm exec tsx scripts/snapshot-diff-page.ts --base HEAD^1 --head HEAD
@@ -117,6 +140,7 @@ jobs:
 
       - name: Upload to Cloudflare Pages
         id: upload
+        if: steps.cloudflare.outputs.available == 'true'
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -143,6 +167,7 @@ jobs:
       # about what the platform does with a body that is already compressed.
       - name: Verify the protected deployment serves the image
         id: verify
+        if: steps.cloudflare.outputs.available == 'true'
         continue-on-error: true
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -185,6 +210,7 @@ jobs:
       # an existing comment with older text is edited in place.
       - name: Comment the preview URL
         id: comment
+        if: steps.cloudflare.outputs.available == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

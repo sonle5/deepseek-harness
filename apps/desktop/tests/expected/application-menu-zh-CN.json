@@ -32,13 +32,6 @@
     "type": "separator"
   },
   {
-    "role": "toggleDevTools",
-    "label": "开发者工具"
-  },
-  {
-    "type": "separator"
-  },
-  {
     "role": "hide",
     "label": "隐藏 Nexus Superharness"
   },

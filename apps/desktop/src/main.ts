@@ -1419,35 +1419,37 @@ async function main(): Promise<void> {
       { type: 'separator' },
       { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
       ...productActions.length === 0 ? [] : [{ type: 'separator' as const }, ...productActions],
-      { type: 'separator' },
+      // Packaged builds expose no developer commands or DevTools shortcuts.
       ...development ? [
+        { type: 'separator' as const },
         { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
         { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
           if (quitting) return
           app.relaunch()
           quitWithoutConfirmation()
         } },
+        { role: 'toggleDevTools' as const, label: currentDesktopLocale().messages.toggleDevToolsMenu },
       ] : [],
-      { role: 'toggleDevTools', label: currentDesktopLocale().messages.toggleDevToolsMenu },
       { type: 'separator' },
       ...hideCommands,
       { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
         : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
     ]
   }
-  const devToolsF12Shortcut: MenuItemConstructorOptions = { role: 'toggleDevTools', visible: false, accelerator: 'F12' }
+  const devToolsF12Shortcuts: MenuItemConstructorOptions[] = development
+    ? [{ role: 'toggleDevTools', visible: false, accelerator: 'F12' }] : []
   const windowsComposerShortcuts: MenuItemConstructorOptions[] = composerSwitcher.available
     ? composerProductItems().map(item => ({ ...item, visible: false, acceleratorWorksWhenHidden: true })) : []
   const windowsDevToolsShortcuts: MenuItemConstructorOptions[] = [
-    { role: 'toggleDevTools', visible: false },
-    devToolsF12Shortcut,
+    ...development ? [{ role: 'toggleDevTools' as const, visible: false }] : [],
+    ...devToolsF12Shortcuts,
     ...windowsComposerShortcuts,
   ]
   const refreshApplicationMenu = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32'
       ? windowsDevToolsShortcuts : [{
         label: darwin ? app.name : currentDesktopLocale().messages.application,
-        submenu: [...applicationItems(), devToolsF12Shortcut],
+        submenu: [...applicationItems(), ...devToolsF12Shortcuts],
       }, ...platformMenus()]))
     tray?.relabel()
   }

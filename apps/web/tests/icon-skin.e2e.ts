@@ -65,7 +65,9 @@ it('renders product icons from the sprite and swaps in a theme plugin replacemen
   const page = await newEnglishPage(browser)
   onTestFailed(() => saveFailureShot(page, 'web-e2e-icon-skin'))
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-  const icon = page.locator(ICON).first()
+  // The sidebar search field draws the regular-weight glyph; it stays hidden until search opens.
+  await page.getByRole('button', { name: 'Search sessions', exact: true }).click()
+  const icon = page.locator(ICON).filter({ visible: true }).first()
   await icon.waitFor({ timeout: 20_000 })
   // getBBox measures the geometry <use> actually resolved: zero without a symbol.
   const geometry = () => icon.evaluate((svg: SVGSVGElement) => {

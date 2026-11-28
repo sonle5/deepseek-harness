@@ -64,7 +64,7 @@ Dependency edges:
 - Removed `dsh-web-deepseek-api → dsh-deepseek-account` (optional), `dsh-web-deepseek-api → dsh-launch-environment`
 - Removed `dsh-web-search-deepseek → dsh-llm`
 - Composition: `dsh-base`, `dsh-sdk-minimal`, and `dsh-python-runtime-closure` add `dsh-deepseek-auth`
-- Reverse edges: none. The runtime dependencies of `dsh-deepseek-auth` are only the four packages in the first item, and none of them depends on `dsh-deepseek-auth`
+- Reverse edges: none. The runtime dependencies of `dsh-deepseek-auth` are only the four packages in the first item, which include no package that newly depends on it, and none of those four depends on `dsh-deepseek-auth`
 
 Call flow:
 

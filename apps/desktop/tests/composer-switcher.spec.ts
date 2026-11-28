@@ -35,7 +35,7 @@ function key(code: string, modifiers: Partial<Record<'control' | 'alt' | 'shift'
 
 function owner(url = 'dsh-app://app/') {
   const mainFrame = { url }
-  const webContents = { send: vi.fn(), mainFrame }
+  const webContents = { send: vi.fn(), mainFrame, getZoomFactor: vi.fn(() => 1) }
   // Typed as the switcher's own owner share: the fake carries exactly the
   // members it reads, so no assertion into Electron's full BrowserWindow is
   // needed, and a new member on the share shows up here as a type error.
@@ -324,6 +324,13 @@ describe('composer switcher IPC', () => {
     expect(h.view.hide).toHaveBeenCalledTimes(1)
     expect(h.surface.status.state).not.toBe('idle')
     expect(h.changed().at(-1)).toMatchObject({ visible: false })
+  })
+
+  it('converts zoomed CSS-pixel bounds into window content coordinates', async () => {
+    const h = harness()
+    h.getWindow()!.webContents.getZoomFactor.mockReturnValue(1.5)
+    await h.handler(COMPOSER_SWITCHER_IPC.show)(h.event(), { x: 10, y: 48, width: 100, height: 90 })
+    expect(h.view.show).toHaveBeenLastCalledWith(h.getWindow(), { x: 15, y: 72, width: 150, height: 135 })
   })
 
   it('reattaches a recreated window at the last rectangle and hides under a blocking overlay', async () => {

@@ -35,7 +35,7 @@ export type ComposerSwitcherSender = { send(channel: string, ...args: readonly u
 /** A product window the switcher may attach the Composer view to. */
 export interface ComposerSwitcherOwner {
   isDestroyed(): boolean
-  readonly webContents: ComposerSwitcherSender & { readonly mainFrame: { readonly url: string } }
+  readonly webContents: ComposerSwitcherSender & { readonly mainFrame: { readonly url: string }; getZoomFactor(): number }
   readonly contentView: { addChildView(view: unknown): void; removeChildView(view: unknown): void }
 }
 
@@ -174,9 +174,9 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     if (owner === undefined || owner.isDestroyed()) return
     owner.webContents.send(COMPOSER_SWITCHER_IPC.changed, current())
   }
-  const validBounds = (value: unknown): ComposerBounds => {
+  const validBounds = (value: unknown, owner: ComposerSwitcherOwner | undefined): ComposerBounds => {
     try {
-      return platformBounds(value)
+      return platformBounds(value, owner?.webContents.getZoomFactor())
     } catch {
       throw new Error('Invalid Composer bounds')
     }
@@ -186,7 +186,7 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
     const surface = options.surface()
     if (owner === undefined || owner.isDestroyed() || surface === undefined) return
     if (!available) throw new Error('Composer is not available')
-    const area = validBounds(bounds)
+    const area = validBounds(bounds, owner)
     lastBounds = area
     // Blocking overlays own the surface; the renderer retries once they release.
     if (options.blocked(owner)) { publish(); return }
@@ -205,7 +205,7 @@ export function installComposerSwitcher(options: ComposerSwitcherOptions): {
   const setBounds = (bounds: unknown): void => {
     const owner = options.window()
     const surface = options.surface()
-    const area = validBounds(bounds)
+    const area = validBounds(bounds, owner)
     lastBounds = area
     if (owner === undefined || surface === undefined || !surface.view.visible) return
     // The status may have changed since the last sync; never keep a view over a

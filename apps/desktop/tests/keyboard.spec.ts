@@ -370,9 +370,11 @@ it('refreshes the native menu only when its accelerator or availability changes'
   await f.call(DESKTOP_IPC.shortcutsGet, [close])
   expect(f.updateMenu).toHaveBeenCalledOnce()
   const menu = f.keyboard.fileMenu({ fileMenu: 'File', closePage: 'Close' }).submenu as Electron.MenuItemConstructorOptions[]
-  const registered = await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, [close, ...f.definitions])
+  // page.refresh has no native menu item, so neither its registration nor its binding refreshes the menu.
+  const refresh = { id: 'page.refresh', defaults: desktopDefaults({ code: 'KeyR', modifiers: ['primary'] }) }
+  const registered = await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, [close, refresh])
   const edited = await f.call<ShortcutSaveResult>(DESKTOP_IPC.shortcutsEdit,
-    { type: 'set', id: 'sidebar.left.toggle', binding: { code: 'KeyJ', modifiers: ['primary'] } }, registered.revision)
+    { type: 'set', id: 'page.refresh', binding: { code: 'KeyJ', modifiers: ['primary'] } }, registered.revision)
   expect(edited.status).toBe('saved')
   expect(f.updateMenu).toHaveBeenCalledOnce()
   f.contents.send.mockClear()
@@ -924,4 +926,69 @@ it.each([
 
   await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, f.definitions)
   expect(f.keyboard.settingsMenuItem('Settings…').enabled).toBe(false)
+})
+
+it('builds registry command menu items that follow rebinding and run through the menu path once', async () => {
+  const f = await fixture('macos')
+  const newSession = (available = true) => f.keyboard.commandMenuItem('session.new', 'New Session', available)
+  expect(newSession()).toMatchObject({ id: 'dsh-session-new', label: 'New Session', enabled: false })
+  expect(newSession()).not.toHaveProperty('accelerator')
+  const definitions: ShortcutDefinition[] = [
+    { id: 'session.new' as ShortcutCommandId, defaults: desktopDefaults({ code: 'KeyN', modifiers: ['primary'] }) },
+    { id: 'sidebar.right.toggle' as ShortcutCommandId, defaults: desktopDefaults({ code: 'KeyB', modifiers: ['primary', 'alt'] }) },
+  ]
+  const initial = await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, definitions)
+  expect(newSession()).toMatchObject({ enabled: true, accelerator: 'Command+N' })
+  expect(newSession(false).enabled).toBe(false)
+  expect(f.keyboard.commandMenuItem('sidebar.right.toggle', 'Toggle Right Panel').accelerator).toBe('Alt+Command+B')
+  // A command the product has not registered stays visible but disabled.
+  expect(f.keyboard.commandMenuItem('shortcuts.open', 'Keyboard Shortcuts')).toMatchObject({ enabled: false })
+
+  // The registry receives the native key once and the menu accelerator is suppressed for it.
+  const registry = new ShortcutRegistry('desktop', 'macos', initial)
+  const run = vi.fn()
+  registry.register({ ...definitions[0]!, label: () => 'New Session', aliases: [], regions: ['page'], modals: [],
+    resolve: () => ({ status: 'handled', run }) })
+  let deliver: (input: DesktopShortcutInput) => void = () => {}
+  onTestFinished(installNativeKeyboard(window, { closeWindow: vi.fn(), subscribe: (listener) => { deliver = listener; return () => {} } },
+    registry, () => registry.config.getSnapshot()))
+  f.contents.send.mockImplementation((channel: string, input: DesktopShortcutInput) => {
+    if (channel === DESKTOP_IPC.shortcutsInput) deliver(input)
+  })
+  const preventDefault = vi.fn()
+  f.contents.emit('before-input-event', { preventDefault }, { type: 'keyDown', code: 'KeyN', key: 'n', modifiers: ['meta'],
+    meta: true, control: false, alt: false, shift: false, isAutoRepeat: false, isComposing: false })
+  expect(preventDefault).toHaveBeenCalledOnce()
+  expect(f.contents.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(true)
+  expect(run).toHaveBeenCalledOnce()
+  ;(newSession().click as () => void)()
+  expect(run).toHaveBeenCalledTimes(2)
+  expect(f.contents.send).toHaveBeenLastCalledWith(DESKTOP_IPC.shortcutsInput,
+    { kind: 'menu', commandId: 'session.new', revision: initial.revision })
+
+  // Rebinding updates the label without a restart; unavailable or recording states do not send.
+  f.updateMenu.mockClear()
+  const saved = await f.call<ShortcutSaveResult>(DESKTOP_IPC.shortcutsEdit,
+    { type: 'set', id: 'session.new', binding: { code: 'KeyJ', modifiers: ['primary', 'shift'] } }, initial.revision)
+  expect(saved.status).toBe('saved')
+  expect(f.updateMenu).toHaveBeenCalledOnce()
+  expect(newSession().accelerator).toBe('Shift+Command+J')
+  f.contents.send.mockClear()
+  ;(newSession(false).click as () => void)()
+  await f.call(DESKTOP_IPC.shortcutsRecording, true)
+  ;(newSession().click as () => void)()
+  await f.call(DESKTOP_IPC.shortcutsRecording, false)
+  expect(f.contents.send).not.toHaveBeenCalled()
+  expect(run).toHaveBeenCalledTimes(2)
+
+  // Another product's view suppresses only the named commands' menu keys.
+  const composer = { setIgnoreMenuShortcuts: vi.fn<(ignore: boolean) => void>() }
+  const key = (code: string, key: string, shift = false) => ({ code, key, meta: true, control: false, alt: false, shift })
+  const ignore = (input: ReturnType<typeof key>, commandIds: Parameters<typeof f.keyboard.ignoreMenuKeys>[2]) => {
+    f.keyboard.ignoreMenuKeys(composer, input, commandIds)
+    return composer.setIgnoreMenuShortcuts.mock.lastCall?.[0]
+  }
+  expect(ignore(key('KeyJ', 'J', true), ['session.new'])).toBe(true)
+  expect(ignore(key('KeyN', 'n'), ['session.new'])).toBe(false)
+  expect(ignore(key('KeyJ', 'J', true), ['sidebar.right.toggle'])).toBe(false)
 })

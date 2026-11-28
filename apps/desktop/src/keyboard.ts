@@ -6,6 +6,15 @@ import type { DesktopBrowserLeaseId } from '@deepseek-ai/dsh-client-ui-sidebar-b
 import { desktopKeybindings } from './keybindings.ts'
 import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 
+/** Registry commands the native application menu can invoke; each item shows its command's accepted binding. */
+export const MENU_COMMAND_IDS = ['page.close', 'settings.open', 'session.new', 'workspace.add', 'session.search',
+  'sidebar.left.toggle', 'sidebar.right.toggle', 'shortcuts.open'] as const
+
+/** One registry command reachable from the native application menu. */
+export type MenuCommandId = typeof MENU_COMMAND_IDS[number]
+
+type MenuKeyInput = Pick<Input, 'code' | 'key' | 'control' | 'alt' | 'shift' | 'meta'>
+
 /**
  * Install application-owned configuration handlers and attach each product window's input lifecycle.
  * @param getWindow - current product window.
@@ -19,8 +28,17 @@ export function installDesktopShortcuts(
   getWindow: () => BrowserWindow | undefined, userData: string, platform: ShortcutPlatform, updateMenu: () => void,
   overlayInput: (window: BrowserWindow) => { readonly revision: number; readonly blocked: boolean },
 ): {
-  fileMenu(labels: { fileMenu: string; closePage: string }): MenuItemConstructorOptions
+  fileMenu(labels: { fileMenu: string; closePage: string }, items?: readonly MenuItemConstructorOptions[]): MenuItemConstructorOptions
   settingsMenuItem(label: string, available?: boolean, focusWindow?: () => void): MenuItemConstructorOptions
+  /**
+   * Build a native menu item that invokes one registry command through the same path as its key binding.
+   * @param commandId - registered product command; the item stays disabled until the product registers it.
+   * @param label - localized menu label.
+   * @param available - shell-owned availability, such as an entered workspace.
+   * @param focusWindow - restores the product window before the command is sent.
+   * @returns an item whose accelerator displays the command's accepted single-key binding.
+   */
+  commandMenuItem(commandId: MenuCommandId, label: string, available?: boolean, focusWindow?: () => void): MenuItemConstructorOptions
   /**
    * Send a native Edit action to the editor without matching user shortcuts.
    * @param keyCode - edit key.
@@ -28,6 +46,13 @@ export function installDesktopShortcuts(
    */
   sendEditingKey(keyCode: string, modifiers: Array<'control'>): void
   attach(window: BrowserWindow): void
+  /**
+   * Keep these commands' menu accelerators from firing while another product's view has focus.
+   * @param contents - focused contents outside the product document, such as the Composer view.
+   * @param input - native key reaching that contents.
+   * @param commandIds - commands that belong to the product document.
+   */
+  ignoreMenuKeys(contents: Pick<WebContents, 'setIgnoreMenuShortcuts'>, input: MenuKeyInput, commandIds: readonly MenuCommandId[]): void
   /**
    * Intercept an approved browser guest's keys until its lease ends.
    * @param window - owning product window.
@@ -41,29 +66,65 @@ export function installDesktopShortcuts(
   let definitions: readonly ShortcutDefinition[] = []
   let recording = false
   let revision: ShortcutRevision | undefined
-  let closeBinding: NormalizedBinding | null = null
-  let settingsBinding: NormalizedBinding | null = null
-  let settingsEnabled = false
+  // Accepted bindings of the commands a native menu item can invoke; null while unbound or conflicting.
+  let menuBindings = new Map<MenuCommandId, NormalizedBinding | null>()
+  let registeredCommands = new Set<string>()
   let editingInput: BrowserWindow['webContents'] | undefined
   const scopedDesktop = platform === 'windows' || platform === 'macos'
   const disposers = new Set<() => void>()
   const guestInputs = new Map<WebContents, { window: BrowserWindow; reset(): void }>()
   const menuAccelerator = (binding: NormalizedBinding | null): string | undefined => presentBinding(binding, platform).aria
     ?.replace('Meta+', platform === 'macos' ? 'Command+' : 'Super+').replace(/Arrow(Up|Down|Left|Right)$/u, '$1')
+  // Whether a native key would fire the menu accelerator of one of these commands.
+  const matchesMenuKey = (input: MenuKeyInput, commandIds: readonly MenuCommandId[]): boolean => {
+    const modifiers = (['control', 'alt', 'shift', 'meta'] as const).filter(modifier => input[modifier])
+    return commandIds.some((commandId) => {
+      const binding = menuBindings.get(commandId) ?? null
+      if (binding === null || binding.secondCode !== undefined || modifiers.join('+') !== binding.modifiers.join('+')) return false
+      if (binding.code.startsWith('Key')) return input.key.toUpperCase() === binding.code.slice(3)
+      if (binding.code.startsWith('Digit')) return input.key === binding.code.slice(5)
+      const acceleratorKey = menuAccelerator(binding)?.split('+').at(-1)
+      return acceleratorKey !== undefined && acceleratorKey.length === 1
+        ? input.key.toUpperCase() === acceleratorKey.toUpperCase()
+        : input.code === binding.code
+    })
+  }
   const sendMenuClose = (): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || !window.isFocused() || !window.isEnabled()
       || revision === undefined || recording || overlayInput(window).blocked) return
     window.webContents.send(DESKTOP_IPC.shortcutsInput, { kind: 'menu', commandId: 'page.close', revision })
   }
+  const commandEnabled = (commandId: MenuCommandId): boolean => revision !== undefined && registeredCommands.has(commandId)
+  function commandMenuItem(
+    commandId: MenuCommandId, label: string, available = true, focusWindow?: () => void,
+  ): MenuItemConstructorOptions {
+    const accelerator = menuAccelerator(menuBindings.get(commandId) ?? null)
+    return {
+      id: `dsh-${commandId.replaceAll('.', '-')}`,
+      label,
+      enabled: available && commandEnabled(commandId),
+      ...accelerator === undefined ? {} : { accelerator },
+      click: () => {
+        if (!available || !commandEnabled(commandId) || recording) return
+        const current = getWindow()
+        if (current === undefined || current.isDestroyed() || !current.isEnabled() || overlayInput(current).blocked) return
+        focusWindow?.()
+        const window = getWindow()
+        if (window === undefined || window.isDestroyed() || (focusWindow === undefined && !window.isFocused()) || !window.isEnabled()
+          || overlayInput(window).blocked) return
+        window.webContents.send(DESKTOP_IPC.shortcutsInput, { kind: 'menu', commandId, revision })
+      },
+    }
+  }
+  // Everything a menu item displays from this module: whether it can run and its accelerator.
+  const menuState = (): string => JSON.stringify([revision !== undefined,
+    ...MENU_COMMAND_IDS.map(id => [commandEnabled(id), menuAccelerator(menuBindings.get(id) ?? null)])])
   let keys = new Set<string>()
   const publish = (snapshot: ShortcutConfigSnapshot): void => {
-    const wasCloseEnabled = revision !== undefined
-    const wasSettingsEnabled = settingsEnabled
-    const previousClose = menuAccelerator(closeBinding)
-    const previousSettings = menuAccelerator(settingsBinding)
+    const previousMenu = menuState()
     revision = definitions.length === 0 || snapshot.status === 'loading' ? undefined : snapshot.revision
-    settingsEnabled = revision !== undefined && definitions.some(entry => entry.id === 'settings.open')
+    registeredCommands = new Set(definitions.map(entry => entry.id))
     const rows = snapshot.status === 'loading' ? [] : effectiveShortcuts(definitions, snapshot.document, 'desktop', platform)
     keys = new Set(rows.flatMap(row => row.binding !== null && row.issue === null && row.conflicts.length === 0
       ? [bindingKey(row.binding)] : []))
@@ -71,12 +132,8 @@ export function installDesktopShortcuts(
       const row = rows.find(entry => entry.id === id)
       return row?.issue === null && row.conflicts.length === 0 ? row.binding : null
     }
-    closeBinding = activeBinding('page.close')
-    settingsBinding = activeBinding('settings.open')
-    if (wasCloseEnabled !== (revision !== undefined)
-      || wasSettingsEnabled !== settingsEnabled
-      || previousClose !== menuAccelerator(closeBinding)
-      || previousSettings !== menuAccelerator(settingsBinding)) updateMenu()
+    menuBindings = new Map(MENU_COMMAND_IDS.map(id => [id, activeBinding(id)]))
+    if (previousMenu !== menuState()) updateMenu()
     const window = getWindow()
     if (window !== undefined && !window.isDestroyed() && window.webContents.mainFrame.url.startsWith('dsh-app://app/')) {
       window.webContents.send(DESKTOP_IPC.shortcutsChanged, snapshot)
@@ -132,7 +189,7 @@ export function installDesktopShortcuts(
     const clear = (): void => {
       resetInput()
       if (guestName !== undefined) return
-      definitions = []; keys.clear(); recording = false; settingsEnabled = false
+      definitions = []; keys.clear(); recording = false; registeredCommands = new Set()
       persistence.setDefinitions(null)
     }
     const navigation = (event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
@@ -159,16 +216,7 @@ export function installDesktopShortcuts(
       const modifiers = (['control', 'alt', 'shift', 'meta'] as const).filter(modifier => input[modifier])
       const key = bindingKey({ code: input.code, modifiers })
       const match = keys.has(key)
-      const matchesMenuKey = (binding: NormalizedBinding | null): boolean => {
-        if (binding === null || binding.secondCode !== undefined || modifiers.join('+') !== binding.modifiers.join('+')) return false
-        if (binding.code.startsWith('Key')) return input.key.toUpperCase() === binding.code.slice(3)
-        if (binding.code.startsWith('Digit')) return input.key === binding.code.slice(5)
-        const acceleratorKey = menuAccelerator(binding)?.split('+').at(-1)
-        return acceleratorKey !== undefined && acceleratorKey.length === 1
-          ? input.key.toUpperCase() === acceleratorKey.toUpperCase()
-          : input.code === binding.code
-      }
-      const menuMatch = matchesMenuKey(closeBinding) || matchesMenuKey(settingsBinding)
+      const menuMatch = matchesMenuKey(input, MENU_COMMAND_IDS)
       contents.setIgnoreMenuShortcuts(recording || match || menuMatch)
       const frame = contents.focusedFrame
       const composing = input.isComposing || input.key === 'Dead' || deadKey || input.modifiers.includes('altgr')
@@ -260,36 +308,18 @@ export function installDesktopShortcuts(
         if (!contents.isDestroyed()) contents.setIgnoreMenuShortcuts(recording)
       }
     },
-    fileMenu: (labels) => {
-      const accelerator = menuAccelerator(closeBinding)
-      return { label: labels.fileMenu, submenu: [{
+    fileMenu: (labels, items = []) => {
+      const accelerator = menuAccelerator(menuBindings.get('page.close') ?? null)
+      return { label: labels.fileMenu, submenu: [...items, ...items.length === 0 ? [] : [{ type: 'separator' as const }], {
         id: 'dsh-page-close', label: labels.closePage, enabled: revision !== undefined,
         ...accelerator === undefined ? {} : { accelerator },
         click: sendMenuClose,
       }] }
     },
-    settingsMenuItem(label, available = true, focusWindow) {
-      const accelerator = menuAccelerator(settingsBinding)
-      return {
-        id: 'dsh-settings-open',
-        label,
-        enabled: available && settingsEnabled,
-        ...accelerator === undefined ? {} : { accelerator },
-        click: () => {
-          if (!available || !settingsEnabled || revision === undefined || recording) return
-          const current = getWindow()
-          if (current === undefined || current.isDestroyed() || !current.isEnabled() || overlayInput(current).blocked) return
-          focusWindow?.()
-          const window = getWindow()
-          if (window === undefined || window.isDestroyed() || (focusWindow === undefined && !window.isFocused()) || !window.isEnabled()
-            || overlayInput(window).blocked) return
-          window.webContents.send(DESKTOP_IPC.shortcutsInput, {
-            kind: 'menu', commandId: 'settings.open', revision,
-          })
-        },
-      }
-    },
+    settingsMenuItem: (label, available, focusWindow) => commandMenuItem('settings.open', label, available, focusWindow),
+    commandMenuItem,
     attach(window) { attachInput(window, window.webContents) },
+    ignoreMenuKeys(contents, input, commandIds) { contents.setIgnoreMenuShortcuts(matchesMenuKey(input, commandIds)) },
     attachGuest: attachInput,
     dispose() {
       for (const dispose of disposers) dispose()
